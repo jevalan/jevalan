@@ -70,6 +70,10 @@ fn handle_message(daemon: &dyn Daemon, msg: &Value) -> Option<Value> {
     if !msg.is_object() {
         return Some(failure(&Value::Null, -32600, "petición inválida"));
     }
+    // A response from the client (it answers a request of ours) is never answered.
+    if msg.get("method").is_none() && (msg.get("result").is_some() || msg.get("error").is_some()) {
+        return None;
+    }
     let id = msg.get("id")?.clone();
     let params = msg.get("params").cloned().unwrap_or(Value::Null);
     let answer = match msg.get("method").and_then(Value::as_str) {
@@ -220,5 +224,11 @@ mod tests {
             assert_eq!(r["error"]["code"], -32600, "{line}");
             assert!(r["id"].is_null());
         }
+    }
+
+    #[test]
+    fn client_responses_get_no_reply() {
+        assert!(handle_line(&FakeDaemon, r#"{"jsonrpc":"2.0","id":7,"result":{}}"#).is_none());
+        assert!(handle_line(&FakeDaemon, r#"{"jsonrpc":"2.0","id":8,"error":{"code":-1,"message":"x"}}"#).is_none());
     }
 }

@@ -90,24 +90,36 @@ impl HttpDaemon {
                 Ok::<_, reqwest::Error>((status, text))
             });
             match sent {
-                Ok((status, text)) => {
-                    let value: Value =
-                        serde_json::from_str(&text).map_err(|_| format!("respuesta ilegible (HTTP {status})"))?;
-                    if status.is_success() {
-                        return Ok(value);
-                    }
-                    let why = value
-                        .get("error")
-                        .and_then(Value::as_str)
-                        .map_or_else(|| format!("HTTP {status}"), str::to_string);
-                    return Err(why);
-                }
+                Ok((status, text)) => return explain(status, &text),
                 Err(e) if e.is_connect() => last = format!("daemon inalcanzable en {addr}: {}", e.without_url()),
                 Err(e) if e.is_timeout() => return Err("el daemon no respondió a tiempo".into()),
                 Err(e) => return Err(format!("fallo hablando con el daemon: {}", e.without_url())),
             }
         }
         Err(last)
+    }
+}
+
+/// Turns a daemon reply into a value or a readable reason. Failure bodies that are plain text (a 401 or a 413
+/// answer with one) are quoted instead of reported as unreadable, and the extra fields of a JSON failure
+/// (`path`, `trace_id`) are kept so the caller can still follow the run.
+fn explain(status: reqwest::StatusCode, text: &str) -> Result<Value, String> {
+    let parsed: Option<Value> = serde_json::from_str(text).ok();
+    if status.is_success() {
+        return parsed.ok_or_else(|| format!("respuesta ilegible (HTTP {status})"));
+    }
+    match parsed {
+        Some(Value::Object(mut map)) => {
+            let why = match map.remove("error") {
+                Some(Value::String(s)) => s,
+                _ => format!("HTTP {status}"),
+            };
+            if map.is_empty() { Err(why) } else { Err(format!("{why} | {}", Value::Object(map))) }
+        }
+        _ => {
+            let quoted: String = text.trim().chars().take(200).collect();
+            if quoted.is_empty() { Err(format!("HTTP {status}")) } else { Err(format!("HTTP {status}: {quoted}")) }
+        }
     }
 }
 
@@ -179,5 +191,24 @@ mod tests {
         let err = d.send_to(&list, reqwest::Method::POST, "/v1/hub", Some(&serde_json::json!({}))).unwrap_err();
         assert!(second.accept().is_err(), "el POST no debía reenviarse al segundo candidato");
         assert!(err.contains("a tiempo"), "{err}");
+    }
+
+    #[test]
+    fn explain_turns_plain_text_errors_into_readable_reasons() {
+        let err = explain(reqwest::StatusCode::UNAUTHORIZED, "token requerido\n").unwrap_err();
+        assert!(err.contains("401") && err.contains("token requerido"), "{err}");
+    }
+
+    #[test]
+    fn explain_keeps_the_json_error_and_the_trace_fields() {
+        let body = r#"{"error":"boom","trace_id":"t1","path":[1]}"#;
+        let err = explain(reqwest::StatusCode::BAD_GATEWAY, body).unwrap_err();
+        assert!(err.contains("boom") && err.contains("t1"), "{err}");
+    }
+
+    #[test]
+    fn explain_passes_json_successes_and_rejects_unreadable_ones() {
+        assert_eq!(explain(reqwest::StatusCode::OK, r#"{"a":1}"#).unwrap(), serde_json::json!({"a":1}));
+        assert!(explain(reqwest::StatusCode::OK, "no es json").unwrap_err().contains("ilegible"));
     }
 }
