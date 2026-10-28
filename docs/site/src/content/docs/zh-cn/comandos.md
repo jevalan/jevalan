@@ -15,6 +15,7 @@ description: TUI、守护进程、流程编辑器、hook、影子日志和实验
 | `jevalan hook run --client <name> --dialect <claude\|crush>` | 通用 hook 适配器。 |
 | `jevalan shadow report` | 针对影子日志的 Markdown 报告。 |
 | `jevalan shadow fixtures` | 把真实决策转成实验室 fixture。 |
+| `jevalan mcp [--allow-live]` | 基于 stdio 的 MCP 服务器：把能力中心的能力暴露为工具。见 [MCP 服务器](/zh-cn/servidor-mcp/)。 |
 | `jevalan lab check` | 离线校验实验室 fixture。 |
 | `jevalan lab offline` | 离线重放 fixture。 |
 | `jevalan lab record` | 调用真实后端并录制 cassette，受预算限制。 |
