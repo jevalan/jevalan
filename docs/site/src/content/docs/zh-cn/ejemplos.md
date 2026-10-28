@@ -1,9 +1,9 @@
 ---
 title: 示例
-description: 八个完整示例：从只用规则的流程，到守护代码智能体，再到 CI 中的检查。
+description: 九个完整示例：从只用规则的流程，到守护代码智能体，再到 CI 中的检查。
 ---
 
-每个示例都是自包含的。前两个是针对真实守护进程运行的，所展示的响应就是它的实际输出。示例 5 到 7 能通过 `POST /v1/flows/validate`，但它们会询问模型，因此没有用模型运行过：请把其中的阈值和权重当作初步估计，并用[实验室](/zh-cn/laboratorio/)调整。其余示例使用仓库自带的文件和命令。
+每个示例都是自包含的。前两个是针对真实守护进程运行的，所展示的响应就是它的实际输出。示例 5 到 8 能通过 `POST /v1/flows/validate`，但它们会询问模型，因此没有用模型运行过：请把其中的阈值和权重当作初步估计，并用[实验室](/zh-cn/laboratorio/)调整。其余示例使用仓库自带的文件和命令。
 
 ## 1. 用简单规则为支持工单分流
 
@@ -191,7 +191,40 @@ outputs:
 
 如果后端失败，线索会进入中间队列，而不是丢失或被提级。
 
-## 8. 在 CI 中检查决策
+## 8. 只在没把握时才升级到更强的模型
+
+大多数消息很简单，小模型就能又好又便宜地处理。给它设置 `min_confidence`，并把它的 `low-confidence` 和 `error` 端口接到使用更大模型的第二个节点。如果连这个也没把握，流程就不再询问模型，而是把案例交给真人。
+
+```yaml
+description: "Classify with a small model and escalate to a larger one when unsure"
+defaults: { backend: ollama, model: small, min_confidence: 0.7 }
+start: quick
+nodes:
+  quick:
+    type: choice
+    instructions: "What is the sentiment of the customer message?"
+    criteria: { positive: "Clearly happy", neutral: "Neither happy nor unhappy", negative: "Clearly unhappy" }
+    out: { positive: pos_cheap, neutral: neu_cheap, negative: neg_cheap, low-confidence: careful, error: careful }
+  careful:
+    type: choice
+    model: large
+    min_confidence: 0.5
+    instructions: "What is the sentiment of the customer message?"
+    criteria: { positive: "Clearly happy", neutral: "Neither happy nor unhappy", negative: "Clearly unhappy" }
+    out: { positive: pos_strong, neutral: neu_strong, negative: neg_strong, low-confidence: human, error: human }
+outputs:
+  pos_cheap:  { outcome: classified, data: { sentiment: positive, tier: small } }
+  neu_cheap:  { outcome: classified, data: { sentiment: neutral,  tier: small } }
+  neg_cheap:  { outcome: classified, data: { sentiment: negative, tier: small } }
+  pos_strong: { outcome: classified, data: { sentiment: positive, tier: large } }
+  neu_strong: { outcome: classified, data: { sentiment: neutral,  tier: large } }
+  neg_strong: { outcome: classified, data: { sentiment: negative, tier: large } }
+  human:      { outcome: review, data: { reason: "both models were unsure" } }
+```
+
+每个节点都可以指定自己的 `model`（以及 `backend`），因此升级只是多一个节点。输出中的 `tier` 会告诉你是哪个模型做出的决定，这样节省的成本就可以衡量：统计便宜档够用的比例，并用[实验室](/zh-cn/laboratorio/)调整 `min_confidence`。这里的模型和阈值只是占位，请换成你实际运行的。
+
+## 9. 在 CI 中检查决策
 
 把实验室加入你的流水线。它不需要后端，也不需要密钥：
 

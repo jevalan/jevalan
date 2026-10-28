@@ -1,9 +1,9 @@
 ---
 title: Ejemplos
-description: Ocho ejemplos completos, desde un flujo solo con reglas hasta un guardián para tu agente de código y una comprobación en CI.
+description: Nueve ejemplos completos, desde un flujo solo con reglas hasta un guardián para tu agente de código y una comprobación en CI.
 ---
 
-Cada ejemplo es autosuficiente. Los dos primeros se ejecutaron contra un daemon real y las respuestas son su salida auténtica. Los ejemplos 5 a 7 pasan `POST /v1/flows/validate`, pero preguntan a un modelo y no se probaron con uno: toma sus umbrales y pesos como una primera aproximación y afínalos con el [laboratorio](/laboratorio/). El resto usa ficheros y comandos que vienen con el repositorio.
+Cada ejemplo es autosuficiente. Los dos primeros se ejecutaron contra un daemon real y las respuestas son su salida auténtica. Los ejemplos 5 a 8 pasan `POST /v1/flows/validate`, pero preguntan a un modelo y no se probaron con uno: toma sus umbrales y pesos como una primera aproximación y afínalos con el [laboratorio](/laboratorio/). El resto usa ficheros y comandos que vienen con el repositorio.
 
 ## 1. Enruta tickets de soporte con reglas
 
@@ -191,7 +191,40 @@ outputs:
 
 Si falla el backend, el lead cae en la cola intermedia en vez de perderse o ascender.
 
-## 8. Comprueba las decisiones en CI
+## 8. Escala a un modelo más potente solo cuando dude
+
+La mayoría de los mensajes son fáciles, y un modelo pequeño los resuelve bien y barato. Dale un `min_confidence` y manda sus puertos `low-confidence` y `error` a un segundo nodo con un modelo mayor. Si ni siquiera ese lo tiene claro, el flujo deja de preguntar a modelos y pasa el caso a una persona.
+
+```yaml
+description: "Classify with a small model and escalate to a larger one when unsure"
+defaults: { backend: ollama, model: small, min_confidence: 0.7 }
+start: quick
+nodes:
+  quick:
+    type: choice
+    instructions: "What is the sentiment of the customer message?"
+    criteria: { positive: "Clearly happy", neutral: "Neither happy nor unhappy", negative: "Clearly unhappy" }
+    out: { positive: pos_cheap, neutral: neu_cheap, negative: neg_cheap, low-confidence: careful, error: careful }
+  careful:
+    type: choice
+    model: large
+    min_confidence: 0.5
+    instructions: "What is the sentiment of the customer message?"
+    criteria: { positive: "Clearly happy", neutral: "Neither happy nor unhappy", negative: "Clearly unhappy" }
+    out: { positive: pos_strong, neutral: neu_strong, negative: neg_strong, low-confidence: human, error: human }
+outputs:
+  pos_cheap:  { outcome: classified, data: { sentiment: positive, tier: small } }
+  neu_cheap:  { outcome: classified, data: { sentiment: neutral,  tier: small } }
+  neg_cheap:  { outcome: classified, data: { sentiment: negative, tier: small } }
+  pos_strong: { outcome: classified, data: { sentiment: positive, tier: large } }
+  neu_strong: { outcome: classified, data: { sentiment: neutral,  tier: large } }
+  neg_strong: { outcome: classified, data: { sentiment: negative, tier: large } }
+  human:      { outcome: review, data: { reason: "both models were unsure" } }
+```
+
+Cada nodo puede indicar su propio `model` (y `backend`), así que la escalada es solo un segundo nodo. El `tier` de la salida dice qué modelo decidió, lo que permite medir el ahorro: cuenta cuántas veces basta el nivel barato y ajusta `min_confidence` con el [laboratorio](/laboratorio/). Los modelos y umbrales de aquí son de relleno; usa los que de verdad ejecutes.
+
+## 9. Comprueba las decisiones en CI
 
 Añade el laboratorio a tu pipeline. No necesita backend ni clave:
 

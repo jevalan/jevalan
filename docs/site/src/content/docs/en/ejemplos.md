@@ -1,9 +1,9 @@
 ---
 title: Examples
-description: Eight worked examples, from a rules-only flow to a guard on your coding agent and a check in CI.
+description: Nine worked examples, from a rules-only flow to a guard on your coding agent and a check in CI.
 ---
 
-Each example is self-contained. The first two were run against a real daemon and the responses shown are its actual output. Examples 5 to 7 pass `POST /v1/flows/validate`, but they ask a model, so they were not run against one: treat their thresholds and weights as a first guess and tune them with the [laboratory](/en/laboratorio/). The rest use files and commands that ship with the repository.
+Each example is self-contained. The first two were run against a real daemon and the responses shown are its actual output. Examples 5 to 8 pass `POST /v1/flows/validate`, but they ask a model, so they were not run against one: treat their thresholds and weights as a first guess and tune them with the [laboratory](/en/laboratorio/). The rest use files and commands that ship with the repository.
 
 ## 1. Route support tickets with plain rules
 
@@ -191,7 +191,40 @@ outputs:
 
 If the backend fails, the lead lands in the middle queue instead of being lost or promoted.
 
-## 8. Check decisions in CI
+## 8. Escalate to a stronger model only when unsure
+
+Most messages are easy, and a small model answers them well and cheaply. Give it a `min_confidence` and route its `low-confidence` and `error` ports to a second node that uses a larger model. If even that one is unsure, the flow stops asking models and hands the case to a person.
+
+```yaml
+description: "Classify with a small model and escalate to a larger one when unsure"
+defaults: { backend: ollama, model: small, min_confidence: 0.7 }
+start: quick
+nodes:
+  quick:
+    type: choice
+    instructions: "What is the sentiment of the customer message?"
+    criteria: { positive: "Clearly happy", neutral: "Neither happy nor unhappy", negative: "Clearly unhappy" }
+    out: { positive: pos_cheap, neutral: neu_cheap, negative: neg_cheap, low-confidence: careful, error: careful }
+  careful:
+    type: choice
+    model: large
+    min_confidence: 0.5
+    instructions: "What is the sentiment of the customer message?"
+    criteria: { positive: "Clearly happy", neutral: "Neither happy nor unhappy", negative: "Clearly unhappy" }
+    out: { positive: pos_strong, neutral: neu_strong, negative: neg_strong, low-confidence: human, error: human }
+outputs:
+  pos_cheap:  { outcome: classified, data: { sentiment: positive, tier: small } }
+  neu_cheap:  { outcome: classified, data: { sentiment: neutral,  tier: small } }
+  neg_cheap:  { outcome: classified, data: { sentiment: negative, tier: small } }
+  pos_strong: { outcome: classified, data: { sentiment: positive, tier: large } }
+  neu_strong: { outcome: classified, data: { sentiment: neutral,  tier: large } }
+  neg_strong: { outcome: classified, data: { sentiment: negative, tier: large } }
+  human:      { outcome: review, data: { reason: "both models were unsure" } }
+```
+
+Each node can name its own `model` (and `backend`), so the escalation is just a second node. The `tier` in the output tells you which model decided, which makes the saving measurable: count how often the cheap tier is enough, and tune `min_confidence` with the [laboratory](/en/laboratorio/). Models and thresholds here are placeholders; use the ones you actually run.
+
+## 9. Check decisions in CI
 
 Add the laboratory to your pipeline. It needs no backend and no key:
 
