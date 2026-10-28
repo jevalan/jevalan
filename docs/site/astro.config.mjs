@@ -27,7 +27,7 @@ export default defineConfig({
         {
           label: 'Configurar y operar',
           translations: { en: 'Configure and operate', 'zh-CN': '配置与运维' },
-          items: ['configuracion', 'comandos', 'integraciones', 'laboratorio', 'solucion-de-problemas'],
+          items: ['configuracion', 'comandos', 'integraciones', 'servidor-mcp', 'laboratorio', 'solucion-de-problemas'],
         },
       ],
       customCss: ['./src/styles/custom.css'],

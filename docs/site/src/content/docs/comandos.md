@@ -15,6 +15,7 @@ description: Los comandos de la TUI, el daemon, el editor de flujos, los hooks, 
 | `jevalan hook run --client <nombre> --dialect <claude\|crush>` | El adaptador de hook genérico. |
 | `jevalan shadow report` | Un informe en Markdown sobre el registro sombra. |
 | `jevalan shadow fixtures` | Convierte decisiones reales en fixtures del laboratorio. |
+| `jevalan mcp [--allow-live]` | Servidor MCP por stdio: expone las capacidades del hub como herramientas. Ver [Servidor MCP](/servidor-mcp/). |
 | `jevalan lab check` | Valida los fixtures del laboratorio sin conexión. |
 | `jevalan lab offline` | Reproduce los fixtures sin conexión. |
 | `jevalan lab record` | Llama a backends reales y graba cassettes, dentro de un presupuesto. |

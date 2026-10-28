@@ -90,6 +90,7 @@ More detail, including the `--fake` generator and the sandbox caveats:
 | `jevalan hook claude-code [--mode shadow\|enforce]` | Claude Code `PreToolUse` hook; asks for `tool.risk` |
 | `jevalan hook crush [--mode shadow|enforce]` | Crush command hook; native output format |
 | `jevalan hook run --client <name> --dialect <claude|crush>` | Generic hook adapter |
+| `jevalan mcp [--allow-live]` | MCP server over stdio: the hub's capabilities as tools |
 | `jevalan lab {check,offline,record,live}` | Fixture lab: regression offline, measurement live |
 | `jevalan shadow {report,fixtures}` | Reports over `shadow.jsonl`, and fixtures mined from it |
 

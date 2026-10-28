@@ -91,6 +91,10 @@ jevalan shadow fixtures --lab-dir lab-fixtures-batch --max 20
 
 在终端界面中按 `H` 可以实时查看决策：带 p50 和 p95 延迟的计数器、最近的调用，以及每个问题的概率条（在 0.55 和 0.85 阈值处有刻度）。它在本地读取该文件，从不显示输入，所以截图是安全的。
 
+## 超越 hook
+
+如果你的客户端支持 MCP，[`jevalan mcp`](/zh-cn/servidor-mcp/) 会把这些能力暴露为工具，无需编写适配器。
+
 ## 卸载
 
 从 `~/.claude/settings.json` 的 `PreToolUse` 中删除 `jevalan` 条目（或在 `/hooks` 中禁用它），或在 Crush 中运行 `hook remove PreToolUse --name jevalan`。
