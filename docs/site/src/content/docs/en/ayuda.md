@@ -20,14 +20,19 @@ The TUI is the live view. Activity appears when a client sends requests.
 3. From the package directory, start the daemon: `jevalan serve --config config.yaml`.
 4. Open another terminal in that directory and run `jevalan tui`.
 
-See [Configuration](./configuracion/) and [Getting started](./primeros-pasos/).
+See [Configuration](/en/configuracion/) and [Getting started](/en/primeros-pasos/).
 
 ## I want to connect a tool
 
-Follow the instructions for [Claude Code](https://github.com/jevalan/jevalan/blob/main/docs/claude-code-hook-install.md) or [Crush](https://github.com/jevalan/jevalan/blob/main/docs/crush-hook-install.md). Start in `shadow` mode to observe decisions before enabling `enforce`.
+Follow the instructions for [Claude Code](/en/integraciones/) or [Crush](/en/integraciones/). Start in `shadow` mode to observe decisions before enabling `enforce`.
 
 ## More help
 
-- [Concepts](./conceptos/): proxy, flows, and capabilities.
-- [Commands](./comandos/): a quick CLI reference.
-- [Integrations](./integraciones/): supported hooks.
+- [Concepts](/en/conceptos/): proxy, flows, and capabilities.
+- [Commands](/en/comandos/): a quick CLI reference.
+- [Integrations](/en/integraciones/): supported hooks.
+- [Architecture](/en/arquitectura/): how the pieces fit.
+- [Flows](/en/flujos/) and [Capabilities and hub](/en/capacidades/): define your decisions.
+- [HTTP API](/en/api/): every route, with examples.
+- [Lab](/en/laboratorio/): test and measure them.
+- [Troubleshooting](/en/solucion-de-problemas/): when something does not work.

@@ -17,7 +17,17 @@ export default defineConfig({
         {
           label: 'Guía de uso',
           translations: { en: 'User guide', 'zh-CN': '使用指南' },
-          items: ['primeros-pasos', 'ayuda', 'conceptos', 'configuracion', 'comandos', 'integraciones'],
+          items: ['primeros-pasos', 'ayuda', 'conceptos', 'arquitectura'],
+        },
+        {
+          label: 'Construir decisiones',
+          translations: { en: 'Build decisions', 'zh-CN': '构建决策' },
+          items: ['flujos', 'capacidades', 'api'],
+        },
+        {
+          label: 'Configurar y operar',
+          translations: { en: 'Configure and operate', 'zh-CN': '配置与运维' },
+          items: ['configuracion', 'comandos', 'integraciones', 'laboratorio', 'solucion-de-problemas'],
         },
       ],
       customCss: ['./src/styles/custom.css'],
