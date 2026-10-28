@@ -1,0 +1,1 @@
+{"v":2,"id":"t1-5","ts":"2026-10-07T12:00:00Z","trace_id":"t1","seq":5,"source":"daemon","type":"NODE_END","payload":{"flow":"agent-guard","node":"destructive","answer":0.12,"confidence":0.71,"port":"false"}}

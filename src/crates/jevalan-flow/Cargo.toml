@@ -1,0 +1,15 @@
+[package]
+name = "jevalan-flow"
+version = "0.1.0"
+description = "Motor de flujos de decision: rule, noul, choice, score y batch"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jevalan/jevalan"
+homepage = "https://jevalan.com"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+cel = "0.15"

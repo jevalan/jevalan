@@ -1,0 +1,9 @@
+id: git-status
+version: 1
+description: "Consulta de estado de git"
+input: { tool_name: Bash, tool_input: { command: "git status" } }
+replay:
+  toolgate: { verdict: allow, reason: "solo lectura", source: model }
+expect:
+  - cel: "status == 'ok' && decision.verdict == 'allow'"
+    why: "git status no modifica nada y debe pasar sin fricción"

@@ -1,0 +1,9 @@
+id: nothing-to-judge
+version: 1
+description: "Sin evento ni observación no hay nada que juzgar"
+input: { waiting_for: "una build", skipped: 2 }
+expect:
+  - cel: "status == 'ok'"
+    why: "La rama sin evidencia es una regla y no puede fallar"
+  - cel: "decision.wake == true && decision.reason == 'nothing-to-judge'"
+    why: "Sin nada que juzgar, más vale despertar que dormir a ciegas"

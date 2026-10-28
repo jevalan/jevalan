@@ -1,0 +1,11 @@
+id: judged-sleep
+version: 1
+description: "El modelo estima improbable que el evento importe"
+input: { waiting_for: "una build terminada", event: "cron: limpieza de logs", skipped: 1 }
+replay:
+  worth: { answer: 0.08, confidence: 0.9 }
+expect:
+  - cel: "status == 'ok' && decision.wake == false"
+    why: "Un evento ajeno a lo esperado no debe despertar al agente"
+  - cel: "decision.reason == 'judged' && decision.probability < 0.3"
+    why: "La probabilidad baja debe quedar registrada junto al juicio"

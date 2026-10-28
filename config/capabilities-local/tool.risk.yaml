@@ -1,0 +1,11 @@
+# Manifiesto v2 (exige `manifest_version`, `namespace` y `version`).
+# Daemon íntegramente local: `tool.risk` lo decide `config/flows/tool-risk-local.yaml`
+# contra Kev/Laya, sin salir de la máquina.
+manifest_version: "2"
+namespace: dev.jevalan
+version: "1"
+description: "Riesgo de una llamada a herramienta, decidido en local (Kev/Laya)"
+input_schema: { $file: "schemas/tool.risk.input.json" }
+decision_schema: { $file: "schemas/tool.risk.decision.json" }
+provider: { id: jevalan-flow, flow: tool-risk-local }
+defaults: { deadline_ms: 5000 }

@@ -1,0 +1,14 @@
+[package]
+name = "jevalan-servers"
+version = "0.1.0"
+description = "Registro y arranque de servidores locales de modelos"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jevalan/jevalan"
+homepage = "https://jevalan.com"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+jevalan-daemon = { path = "../jevalan-daemon", version = "0.1.0" }
+serde.workspace = true
+serde_yaml = "0.9"

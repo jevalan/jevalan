@@ -1,0 +1,13 @@
+[package]
+name = "jevalan-events"
+version = "0.1.0"
+description = "Tipos de evento del hub de decisiones"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jevalan/jevalan"
+homepage = "https://jevalan.com"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

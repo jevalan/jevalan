@@ -1,0 +1,16 @@
+[package]
+name = "jevalan-hub"
+version = "0.1.0"
+description = "Registro de capacidades y contrato del hub de decisiones"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jevalan/jevalan"
+homepage = "https://jevalan.com"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+cel = "0.15"
+jsonschema = { version = "0.58", default-features = false }

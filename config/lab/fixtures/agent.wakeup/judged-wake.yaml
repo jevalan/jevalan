@@ -1,0 +1,11 @@
+id: judged-wake
+version: 1
+description: "El modelo estima muy probable que el evento importe"
+input: { waiting_for: "una build terminada", event: "build 412 terminada con éxito", skipped: 1 }
+replay:
+  worth: { answer: 0.9, confidence: 0.95 }
+expect:
+  - cel: "status == 'ok' && decision.wake == true"
+    why: "El evento esperado debe despertar al agente"
+  - cel: "decision.reason == 'judged' && decision.probability >= 0.5"
+    why: "Despertar con convicción se distingue de despertar con duda"

@@ -1,0 +1,1 @@
+{"type":"object","required":["tool_name","tool_input"],"properties":{"tool_name":{"type":"string"},"tool_input":{},"cwd":{"type":"string"},"session_id":{"type":"string"},"tool_use_id":{"type":"string"},"transcript_path":{"type":"string"}},"additionalProperties":false}

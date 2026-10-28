@@ -1,0 +1,1 @@
+{"type":"object","required":["wake","reason"],"properties":{"wake":{"type":"boolean"},"reason":{"enum":["judged","unsure","error","skip-limit","nothing-to-judge","user-message"]},"probability":{"type":"number","minimum":0,"maximum":1}},"additionalProperties":false}

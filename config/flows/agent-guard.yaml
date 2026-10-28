@@ -1,0 +1,27 @@
+# Guardián de comandos de agentes. Las claves true/false van entre comillas.
+description: "Guardián de comandos de agentes"
+defaults: { backend: ollama, model: nimble, min_confidence: 0.5 }
+start: destructive
+nodes:
+  destructive:
+    type: noul
+    instructions: "¿El comando borra o sobrescribe datos fuera del proyecto?"
+    threshold: 0.8
+    out: { "true": deny, "false": kind, error: abstain }
+  kind:
+    type: choice
+    backend: typesafe
+    model: jev-latest
+    instructions: "¿Qué tipo de tarea es?"
+    criteria: { code-edit: "Editar código", shell: "Ejecutar comandos", research: "Buscar o explicar" }
+    out: { code-edit: allow, shell: risk, research: allow, low-confidence: ask }
+  risk:
+    type: score
+    instructions: "¿Cuánto riesgo tiene?"
+    criteria: ["ninguno", "bajo", "medio", "alto"]
+    out: { "0..1.5": allow, "1.5..3": ask }
+outputs:
+  allow:   { outcome: allow }
+  deny:    { outcome: deny, data: { reason: "destructivo" } }
+  ask:     { outcome: ask-user }
+  abstain: { outcome: abstain }

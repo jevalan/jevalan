@@ -1,0 +1,1 @@
+{"type":"object","required":["verdict","reason","source"],"properties":{"verdict":{"enum":["allow","ask","deny"]},"reason":{"type":"string"},"source":{"type":"string"},"probabilities":{"type":"object"}}}

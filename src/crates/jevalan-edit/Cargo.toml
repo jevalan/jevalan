@@ -1,0 +1,22 @@
+[package]
+name = "jevalan-edit"
+version = "0.1.0"
+description = "Editor de flujos sobre la TUI, por borradores"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jevalan/jevalan"
+homepage = "https://jevalan.com"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+jevalan-events.workspace = true
+jevalan-flow = { path = "../jevalan-flow", version = "0.1.0" }
+# Los widgets de pintura, el tema, `flow_layout` y la fuente en vivo: se reutilizan, no se copian.
+jevalan-tui = { path = "../jevalan-tui", version = "0.1.0" }
+ratatui = "0.30"
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+# Para hablar con el daemon con un runtime propio, como hace `src/crates/jevalan/src/hook.rs`.
+tokio = { version = "1", features = ["rt", "net", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }

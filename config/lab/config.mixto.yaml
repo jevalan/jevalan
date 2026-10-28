@@ -1,0 +1,24 @@
+# La config local, más el backend remoto de OpenRouter.
+#
+# Es `config.local.yaml` con una línea de más: los backends locales siguen ahí —`kev` es el que
+# decide `tool-risk-local`, o sea el que sirve tu plugin— y se añade OpenRouter con su clave, que es
+# lo que `config/flows/agent-wakeup.yaml` necesita para dejar de cargarse como inválido.
+#
+# La clave se lee del `.env` del directorio desde el que se lanza el daemon (`OPENROUTER_API_KEY`),
+# nunca de este fichero: aquí solo va su NOMBRE. Si la variable falta o está vacía, el daemon se
+# niega a arrancar, y eso es a propósito.
+#
+#   jevalan serve --config config/lab/config.mixto.yaml
+#
+# Nada más sale de la máquina: `default_backend` sigue siendo `kev`, así que la decisión que no
+# nombre backend se queda en local; solo el flujo que declara `openrouter` (agent-wakeup) sale.
+server: { addr: "127.0.0.1:8080", token_env: JEVALAN_TOKEN }
+backends:
+  kev:        { url: "http://127.0.0.1:8009", timeout_ms: 5000 }
+  laya:       { url: "http://127.0.0.1:8021", timeout_ms: 5000 }
+  openrouter: { url: "https://openrouter.ai", path: "/api/alpha/decisions", api_key_env: OPENROUTER_API_KEY, timeout_ms: 8000 }
+default_backend: kev
+flows_dir: ./config/flows
+hub:
+  capabilities_dir: ./config/capabilities-local
+  allow_exec: false

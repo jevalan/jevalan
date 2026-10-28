@@ -1,0 +1,29 @@
+[package]
+name = "jevalan-daemon"
+version = "0.1.0"
+description = "Daemon HTTP, backends y bus de eventos del hub de decisiones"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jevalan/jevalan"
+homepage = "https://jevalan.com"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+jevalan-events.workspace = true
+jevalan-flow = { path = "../jevalan-flow", version = "0.1.0" }
+jevalan-hub = { path = "../jevalan-hub", version = "0.1.0" }
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "signal", "process", "io-util"] }
+axum = { version = "0.8", features = ["ws"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+notify = "8"
+
+[dev-dependencies]
+tokio-tungstenite = "0.27"
+futures-util = "0.3"
+
+[[bin]]
+name = "fake-specialist"
+path = "src/fake_specialist.rs"

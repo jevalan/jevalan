@@ -1,0 +1,1 @@
+{"v":2,"id":"h1-9","ts":"2026-10-08T12:00:00Z","trace_id":"h1","seq":9,"source":"daemon","type":"HUB_RESPONSE","payload":{"capability":"tool.risk","provider":"toolgate","status":"error","code":"deadline_exceeded","elapsed_ms":5001}}

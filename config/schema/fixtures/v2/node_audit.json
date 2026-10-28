@@ -1,0 +1,1 @@
+{"v":2,"id":"t1-6","ts":"2026-10-07T12:00:00Z","trace_id":"t1","seq":6,"source":"daemon","type":"NODE_AUDIT","payload":{"flow":"tool-risk-local","node":"risks","signals":{"rm_root":false},"rule":1}}

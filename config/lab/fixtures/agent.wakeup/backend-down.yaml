@@ -1,0 +1,10 @@
+id: backend-down
+version: 1
+modes: [offline]
+description: "El backend cae: se despierta con razón error"
+input: { waiting_for: "una build terminada", event: "algo ocurrió", skipped: 1 }
+expect:
+  - cel: "status == 'ok' && decision.wake == true"
+    why: "Un backend caído no debe dejar al agente dormido"
+  - cel: "decision.reason == 'error' && !has(decision.probability)"
+    why: "El motivo debe ser error y no inventar una probabilidad"

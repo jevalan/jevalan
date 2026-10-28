@@ -1,0 +1,16 @@
+{
+  "recorded_at": "2026-10-08T12:00:00Z",
+  "fixture_version": 1,
+  "input_hash": "a020c25bede48fc7",
+  "target": "jev",
+  "backend": "typesafe",
+  "model": "jev-latest",
+  "replies": {
+    "worth": {
+      "status": 500,
+      "body": {
+        "error": "backend caído"
+      }
+    }
+  }
+}

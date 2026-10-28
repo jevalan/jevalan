@@ -1,0 +1,11 @@
+id: write-in-project
+version: 1
+description: "Escritura dentro del directorio del proyecto"
+input: { tool_name: Write, tool_input: { file_path: "src/main.rs", content: "fn main() {}" }, cwd: "/work/proyecto" }
+replay:
+  toolgate: { verdict: allow, reason: "dentro del proyecto", source: model }
+expect:
+  - cel: "status == 'ok'"
+    why: "Una escritura acotada al proyecto es un caso corriente"
+  - cel: "decision.verdict != 'deny'"
+    why: "Editar el código del proyecto es el trabajo normal del agente y no se deniega"

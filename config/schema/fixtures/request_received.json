@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "id": "01HZ0000000000000000000001",
+  "ts": "2026-05-10T12:00:00Z",
+  "trace_id": "01HZ1111111111111111111111",
+  "seq": 1,
+  "type": "REQUEST_RECEIVED",
+  "source": "http",
+  "payload": { "endpoint": "/v1/decide", "client": "crush" }
+}

@@ -1,0 +1,1 @@
+{"v":2,"id":"t2-4","ts":"2026-10-07T12:00:00Z","trace_id":"t2","seq":4,"source":"daemon","type":"PASSTHROUGH_DONE","payload":{"backend":"typesafe","model":"jev-latest","status":200,"duration_ms":180}}

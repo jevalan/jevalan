@@ -1,0 +1,12 @@
+id: no-opinion
+version: 1
+modes: [offline]
+description: "El especialista declina opinar"
+input: { tool_name: Bash, tool_input: { command: "foo --bar" } }
+replay:
+  toolgate: { verdict: ask, reason: "sin criterio", source: no-opinion }
+expect:
+  - cel: "status == 'abstain'"
+    why: "Sin opinión debe clasificarse como abstención y no como permiso"
+  - cel: "decision == {}"
+    why: "Una abstención no lleva decisión que alguien pudiera obedecer por error"

@@ -1,0 +1,7 @@
+id: skip-limit-default
+version: 1
+description: "Tras diez omisiones seguidas se despierta (límite por defecto)"
+input: { waiting_for: "una build", event: "log rutinario", skipped: 10 }
+expect:
+  - cel: "decision.wake == true && decision.reason == 'skip-limit'"
+    why: "El límite por defecto de 10 impide dormir indefinidamente"

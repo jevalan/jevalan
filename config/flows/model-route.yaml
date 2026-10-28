@@ -1,0 +1,18 @@
+# Elige modelo y nivel de razonamiento para una tarea.
+description: "Enrutado de modelo por dificultad y riesgo"
+defaults: { backend: ollama, model: nimble }
+start: tier
+nodes:
+  tier:
+    type: score
+    instructions: "¿Cuánta dificultad tiene la tarea?"
+    criteria: ["trivial", "sencilla", "media", "difícil", "muy difícil"]
+    out: { "0..1.5": small, "1.5..3": risky, "3..4": large, error: medium, low-confidence: medium }
+  risky:
+    type: noul
+    instructions: "¿La tarea toca seguridad, datos de producción o dinero?"
+    out: { "true": large, "false": medium }
+outputs:
+  small:  { outcome: route, data: { model: haiku, effort: low } }
+  medium: { outcome: route, data: { model: sonnet, effort: medium } }
+  large:  { outcome: route, data: { model: opus, effort: high } }

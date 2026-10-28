@@ -1,0 +1,56 @@
+---
+title: Jevalan
+description: 面向智能体和工具的本地决策代理。
+template: splash
+hero:
+  title: 行动之前，先做决策。
+  tagline: Jevalan 接收智能体发来的请求，将其路由到后端或决策流程，并返回类型化响应。具体操作仍由智能体掌控。
+  image:
+    file: ../../../assets/jevalan-tui-demo.gif
+    alt: Jevalan 终端面板展示模拟请求在各服务间流转。
+  actions:
+    - text: 开始使用
+      link: /zh-cn/primeros-pasos/
+      icon: right-arrow
+      variant: primary
+    - text: 查看项目
+      link: https://github.com/jevalan/jevalan
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## 本地决策入口
+
+Jevalan 与你的工具一起运行。它集中管理对模型和本地策略的访问，并通过终端界面观察流量。
+
+<CardGrid>
+  <Card title="兼容代理">
+    将 System One 请求转发到你配置的后端，同时保留智能体与服务之间的接口约定。
+  </Card>
+  <Card title="类型化流程">
+    使用 YAML 定义决策，组合规则与问题，并为结果和错误声明路由。
+  </Card>
+  <Card title="能力中心">
+    通过本地 API 暴露可复用的决策能力，例如 `agent.wakeup` 或 `tool.risk`。
+  </Card>
+</CardGrid>
+
+## 工作方式
+
+```text
+智能体 → 本地 Jevalan → 后端或流程 → 类型化响应 → 智能体
+```
+
+Jevalan 不会执行命令，也不会应用更改。它只返回决策；后续操作仍由智能体控制。
+
+## 试用演示
+
+演示使用模拟服务和可重复的流量，不需要密钥，也不会调用外部服务商：
+
+```sh
+jevalan tui --demo
+```
+
+请参阅[快速入门](/zh-cn/primeros-pasos/)，了解如何下载版本或编译项目。

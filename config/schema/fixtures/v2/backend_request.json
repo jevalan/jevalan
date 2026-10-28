@@ -1,0 +1,1 @@
+{"v":2,"id":"t1-3","ts":"2026-10-07T12:00:00Z","trace_id":"t1","seq":3,"source":"daemon","type":"BACKEND_REQUEST","payload":{"backend":"ollama","model":"nimble","questions":1}}

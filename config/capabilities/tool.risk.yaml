@@ -1,0 +1,23 @@
+manifest_version: "2"
+namespace: io.github.riskaversetech
+publisher:
+  repo: "https://github.com/RiskAverseTech/toolgate"
+requires:
+  runtime: node
+  env: [TYPESAFE_API_KEY, OPENROUTER_API_KEY]
+  network: [api.typesafe.ai, openrouter.ai]
+  platform: any
+version: "1"
+description: "Riesgo de una llamada a herramienta (Toolgate)"
+input_schema: { $file: "schemas/tool.risk.input.json" }
+decision_schema: { $file: "schemas/tool.risk.decision.json" }
+provider:
+  id: toolgate
+  # En Windows el shim `toolgate.cmd` de npm se rechaza (pasaría por cmd.exe), así que se lanza con node.
+  # ${TOOLGATE_CLI} se resuelve al cargar (entorno o .env). Defínela como
+  #   TOOLGATE_CLI=$(npm root -g)/@riskaverse/toolgate/dist/cli.js
+  # Un `env` sin definir (p. ej. TYPESAFE_API_KEY si solo usas OpenRouter) simplemente no se pasa.
+  exec: { command: ["node", "${TOOLGATE_CLI}", "decide"], env: [TYPESAFE_API_KEY, OPENROUTER_API_KEY] }
+  abstain_when: "response.source == 'no-opinion'"
+  error_when: "response.source == 'fail-mode'"
+defaults: { deadline_ms: 5000 }

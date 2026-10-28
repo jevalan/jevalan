@@ -1,0 +1,12 @@
+id: fail-mode
+version: 1
+modes: [offline]
+description: "El especialista falla y aplica su modo de fallo"
+input: { tool_name: Bash, tool_input: { command: "ls" } }
+replay:
+  toolgate: { verdict: ask, reason: "fallo interno", source: fail-mode }
+expect:
+  - cel: "status == 'error'"
+    why: "Un fallo interno debe verse como error, distinto de una abstención"
+  - cel: "decision == {}"
+    why: "Un error no debe filtrar ninguna decisión"

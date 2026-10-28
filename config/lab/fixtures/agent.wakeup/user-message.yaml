@@ -1,0 +1,9 @@
+id: user-message
+version: 1
+description: "Un mensaje del usuario siempre despierta al agente"
+input: { waiting_for: "una build", from_user: true, skipped: 0 }
+expect:
+  - cel: "status == 'ok'"
+    why: "Una regla determinista no debe fallar ni abstenerse"
+  - cel: "decision.wake == true && decision.reason == 'user-message'"
+    why: "Quien escribe es el usuario y debe ser atendido sin juicio del modelo"

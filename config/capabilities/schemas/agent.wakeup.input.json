@@ -1,0 +1,1 @@
+{"type":"object","required":["waiting_for","skipped"],"properties":{"waiting_for":{"type":"string"},"event":{},"observation":{},"from_user":{"type":"boolean"},"skipped":{"type":"integer","minimum":0},"max_skips":{"type":"integer","minimum":1}},"additionalProperties":false}

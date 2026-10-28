@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "id": "01HZ0000000000000000000004",
+  "ts": "2026-05-10T12:00:00Z",
+  "trace_id": "01HZ1111111111111111111111",
+  "seq": 4,
+  "type": "CONFIDENCE_SCORE",
+  "source": "pipeline",
+  "payload": { "hook": "is-malicious", "score": 0.42 }
+}

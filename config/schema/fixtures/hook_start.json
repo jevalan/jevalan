@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "id": "01HZ0000000000000000000002",
+  "ts": "2026-05-10T12:00:00Z",
+  "trace_id": "01HZ1111111111111111111111",
+  "seq": 2,
+  "type": "HOOK_START",
+  "source": "pipeline",
+  "payload": { "hook": "is-malicious", "input_digest": "9f86d081884c7d65" }
+}

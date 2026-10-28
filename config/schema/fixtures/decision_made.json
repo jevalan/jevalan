@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "id": "01HZ0000000000000000000000",
+  "ts": "2026-05-10T12:00:00Z",
+  "trace_id": "01HZ1111111111111111111111",
+  "seq": 7,
+  "type": "DECISION_MADE",
+  "source": "pipeline",
+  "payload": { "verdict": "allow", "confidence": 0.85, "stops_at": "", "route": "code-edit" }
+}

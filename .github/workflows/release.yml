@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - name: Check tag matches package version
+        shell: bash
+        run: test "$GITHUB_REF_NAME" = "v$(cargo pkgid -p jevalan --offline | sed 's/.*#//')"
+      - run: cargo test --workspace --locked
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            name: windows-x86_64
+          - os: ubuntu-24.04
+            name: linux-x86_64
+          - os: macos-15-intel
+            name: macos-x86_64
+          - os: macos-15
+            name: macos-aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - run: cargo build --locked --release -p jevalan
+
+      - name: Package Windows release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_NAME: jevalan-${{ github.ref_name }}-${{ matrix.name }}
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "jevalan"
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item target/release/jevalan.exe $stage
+          Copy-Item -Path @('README.md', 'config.example.yaml', 'LICENSE-MIT', 'LICENSE-APACHE') -Destination $stage
+          New-Item -ItemType Directory -Path (Join-Path $stage 'config') | Out-Null
+          Copy-Item -Path @('config/flows', 'config/capabilities', 'config/signals', 'config/lab') -Destination (Join-Path $stage 'config') -Recurse
+          Compress-Archive -Path $stage -DestinationPath (Join-Path $env:RUNNER_TEMP "$env:RELEASE_NAME.zip")
+
+      - name: Package Unix release
+        if: runner.os != 'Windows'
+        env:
+          RELEASE_NAME: jevalan-${{ github.ref_name }}-${{ matrix.name }}
+        run: |
+          stage="$RUNNER_TEMP/jevalan"
+          mkdir -p "$stage"
+          cp target/release/jevalan README.md config.example.yaml LICENSE-MIT LICENSE-APACHE "$stage/"
+          mkdir -p "$stage/config"
+          cp -R config/flows config/capabilities config/signals config/lab "$stage/config/"
+          tar -czf "$RUNNER_TEMP/$RELEASE_NAME.tar.gz" -C "$RUNNER_TEMP" jevalan
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: jevalan-${{ github.ref_name }}-${{ matrix.name }}
+          path: ${{ runner.temp }}/jevalan-${{ github.ref_name }}-${{ matrix.name }}.*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          options=(--verify-tag --generate-notes)
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then options+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* "${options[@]}"

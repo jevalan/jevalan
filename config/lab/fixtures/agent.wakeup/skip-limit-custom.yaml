@@ -1,0 +1,7 @@
+id: skip-limit-custom
+version: 1
+description: "El límite max_skips del llamante manda sobre el de por defecto"
+input: { waiting_for: "una build", event: "log rutinario", skipped: 3, max_skips: 3 }
+expect:
+  - cel: "decision.wake == true && decision.reason == 'skip-limit'"
+    why: "Con max_skips = 3 y 3 omisiones ya toca despertar, sin consultar al modelo"

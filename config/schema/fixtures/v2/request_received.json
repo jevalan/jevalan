@@ -1,0 +1,1 @@
+{"v":2,"id":"t1-1","ts":"2026-10-07T12:00:00Z","trace_id":"t1","seq":1,"source":"daemon","type":"REQUEST_RECEIVED","payload":{"client":"crush","endpoint":"decide","flow":"agent-guard"}}

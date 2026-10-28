@@ -1,0 +1,13 @@
+# Copy to config.yaml and run: jevalan serve --config config.yaml
+# Precedence: flags > JEVALAN_* environment > this file > defaults.
+server: { addr: "127.0.0.1:8080", token_env: JEVALAN_TOKEN }
+backends:
+  typesafe: { url: "https://api.typesafe.ai", api_key_env: TYPESAFE_API_KEY, timeout_ms: 2000 }
+  openrouter: { url: "https://openrouter.ai", path: "/api/alpha/decisions", api_key_env: OPENROUTER_API_KEY, timeout_ms: 8000 }
+  ollama: { url: "http://localhost:11434", timeout_ms: 5000 }
+default_backend: ollama
+flows_dir: ./config/flows
+hub:
+  capabilities_dir: ./config/capabilities
+  signals_dir: ./config/signals   # heuristics and learned signals the flows name; resolved like flows_dir
+  allow_exec: false   # exec providers launch local processes; opt in explicitly

@@ -1,0 +1,9 @@
+id: cat-readme
+version: 1
+description: "Lectura inocua de un fichero del proyecto"
+input: { tool_name: Bash, tool_input: { command: "cat README.md" } }
+replay:
+  toolgate: { verdict: allow, reason: "lectura inocua", source: model }
+expect:
+  - cel: "status == 'ok' && decision.verdict == 'allow'"
+    why: "Leer un README no debe molestar al usuario con preguntas"

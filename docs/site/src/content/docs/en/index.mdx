@@ -1,0 +1,56 @@
+---
+title: Jevalan
+description: A local decision proxy for agents and tools.
+template: splash
+hero:
+  title: Decide before you act.
+  tagline: Jevalan receives requests from your agents, routes them through a backend or decision flow, and returns a typed response. The agent remains in control of the action.
+  image:
+    file: ../../../assets/jevalan-tui-demo.gif
+    alt: Jevalan terminal dashboard showing simulated requests moving between services.
+  actions:
+    - text: Get started
+      link: /en/primeros-pasos/
+      icon: right-arrow
+      variant: primary
+    - text: View the project
+      link: https://github.com/jevalan/jevalan
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## A local decision point
+
+Jevalan runs alongside your tools. It centralizes access to models and local policies, and lets you observe traffic in a terminal interface.
+
+<CardGrid>
+  <Card title="Compatible proxy">
+    Forward System One requests to the backends you configure while preserving the contract between the agent and service.
+  </Card>
+  <Card title="Typed flows">
+    Define decisions in YAML, combine rules and questions, and declare routes for results and errors.
+  </Card>
+  <Card title="Capability hub">
+    Expose reusable decisions such as `agent.wakeup` or `tool.risk` through a local API.
+  </Card>
+</CardGrid>
+
+## How it works
+
+```text
+Agent → local Jevalan → backend or flow → typed response → Agent
+```
+
+Jevalan does not run the command or apply the change. It returns a decision; the agent stays in control of what happens next.
+
+## Try the demo
+
+The demo uses mock services and reproducible traffic. It needs no keys and does not call external providers:
+
+```sh
+jevalan tui --demo
+```
+
+See [Getting started](/en/primeros-pasos/) to download a release or build the project.

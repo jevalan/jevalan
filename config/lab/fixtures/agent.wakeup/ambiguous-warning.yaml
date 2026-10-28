@@ -1,0 +1,9 @@
+id: ambiguous-warning
+version: 1
+description: "Un aviso ambiguo sobre lo que se espera despierta al agente"
+input: { waiting_for: "una build terminada", event: "warning ambiguo en el log", skipped: 1 }
+replay:
+  worth: { answer: 0.65, confidence: 0.3 }
+expect:
+  - cel: "status == 'ok' && decision.wake == true"
+    why: "Una señal ambigua sobre lo que se espera merece despertar al agente"

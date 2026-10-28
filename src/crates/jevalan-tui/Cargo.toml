@@ -1,0 +1,22 @@
+[package]
+name = "jevalan-tui"
+version = "0.1.0"
+description = "Panel de terminal: topologia, metricas y trazas del hub"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jevalan/jevalan"
+homepage = "https://jevalan.com"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ratatui = "0.30"
+rataflow = "0.1"
+tachyonfx = "0.25"
+jevalan-events.workspace = true
+jevalan-flow = { path = "../jevalan-flow", version = "0.1.0" }
+jevalan-hub = { path = "../jevalan-hub", version = "0.1.0" }
+serde_json.workspace = true
+tungstenite = "0.27"
+
+[dev-dependencies]
+insta = "1"

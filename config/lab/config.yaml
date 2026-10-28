@@ -1,0 +1,13 @@
+# Configuración del daemon para el laboratorio (se usa si no se pasa --config ni JEVALAN_CONFIG).
+# Sin claves: offline no llama a nadie. Para record/live, copia este fichero, añade
+# `api_key_env: TYPESAFE_API_KEY` al backend typesafe y pásalo con --config.
+backends:
+  typesafe: { url: "https://api.typesafe.ai", timeout_ms: 2000 }
+  # Sin clave: offline no lo llama; para live usa config.openrouter.yaml.
+  openrouter: { url: "https://openrouter.ai", path: "/api/alpha/decisions", timeout_ms: 8000 }
+  ollama: { url: "http://localhost:11434", timeout_ms: 5000 }
+default_backend: ollama
+flows_dir: ./config/flows
+hub:
+  capabilities_dir: ./config/capabilities
+  allow_exec: false

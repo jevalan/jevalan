@@ -1,0 +1,15 @@
+:root {
+  --sl-color-accent-low: #dce9f4;
+  --sl-color-accent: #176b87;
+  --sl-color-accent-high: #103d51;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #172e3d;
+  --sl-color-accent: #78c7df;
+  --sl-color-accent-high: #c6eff8;
+}
+
+.hero .tagline {
+  max-width: 48ch;
+}

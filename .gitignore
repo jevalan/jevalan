@@ -1,0 +1,35 @@
+# Build artifacts
+/jevalan
+/jevalan.exe
+.local/
+*.test
+*.out
+
+# Node / TS SDK
+node_modules/
+src/sdk-ts/dist/
+/docs/site/dist/
+/docs/site/.astro/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Local config / secrets
+config.local.yaml
+.env
+.env.*
+!.env.example
+
+# Rust
+/target
+
+# Laboratorio
+
+# Artefactos de insta: la salida de un test de instantanea que falla. No se commitean.
+*.snap.new
+
+# Temporales de los tests.
+/.tmp-tests/

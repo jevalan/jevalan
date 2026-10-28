@@ -1,0 +1,11 @@
+# Laboratorio Jev: backends a comparar, presupuesto y precios.
+targets:
+  openrouter: { backend: openrouter, model: typesafe/jev-1.13 }  # el primero en existir es el de offline: es el del flujo
+  jev:    { backend: typesafe, model: jev-latest }
+  nimble: { backend: ollama,   model: nimble, local: true }
+budget: { max_calls: 200, max_cost_usd: 1.0 }
+repeat: 3
+# Sin precio, el coste de un target sale `unknown` y el presupuesto de coste no lo controla. Para medirlo, descomenta
+# y pon la tarifa real en USD por millón de tokens (a cero el coste saldría falsamente nulo):
+# prices:
+#   jev-latest: { input_per_mtok: <tarifa real>, output_per_mtok: <tarifa real> }

@@ -1,0 +1,3 @@
+# Descarga canalizada a un intérprete. Heurística: solo lee la entrada.
+type: rule
+when: 'has(input.tool_input.command) && input.tool_input.command.matches(r"(curl|wget|iwr|Invoke-WebRequest)[^|]*\|\s*(sh|bash|zsh|iex|Invoke-Expression)")'
