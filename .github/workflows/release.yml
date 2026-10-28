@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: dtolnay/rust-toolchain@1.120.0
       - name: Check tag matches package version
         shell: bash
         run: test "$GITHUB_REF_NAME" = "v$(cargo pkgid -p jevalan --offline | sed 's/.*#//')"
@@ -36,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: dtolnay/rust-toolchain@1.120.0
       - run: cargo build --locked --release -p jevalan
 
       - name: Package Windows release
