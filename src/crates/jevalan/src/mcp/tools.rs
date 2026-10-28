@@ -3,7 +3,8 @@
 use super::daemon::Http;
 use super::protocol::{Daemon, ProtocolError, Tool, ToolOutcome};
 use serde_json::{Value, json};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
 
 const RUN_FLOW: &str = "jevalan_run_flow";
 const LIST_FLOWS: &str = "jevalan_list_flows";
@@ -35,6 +36,7 @@ pub struct Catalog<H: Http> {
     http: H,
     allow_live: bool,
     counter: Cell<u64>,
+    warned: RefCell<HashSet<String>>,
 }
 
 fn failed(message: impl Into<String>) -> ToolOutcome {
@@ -50,7 +52,12 @@ fn answered(reply: Result<Value, String>) -> ToolOutcome {
 
 impl<H: Http> Catalog<H> {
     pub fn new(http: H, allow_live: bool) -> Self {
-        Self { http, allow_live, counter: Cell::new(0) }
+        Self { http, allow_live, counter: Cell::new(0), warned: RefCell::default() }
+    }
+
+    /// `true` the first time a colliding tool name is seen, so the warning is printed once, not on every poll.
+    fn note_collision(&self, name: &str) -> bool {
+        self.warned.borrow_mut().insert(name.to_string())
     }
 
     /// Una herramienta por capacidad cargada; si dos comparten nombre se queda la primera.
@@ -61,7 +68,9 @@ impl<H: Http> Catalog<H> {
         for (id, summary) in caps {
             let name = tool_name(id);
             if STATIC.contains(&name.as_str()) || out.iter().any(|t| t.name == name) {
-                eprintln!("jevalan mcp: la capacidad «{id}» se omite: su nombre «{name}» ya está en uso");
+                if self.note_collision(&name) {
+                    eprintln!("jevalan mcp: la capacidad «{id}» se omite: su nombre «{name}» ya está en uso");
+                }
                 continue;
             }
             let text = |k: &str| summary.get(k).and_then(Value::as_str).unwrap_or("").to_string();
@@ -124,7 +133,11 @@ impl<H: Http> Catalog<H> {
             Ok(pair) => pair,
             Err(e) => return e,
         };
-        let transport = args.get("transport").and_then(Value::as_str).unwrap_or("replay");
+        let transport = match args.get("transport") {
+            None => "replay",
+            Some(Value::String(s)) => s.as_str(),
+            Some(_) => return failed("«transport» debe ser un texto: replay, live o record"),
+        };
         if !["replay", "live", "record"].contains(&transport) {
             return failed(format!("transporte desconocido: {transport}"));
         }
@@ -408,5 +421,24 @@ mod tests {
         let out = Catalog::new(FakeHttp::default(), false).call("tool_risk", json!({})).unwrap();
         assert!(out.is_error);
         assert!(out.value["error"].as_str().unwrap().contains("inalcanzable"));
+    }
+
+    #[test]
+    fn a_collision_is_reported_only_the_first_time() {
+        let c = Catalog::new(FakeHttp::default(), false);
+        assert!(c.note_collision("a_b"));
+        assert!(!c.note_collision("a_b"));
+        assert!(c.note_collision("c_d"));
+    }
+
+    #[test]
+    fn a_non_string_transport_is_rejected_before_any_request() {
+        for t in [json!(5), json!(null), json!(["live"])] {
+            let c = Catalog::new(FakeHttp::default(), true);
+            let out =
+                c.call("jevalan_try_draft", json!({ "flow": "x", "yaml": "y", "input": {}, "transport": t })).unwrap();
+            assert!(out.is_error, "{t}");
+            assert!(c.http.log.borrow().is_empty());
+        }
     }
 }

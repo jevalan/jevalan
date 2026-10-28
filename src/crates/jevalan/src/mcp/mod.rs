@@ -8,7 +8,7 @@ use protocol::{Daemon, Tool, handle_line, list_changed_notification};
 use std::cell::Cell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Read, Write};
 use std::process::ExitCode;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
@@ -40,20 +40,40 @@ fn emit(line: &str) {
 
 /// Entrega cada línea de `reader` a `send` (que devuelve `false` para parar). Tolera bytes que no son UTF-8
 /// —se sustituyen— para que una línea rara no mate el servidor, y quita el `\r` de los finales CRLF.
-fn forward_lines<R: BufRead>(mut reader: R, mut send: impl FnMut(String) -> bool) {
+const MAX_LINE: usize = 4 * 1024 * 1024;
+
+fn forward_lines<R: BufRead>(reader: R, send: impl FnMut(String) -> bool) {
+    forward_lines_capped(reader, MAX_LINE, send);
+}
+
+/// Like `forward_lines`, but a line longer than `max` bytes is cut at `max` and the rest of it is discarded
+/// without being stored, so a runaway line cannot exhaust memory. The cut line fails to parse as JSON and the
+/// client gets a parse error instead of silence.
+fn forward_lines_capped<R: BufRead>(mut reader: R, max: usize, mut send: impl FnMut(String) -> bool) {
     let mut buf = Vec::new();
     loop {
         buf.clear();
-        match reader.read_until(b'\n', &mut buf) {
+        match (&mut reader).take(max as u64 + 1).read_until(b'\n', &mut buf) {
             Ok(0) | Err(_) => break,
-            Ok(_) => {
-                while matches!(buf.last(), Some(b'\n' | b'\r')) {
-                    buf.pop();
-                }
-                if !send(String::from_utf8_lossy(&buf).into_owned()) {
-                    break;
+            Ok(_) => {}
+        }
+        if buf.len() > max && buf.last() != Some(&b'\n') {
+            buf.truncate(max);
+            let mut scratch = Vec::new();
+            loop {
+                scratch.clear();
+                match (&mut reader).take(64 * 1024).read_until(b'\n', &mut scratch) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) if scratch.last() == Some(&b'\n') => break,
+                    Ok(_) => {}
                 }
             }
+        }
+        while matches!(buf.last(), Some(b'\n' | b'\r')) {
+            buf.pop();
+        }
+        if !send(String::from_utf8_lossy(&buf).into_owned()) {
+            break;
         }
     }
 }
@@ -178,5 +198,16 @@ mod tests {
         let _ = w.list_tools(); // lo que haría el cliente con tools/list
         w.inner.0.borrow_mut().push(tool("y", json!({})));
         assert!(w.poll());
+    }
+
+    #[test]
+    fn forward_lines_truncates_a_giant_line_and_keeps_going() {
+        let input: &[u8] = b"aaaaaaaaaa\nok\n";
+        let mut got = Vec::new();
+        forward_lines_capped(input, 4, |l| {
+            got.push(l);
+            true
+        });
+        assert_eq!(got, vec!["aaaa".to_string(), "ok".to_string()]);
     }
 }
