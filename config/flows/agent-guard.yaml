@@ -1,4 +1,4 @@
-# Guardián de comandos de agentes. Las claves true/false van entre comillas.
+# Guard for agent commands. The true/false keys must be quoted.
 description: "Guardián de comandos de agentes"
 defaults: { backend: ollama, model: nimble, min_confidence: 0.5 }
 start: destructive
