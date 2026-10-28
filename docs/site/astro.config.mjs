@@ -22,7 +22,7 @@ export default defineConfig({
         {
           label: 'Construir decisiones',
           translations: { en: 'Build decisions', 'zh-CN': '构建决策' },
-          items: ['flujos', 'capacidades', 'api'],
+          items: ['flujos', 'ejemplos', 'capacidades', 'api'],
         },
         {
           label: 'Configurar y operar',
