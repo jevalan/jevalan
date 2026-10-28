@@ -1,0 +1,27 @@
+Licencias de terceros de jevalan
+================================
+
+Este fichero reproduce los avisos de licencia de las bibliotecas de terceros
+enlazadas en los binarios de jevalan. Se genera con `cargo about generate about.hbs`.
+
+Resumen de licencias
+--------------------
+{{#each overview}}
+- {{{name}}} ({{id}}): {{count}} paquete(s)
+{{/each}}
+
+Texto completo
+--------------
+{{#each licenses}}
+
+================================================================================
+{{{name}}}
+================================================================================
+
+Usada por:
+{{#each used_by}}
+- {{{crate.name}}} {{crate.version}}{{#if crate.repository}} ({{crate.repository}}){{/if}}
+{{/each}}
+
+{{{text}}}
+{{/each}}

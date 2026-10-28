@@ -105,3 +105,5 @@ Jevalan is an independent project. It is not affiliated with, endorsed by, or sp
 ## License
 
 Jevalan is available under either the [MIT License](LICENSE-MIT) or the [Apache License, Version 2.0](LICENSE-APACHE), at your option.
+
+The licenses of the third-party libraries linked into the binaries are in [`THIRD_PARTY_LICENSES.txt`](THIRD_PARTY_LICENSES.txt), generated with `cargo about generate about.hbs`. Release archives include it.

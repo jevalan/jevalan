@@ -48,7 +48,7 @@ jobs:
           $stage = Join-Path $env:RUNNER_TEMP "jevalan"
           New-Item -ItemType Directory -Path $stage | Out-Null
           Copy-Item target/release/jevalan.exe $stage
-          Copy-Item -Path @('README.md', 'config.example.yaml', 'LICENSE-MIT', 'LICENSE-APACHE') -Destination $stage
+          Copy-Item -Path @('README.md', 'config.example.yaml', 'LICENSE-MIT', 'LICENSE-APACHE', 'THIRD_PARTY_LICENSES.txt') -Destination $stage
           New-Item -ItemType Directory -Path (Join-Path $stage 'config') | Out-Null
           Copy-Item -Path @('config/flows', 'config/capabilities', 'config/signals', 'config/lab') -Destination (Join-Path $stage 'config') -Recurse
           Compress-Archive -Path $stage -DestinationPath (Join-Path $env:RUNNER_TEMP "$env:RELEASE_NAME.zip")
@@ -60,7 +60,7 @@ jobs:
         run: |
           stage="$RUNNER_TEMP/jevalan"
           mkdir -p "$stage"
-          cp target/release/jevalan README.md config.example.yaml LICENSE-MIT LICENSE-APACHE "$stage/"
+          cp target/release/jevalan README.md config.example.yaml LICENSE-MIT LICENSE-APACHE THIRD_PARTY_LICENSES.txt "$stage/"
           mkdir -p "$stage/config"
           cp -R config/flows config/capabilities config/signals config/lab "$stage/config/"
           tar -czf "$RUNNER_TEMP/$RELEASE_NAME.tar.gz" -C "$RUNNER_TEMP" jevalan
