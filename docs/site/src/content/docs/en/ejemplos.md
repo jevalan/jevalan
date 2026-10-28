@@ -1,9 +1,9 @@
 ---
 title: Examples
-description: Nine worked examples, from a rules-only flow to a guard on your coding agent and a check in CI.
+description: Ten worked examples, from a rules-only flow to a guard on your coding agent and a check in CI.
 ---
 
-Each example is self-contained. The first two were run against a real daemon and the responses shown are its actual output. Examples 5 to 8 pass `POST /v1/flows/validate`, but they ask a model, so they were not run against one: treat their thresholds and weights as a first guess and tune them with the [laboratory](/en/laboratorio/). The rest use files and commands that ship with the repository.
+Each example is self-contained. The first two were run against a real daemon and the responses shown are its actual output. Examples 5 to 8 pass `POST /v1/flows/validate`, but they ask a model, so they were not run against one: treat their thresholds and weights as a first guess and tune them with the [laboratory](/en/laboratorio/). Example 9 was run through `jevalan mcp` against a real daemon. The rest use files and commands that ship with the repository.
 
 ## 1. Route support tickets with plain rules
 
@@ -224,7 +224,35 @@ outputs:
 
 Each node can name its own `model` (and `backend`), so the escalation is just a second node. The `tier` in the output tells you which model decided, which makes the saving measurable: count how often the cheap tier is enough, and tune `min_confidence` with the [laboratory](/en/laboratorio/). Models and thresholds here are placeholders; use the ones you actually run.
 
-## 9. Check decisions in CI
+## 9. Let your agent check before it acts (MCP)
+
+Give the agent a way to ask Jevalan instead of guessing. Start the daemon, then register the bridge in your project's `.mcp.json` ([details](/en/servidor-mcp/)):
+
+```json
+{
+  "mcpServers": {
+    "jevalan": { "command": "/path/to/jevalan", "args": ["mcp"] }
+  }
+}
+```
+
+The agent now has `jevalan_list_flows`, `jevalan_run_flow`, `jevalan_validate_flow` and `jevalan_try_draft`, plus one tool per capability such as `tool_risk`. Two things it can do with them, with the real answers:
+
+**Check a flow it just drafted** with `jevalan_validate_flow`. A broken expression comes back as a verdict, not as a failed call, with the exact position, so the agent can fix it and try again:
+
+```json
+{"ok":false,"error":"a: expresión CEL inválida: ERROR: <input>:1:11: Syntax error: mismatched input '<EOF>' …\n| input.x ==\n| ..........^"}
+```
+
+**Ask a decision before acting** with `jevalan_run_flow`, here the deployment gate from example 2 for a push to `main` with passing tests:
+
+```json
+{"flow":"deploy-gate","outcome":"allow","path":[{"node":"prod_from_branch","port":"false", …},{"node":"tests","port":"false", …}],"trace_id":"…"}
+```
+
+The `outcome` is `allow`, and the `path` shows which rules were crossed. Asking is a courtesy the model can skip, so keep the [hook](/en/integraciones/) for anything that must be enforced. And the agent cannot save what it drafts: turning a validated draft into a published flow is still your job, with `jevalan edit`.
+
+## 10. Check decisions in CI
 
 Add the laboratory to your pipeline. It needs no backend and no key:
 

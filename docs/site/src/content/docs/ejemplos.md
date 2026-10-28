@@ -1,9 +1,9 @@
 ---
 title: Ejemplos
-description: Nueve ejemplos completos, desde un flujo solo con reglas hasta un guardián para tu agente de código y una comprobación en CI.
+description: Diez ejemplos completos, desde un flujo solo con reglas hasta un guardián para tu agente de código y una comprobación en CI.
 ---
 
-Cada ejemplo es autosuficiente. Los dos primeros se ejecutaron contra un daemon real y las respuestas son su salida auténtica. Los ejemplos 5 a 8 pasan `POST /v1/flows/validate`, pero preguntan a un modelo y no se probaron con uno: toma sus umbrales y pesos como una primera aproximación y afínalos con el [laboratorio](/laboratorio/). El resto usa ficheros y comandos que vienen con el repositorio.
+Cada ejemplo es autosuficiente. Los dos primeros se ejecutaron contra un daemon real y las respuestas son su salida auténtica. Los ejemplos 5 a 8 pasan `POST /v1/flows/validate`, pero preguntan a un modelo y no se probaron con uno: toma sus umbrales y pesos como una primera aproximación y afínalos con el [laboratorio](/laboratorio/). El ejemplo 9 se ejecutó a través de `jevalan mcp` contra un daemon real. El resto usa ficheros y comandos que vienen con el repositorio.
 
 ## 1. Enruta tickets de soporte con reglas
 
@@ -224,7 +224,35 @@ outputs:
 
 Cada nodo puede indicar su propio `model` (y `backend`), así que la escalada es solo un segundo nodo. El `tier` de la salida dice qué modelo decidió, lo que permite medir el ahorro: cuenta cuántas veces basta el nivel barato y ajusta `min_confidence` con el [laboratorio](/laboratorio/). Los modelos y umbrales de aquí son de relleno; usa los que de verdad ejecutes.
 
-## 9. Comprueba las decisiones en CI
+## 9. Deja que tu agente consulte antes de actuar (MCP)
+
+Dale al agente una forma de preguntar a Jevalan en vez de adivinar. Arranca el daemon y registra el puente en el `.mcp.json` de tu proyecto ([detalles](/servidor-mcp/)):
+
+```json
+{
+  "mcpServers": {
+    "jevalan": { "command": "/path/to/jevalan", "args": ["mcp"] }
+  }
+}
+```
+
+El agente pasa a tener `jevalan_list_flows`, `jevalan_run_flow`, `jevalan_validate_flow` y `jevalan_try_draft`, más una herramienta por capacidad, como `tool_risk`. Dos cosas que puede hacer con ellas, con las respuestas reales:
+
+**Comprobar un flujo que acaba de redactar** con `jevalan_validate_flow`. Una expresión rota vuelve como un veredicto, no como una llamada fallida, con la posición exacta, así que el agente puede corregirla y volver a probar:
+
+```json
+{"ok":false,"error":"a: expresión CEL inválida: ERROR: <input>:1:11: Syntax error: mismatched input '<EOF>' …\n| input.x ==\n| ..........^"}
+```
+
+**Pedir una decisión antes de actuar** con `jevalan_run_flow`, aquí la barrera de despliegue del ejemplo 2 para un push a `main` con las pruebas pasando:
+
+```json
+{"flow":"deploy-gate","outcome":"allow","path":[{"node":"prod_from_branch","port":"false", …},{"node":"tests","port":"false", …}],"trace_id":"…"}
+```
+
+El `outcome` es `allow`, y el `path` muestra qué reglas se cruzaron. Preguntar es una cortesía que el modelo puede saltarse, así que conserva el [hook](/integraciones/) para lo que deba imponerse. Y el agente no puede guardar lo que redacta: convertir un borrador validado en un flujo publicado sigue siendo cosa tuya, con `jevalan edit`.
+
+## 10. Comprueba las decisiones en CI
 
 Añade el laboratorio a tu pipeline. No necesita backend ni clave:
 

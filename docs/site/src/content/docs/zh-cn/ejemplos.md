@@ -1,9 +1,9 @@
 ---
 title: 示例
-description: 九个完整示例：从只用规则的流程，到守护代码智能体，再到 CI 中的检查。
+description: 十个完整示例：从只用规则的流程，到守护代码智能体，再到 CI 中的检查。
 ---
 
-每个示例都是自包含的。前两个是针对真实守护进程运行的，所展示的响应就是它的实际输出。示例 5 到 8 能通过 `POST /v1/flows/validate`，但它们会询问模型，因此没有用模型运行过：请把其中的阈值和权重当作初步估计，并用[实验室](/zh-cn/laboratorio/)调整。其余示例使用仓库自带的文件和命令。
+每个示例都是自包含的。前两个是针对真实守护进程运行的，所展示的响应就是它的实际输出。示例 5 到 8 能通过 `POST /v1/flows/validate`，但它们会询问模型，因此没有用模型运行过：请把其中的阈值和权重当作初步估计，并用[实验室](/zh-cn/laboratorio/)调整。示例 9 是通过 `jevalan mcp` 针对真实守护进程运行的。其余示例使用仓库自带的文件和命令。
 
 ## 1. 用简单规则为支持工单分流
 
@@ -224,7 +224,35 @@ outputs:
 
 每个节点都可以指定自己的 `model`（以及 `backend`），因此升级只是多一个节点。输出中的 `tier` 会告诉你是哪个模型做出的决定，这样节省的成本就可以衡量：统计便宜档够用的比例，并用[实验室](/zh-cn/laboratorio/)调整 `min_confidence`。这里的模型和阈值只是占位，请换成你实际运行的。
 
-## 9. 在 CI 中检查决策
+## 9. 让你的智能体在行动前先查询（MCP）
+
+给智能体一种向 Jevalan 提问的方式，而不是靠猜。启动守护进程，然后在项目的 `.mcp.json` 中注册这座桥（[详情](/zh-cn/servidor-mcp/)）：
+
+```json
+{
+  "mcpServers": {
+    "jevalan": { "command": "/path/to/jevalan", "args": ["mcp"] }
+  }
+}
+```
+
+智能体现在拥有 `jevalan_list_flows`、`jevalan_run_flow`、`jevalan_validate_flow` 和 `jevalan_try_draft`，以及每个能力对应的一个工具，例如 `tool_risk`。它可以用这些工具做两件事，下面是真实的答复：
+
+**检查刚起草的流程**，使用 `jevalan_validate_flow`。损坏的表达式会作为一个判定返回，而不是失败的调用，并带有确切位置，因此智能体可以修正后再试：
+
+```json
+{"ok":false,"error":"a: expresión CEL inválida: ERROR: <input>:1:11: Syntax error: mismatched input '<EOF>' …\n| input.x ==\n| ..........^"}
+```
+
+**在行动之前请求决策**，使用 `jevalan_run_flow`。这里是示例 2 中的部署关卡，对象是测试通过后推送到 `main`：
+
+```json
+{"flow":"deploy-gate","outcome":"allow","path":[{"node":"prod_from_branch","port":"false", …},{"node":"tests","port":"false", …}],"trace_id":"…"}
+```
+
+`outcome` 是 `allow`，`path` 显示经过了哪些规则。提问只是一种礼貌，模型可以跳过，因此对于必须强制执行的事项，请继续使用 [hook](/zh-cn/integraciones/)。此外，智能体不能保存它起草的内容：把通过校验的草稿变成已发布的流程，仍然是你的工作，使用 `jevalan edit`。
+
+## 10. 在 CI 中检查决策
 
 把实验室加入你的流水线。它不需要后端，也不需要密钥：
 
