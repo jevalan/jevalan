@@ -6,7 +6,7 @@ enlazadas en los binarios de jevalan. Se genera con `cargo about generate about.
 
 Resumen de licencias
 --------------------
-- MIT License (MIT): 250 paquete(s)
+- MIT License (MIT): 251 paquete(s)
 - ISC License (ISC): 25 paquete(s)
 - Unicode License v3 (Unicode-3.0): 19 paquete(s)
 - Apache License 2.0 (Apache-2.0): 5 paquete(s)
@@ -5120,6 +5120,7 @@ Usada por:
 - jevalan-flow 0.1.0 (https://github.com/jevalan/jevalan)
 - jevalan-hub 0.1.0 (https://github.com/jevalan/jevalan)
 - jevalan-lab 0.1.0 (https://github.com/jevalan/jevalan)
+- jevalan-servers 0.1.0 (https://github.com/jevalan/jevalan)
 - jevalan-tui 0.1.0 (https://github.com/jevalan/jevalan)
 - cel 0.15.0 (https://github.com/cel-rust/cel-rust)
 - chrono-tz 0.10.4 (https://github.com/chronotope/chrono-tz)

@@ -26,3 +26,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
+
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.9.3
+      - name: THIRD_PARTY_LICENSES.txt is up to date
+        run: |
+          cargo about generate about.hbs -o "$RUNNER_TEMP/licenses.txt"
+          if ! diff <(tr -d '\r' < THIRD_PARTY_LICENSES.txt) <(tr -d '\r' < "$RUNNER_TEMP/licenses.txt"); then
+            echo "::error::THIRD_PARTY_LICENSES.txt is stale: run 'cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt'"
+            exit 1
+          fi
