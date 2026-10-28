@@ -33,12 +33,12 @@ pub trait Daemon {
     fn call(&self, name: &str, args: Value) -> Result<ToolOutcome, ProtocolError>;
 }
 
-fn reply(id: &Value, result: Value) -> String {
-    json!({ "jsonrpc": "2.0", "id": id, "result": result }).to_string()
+fn reply(id: &Value, result: Value) -> Value {
+    json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
 
-fn failure(id: &Value, code: i64, message: &str) -> String {
-    json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } }).to_string()
+fn failure(id: &Value, code: i64, message: &str) -> Value {
+    json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
 
 /// Aviso de que la lista de herramientas cambió.
@@ -46,14 +46,30 @@ pub fn list_changed_notification() -> String {
     json!({ "jsonrpc": "2.0", "method": "notifications/tools/list_changed" }).to_string()
 }
 
-/// Atiende una línea de entrada. `None` para líneas vacías y notificaciones (mensajes sin `id`).
+/// Atiende una línea de entrada. `None` para líneas vacías, notificaciones y lotes que solo las contienen.
+/// Un lote (array) devuelve un array con las respuestas que haya, como exige JSON-RPC 2.0.
 pub fn handle_line(daemon: &dyn Daemon, line: &str) -> Option<String> {
     if line.trim().is_empty() {
         return None;
     }
     let Ok(msg) = serde_json::from_str::<Value>(line) else {
-        return Some(failure(&Value::Null, -32700, "JSON inválido"));
+        return Some(failure(&Value::Null, -32700, "JSON inválido").to_string());
     };
+    match msg {
+        Value::Array(items) if items.is_empty() => Some(failure(&Value::Null, -32600, "lote vacío").to_string()),
+        Value::Array(items) => {
+            let replies: Vec<Value> = items.iter().filter_map(|m| handle_message(daemon, m)).collect();
+            if replies.is_empty() { None } else { Some(Value::Array(replies).to_string()) }
+        }
+        other => handle_message(daemon, &other).map(|v| v.to_string()),
+    }
+}
+
+/// Un mensaje suelto: `None` si es una notificación.
+fn handle_message(daemon: &dyn Daemon, msg: &Value) -> Option<Value> {
+    if !msg.is_object() {
+        return Some(failure(&Value::Null, -32600, "petición inválida"));
+    }
     let id = msg.get("id")?.clone();
     let params = msg.get("params").cloned().unwrap_or(Value::Null);
     let answer = match msg.get("method").and_then(Value::as_str) {
@@ -179,5 +195,30 @@ mod tests {
     #[test]
     fn ping_returns_empty_object() {
         assert_eq!(ask(r#"{"jsonrpc":"2.0","id":6,"method":"ping"}"#)["result"], json!({}));
+    }
+
+    #[test]
+    fn batch_returns_array_with_only_the_answerable_messages() {
+        let line = r#"[{"jsonrpc":"2.0","id":1,"method":"ping"},{"jsonrpc":"2.0","method":"notifications/initialized"},{"jsonrpc":"2.0","id":2,"method":"ping"}]"#;
+        let r = ask(line);
+        assert_eq!(r.as_array().unwrap().len(), 2);
+        assert_eq!(r[0]["id"], 1);
+        assert_eq!(r[1]["id"], 2);
+    }
+
+    #[test]
+    fn batch_of_only_notifications_gets_no_reply() {
+        assert!(
+            handle_line(&FakeDaemon, r#"[{"jsonrpc":"2.0","method":"a"},{"jsonrpc":"2.0","method":"b"}]"#).is_none()
+        );
+    }
+
+    #[test]
+    fn empty_batch_and_non_objects_are_invalid_requests() {
+        for line in ["[]", "42", "\"x\"", "null"] {
+            let r = ask(line);
+            assert_eq!(r["error"]["code"], -32600, "{line}");
+            assert!(r["id"].is_null());
+        }
     }
 }

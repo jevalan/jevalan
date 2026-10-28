@@ -54,9 +54,9 @@ impl<H: Http> Catalog<H> {
     }
 
     /// Una herramienta por capacidad cargada; si dos comparten nombre se queda la primera.
-    fn capability_tools(&self) -> Vec<CapTool> {
-        let Ok(listing) = self.http.get("/v1/hub/capabilities") else { return Vec::new() };
-        let Some(caps) = listing.get("capabilities").and_then(Value::as_object) else { return Vec::new() };
+    fn capability_tools(&self) -> Result<Vec<CapTool>, String> {
+        let listing = self.http.get("/v1/hub/capabilities")?;
+        let Some(caps) = listing.get("capabilities").and_then(Value::as_object) else { return Ok(Vec::new()) };
         let mut out: Vec<CapTool> = Vec::new();
         for (id, summary) in caps {
             let name = tool_name(id);
@@ -73,7 +73,7 @@ impl<H: Http> Catalog<H> {
                 schema: summary.get("input_schema").cloned().unwrap_or_else(|| json!({ "type": "object" })),
             });
         }
-        out
+        Ok(out)
     }
 
     fn call_capability(&self, cap: &CapTool, args: Value) -> ToolOutcome {
@@ -185,7 +185,7 @@ impl<H: Http> Catalog<H> {
 impl<H: Http> Daemon for Catalog<H> {
     fn list_tools(&self) -> Vec<Tool> {
         let mut tools = self.static_tools();
-        tools.extend(self.capability_tools().into_iter().map(|c| Tool {
+        tools.extend(self.capability_tools().unwrap_or_default().into_iter().map(|c| Tool {
             name: c.name,
             description: c.description,
             input_schema: c.schema,
@@ -199,9 +199,13 @@ impl<H: Http> Daemon for Catalog<H> {
             LIST_FLOWS => Ok(answered(self.http.get("/v1/flows"))),
             VALIDATE_FLOW => Ok(self.validate_flow(&args)),
             TRY_DRAFT => Ok(self.try_draft(&args)),
-            _ => match self.capability_tools().into_iter().find(|c| c.name == name) {
-                Some(cap) => Ok(self.call_capability(&cap, args)),
-                None => Err(ProtocolError { code: -32602, message: format!("herramienta desconocida: {name}") }),
+            // Con el daemon caído no se sabe si la herramienta existe: se dice por qué, no «desconocida».
+            _ => match self.capability_tools() {
+                Err(why) => Ok(failed(why)),
+                Ok(caps) => match caps.into_iter().find(|c| c.name == name) {
+                    Some(cap) => Ok(self.call_capability(&cap, args)),
+                    None => Err(ProtocolError { code: -32602, message: format!("herramienta desconocida: {name}") }),
+                },
             },
         }
     }
@@ -397,5 +401,12 @@ mod tests {
     fn unknown_tool_is_invalid_params() {
         let err = Catalog::new(http_with(&[]), false).call("nope", json!({})).unwrap_err();
         assert_eq!(err.code, -32602);
+    }
+
+    #[test]
+    fn capability_call_with_the_daemon_down_is_an_error_outcome_not_unknown_tool() {
+        let out = Catalog::new(FakeHttp::default(), false).call("tool_risk", json!({})).unwrap();
+        assert!(out.is_error);
+        assert!(out.value["error"].as_str().unwrap().contains("inalcanzable"));
     }
 }
