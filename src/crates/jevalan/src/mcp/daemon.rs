@@ -47,20 +47,34 @@ pub struct HttpDaemon {
 
 impl HttpDaemon {
     pub fn new(addr: Option<String>, token: Option<String>) -> Self {
+        Self::with_timeout(addr, token, TOTAL_TIMEOUT)
+    }
+
+    /// Como `new`, con otro plazo total por petición (las pruebas lo acortan).
+    pub fn with_timeout(addr: Option<String>, token: Option<String>, total: Duration) -> Self {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("runtime de tokio");
-        let http = reqwest::Client::builder()
-            .connect_timeout(CONNECT_TIMEOUT)
-            .timeout(TOTAL_TIMEOUT)
-            .build()
-            .expect("cliente HTTP");
+        let http =
+            reqwest::Client::builder().connect_timeout(CONNECT_TIMEOUT).timeout(total).build().expect("cliente HTTP");
         Self { addr, token, runtime, http }
     }
 
-    /// Prueba cada candidato por orden; solo un fallo de conexión pasa al siguiente.
     fn send(&self, method: reqwest::Method, path: &str, body: Option<&Value>) -> Result<Value, String> {
         let list = candidates(self.addr.as_deref(), self.token.as_deref(), discovery::read());
+        self.send_to(&list, method, path, body)
+    }
+
+    /// Prueba cada candidato por orden. Solo un fallo al *conectar* pasa al siguiente: si el daemon llegó a
+    /// recibir la petición y no contestó a tiempo, repetirla en otro lado duplicaría sus efectos.
+    fn send_to(
+        &self,
+        list: &[(String, Option<String>)],
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&Value>,
+    ) -> Result<Value, String> {
         let mut last = String::from("sin daemon");
         for (addr, token) in list {
+            let (addr, token) = (addr.as_str(), token);
             let mut req =
                 self.http.request(method.clone(), format!("http://{addr}{path}")).header("X-Jevalan-Client", "mcp");
             if let Some(token) = &token {
@@ -88,9 +102,8 @@ impl HttpDaemon {
                         .map_or_else(|| format!("HTTP {status}"), str::to_string);
                     return Err(why);
                 }
-                Err(e) if e.is_connect() || e.is_timeout() => {
-                    last = format!("daemon inalcanzable en {addr}: {}", e.without_url())
-                }
+                Err(e) if e.is_connect() => last = format!("daemon inalcanzable en {addr}: {}", e.without_url()),
+                Err(e) if e.is_timeout() => return Err("el daemon no respondió a tiempo".into()),
                 Err(e) => return Err(format!("fallo hablando con el daemon: {}", e.without_url())),
             }
         }
@@ -152,5 +165,19 @@ mod tests {
         let err = d.get("/healthz").unwrap_err();
         assert!(!err.contains("sekreto"), "{err}");
         assert!(err.contains("daemon inalcanzable"), "{err}");
+    }
+
+    #[test]
+    fn a_timeout_after_connecting_is_not_retried_on_the_next_candidate() {
+        // El primero acepta la conexión (el SO la completa) pero jamás responde; el segundo vigila.
+        let silent = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let second = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        second.set_nonblocking(true).unwrap();
+        let list =
+            vec![(silent.local_addr().unwrap().to_string(), None), (second.local_addr().unwrap().to_string(), None)];
+        let d = HttpDaemon::with_timeout(None, None, Duration::from_millis(300));
+        let err = d.send_to(&list, reqwest::Method::POST, "/v1/hub", Some(&serde_json::json!({}))).unwrap_err();
+        assert!(second.accept().is_err(), "el POST no debía reenviarse al segundo candidato");
+        assert!(err.contains("a tiempo"), "{err}");
     }
 }
