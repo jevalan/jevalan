@@ -690,17 +690,17 @@ cargo run -p jevalan -- tui --fake --fx full --fake-rate 5.0 --fake-seed 12345
 | `t` | Toggle between the node path (default) and the event timeline |
 | `esc` | Back |
 
-## Editor visual de flujos
+## Visual flow editor
 
-`jevalan edit config/flows/tool-risk-local.yaml` abre un flujo en un banco de trabajo que edita **el YAML tal
-cual**: al guardar se reescriben solo los nodos tocados, así que los comentarios, el orden y las
-calibraciones escritas a mano sobreviven. Nada se publica: el borrador no entra en el registro del
-daemon, y el fichero es el que el vigilante recarga cuando se guarda. Un YAML que no parsea se abre en
-solo lectura, con el error en la banda inferior.
+`jevalan edit config/flows/tool-risk-local.yaml` opens a flow in a workbench that edits **the YAML as it
+is**: on save only the touched nodes are rewritten, so comments, order and hand-written
+calibrations survive. Nothing is published: the draft does not enter the daemon's
+registry, and the file is the one the watcher reloads when it is saved. A YAML that does not parse opens
+read-only, with the error in the bottom band.
 
 | Flag | Meaning | Default |
 |---|---|---|
-| `<FICHERO>` | Flujo que se abre | (obligatorio) |
+| `<FILE>` | Flow to open | (required) |
 | `--url` | Daemon whose verdict validates the draft | `daemon.json`, if any |
 | `--token` | Daemon token (also `JEVALAN_TOKEN`) | none |
 | `--no-events` | Do not listen to the event bus: only telemetry is lost | off |
@@ -732,11 +732,11 @@ daemon nobody knows which backends exist (the `BACKENDS` event never arrives, an
 backend does not travel in it), so **the backends are not checked** and the band says so. Everything
 else —the CEL, the ports, the cycles, the models— is still checked locally.
 
-### Guion manual, con la copia y no con el flujo que sirve
+### Manual script, on the copy and not on the flow that serves
 
-`config/flows/tool-risk-local.yaml` **decide en producción**: el hook de Claude Code lo
-consultan, y el vigilante del daemon recarga en caliente cuanto se guarda. Por eso el guion trabaja
-sobre una copia y comprueba al final que el original no se ha tocado:
+`config/flows/tool-risk-local.yaml` **decides in production**: the Claude Code hook asks it,
+and the daemon's watcher hot-reloads it as soon as it is saved. That is why the script works
+on a copy and checks at the end that the original has not been touched:
 
 ```powershell
 $guion = Join-Path $env:TEMP 'jevalan-editor-guion'
@@ -745,21 +745,21 @@ Copy-Item config/flows/tool-risk-local.yaml (Join-Path $guion 'tool-risk-local.y
 cargo run -p jevalan -- edit (Join-Path $guion 'tool-risk-local.yaml')
 ```
 
-1. Con `→` se recorre `rm_root`, sus puertos `true` y `false`, `pipe_sh`, y así hasta `risks`; con `tab`
-   se pasa al inspector y con `↑`/`↓` se recorren sus campos.
-2. Sobre `risks`, con `e` se edita `route 1 when` y se cambia `0.55` por `0.6` en sus cuatro
-   comparaciones. La banda inferior dice `válido` y `borrador sin publicar: 1 cambios`.
-3. Se estropea a propósito: se borra el final de la expresión y se confirma con `enter`. La banda dice
-   `inválido: risks.route: expresión CEL inválida: …` y `s` no escribe nada.
-4. Se corrige, `enter`, y `s`: la banda dice `guardado: 1 nodos reescritos` y vuelve a
-   `borrador sin publicar`, ya sin cuenta porque no queda ningún cambio. El fichero conserva su
-   cabecera de comentarios y aparece `tool-risk-local.yaml.bak`.
-5. `q` sale. Después, el banco sigue en verde y el flujo que sirve sigue siendo el de `config/flows/`:
+1. With `→`, walk through `rm_root`, its `true` and `false` ports, `pipe_sh`, and so on up to `risks`; with `tab`
+   move to the inspector and with `↑`/`↓` walk through its fields.
+2. On `risks`, press `e` to edit `route 1 when` and change `0.55` to `0.6` in its four
+   comparisons. The bottom band says `válido` and `borrador sin publicar: 1 cambios` (valid, unpublished draft: 1 change).
+3. Break it on purpose: delete the end of the expression and confirm with `enter`. The band says
+   `inválido: risks.route: expresión CEL inválida: …` (invalid: risks.route: invalid CEL expression) and `s` writes nothing.
+4. Fix it, `enter`, and `s`: the band says `guardado: 1 nodos reescritos` (saved: 1 node rewritten) and goes back to
+   `borrador sin publicar`, now without a count because no change is left. The file keeps its
+   comment header and `tool-risk-local.yaml.bak` appears.
+5. `q` quits. Afterwards the bench is still green and the flow that serves is still the one in `config/flows/`:
 
 ```powershell
 cargo run -p jevalan -- lab check --lab-dir config/lab --config config/lab/config.yaml
 cargo run -p jevalan -- lab offline --lab-dir config/lab --config config/lab/config.yaml
-git status --porcelain config/flows/     # sin salida: intacto
+git status --porcelain config/flows/     # no output: untouched
 ```
 
 ## Verification

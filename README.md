@@ -93,6 +93,7 @@ tools/scripts/       helper scripts (installing the binary)
 | [`docs/local-development.md`](docs/local-development.md) | Running it and configuration |
 | [`docs/claude-code-hook-install.md`](docs/claude-code-hook-install.md) | Installing the Claude Code hook |
 | [`docs/crush-hook-install.md`](docs/crush-hook-install.md) | Installing the Crush hook |
+| [`docs/es/`](docs/es/) | Documentación en español: arquitectura e instalación de los hooks |
 | [`docs/releases.md`](docs/releases.md) | Alpha policy and GitHub release builds |
 | [Contributing](CONTRIBUTING.md) | Development setup and checks for pull requests |
 | [Security policy](SECURITY.md) | Private vulnerability reports |

@@ -1,105 +1,107 @@
-# Instalación del hook de Claude Code en esta máquina (Windows)
+# Installing the Claude Code hook (Windows)
 
-Cómo está montado el hook `PreToolUse` en modo sombra y cómo actualizarlo. El diseño está en `docs/architecture.md`, sección 6.
+*[Versión en español](es/claude-code-hook-install.md)*
 
-## Piezas instaladas
+How the `PreToolUse` hook is set up in shadow mode, and how to update it. The design is in `docs/architecture.md`, section 6.
 
-| Pieza | Dónde |
+## Installed pieces
+
+| Piece | Where |
 |---|---|
-| Binario estable (lo usan hook y daemon) | `%LOCALAPPDATA%\jevalan\bin\jevalan.exe` |
-| Hook global | `~/.claude/settings.json` → `PreToolUse`, matcher `*`, `jevalan.exe hook claude-code --mode shadow` |
-| Daemon | tarea programada `jevalan-daemon` (al iniciar sesión), cwd = repo, `serve --config config/lab/config.openrouter.yaml` |
-| Salida del daemon | `%LOCALAPPDATA%\jevalan\serve.log` |
-| Descubrimiento (addr + token) | `%LOCALAPPDATA%\jevalan\daemon.json` |
-| Registro sombra | `%LOCALAPPDATA%\jevalan\shadow.jsonl` |
+| Stable binary (used by the hook and the daemon) | `%LOCALAPPDATA%\jevalan\bin\jevalan.exe` |
+| Global hook | `~/.claude/settings.json` → `PreToolUse`, matcher `*`, `jevalan.exe hook claude-code --mode shadow` |
+| Daemon | scheduled task `jevalan-daemon` (at logon), cwd = repo, `serve --config config/lab/config.openrouter.yaml` |
+| Daemon output | `%LOCALAPPDATA%\jevalan\serve.log` |
+| Discovery (addr + token) | `%LOCALAPPDATA%\jevalan\daemon.json` |
+| Shadow log | `%LOCALAPPDATA%\jevalan\shadow.jsonl` |
 
-El hook apunta a una **copia** del binario, nunca a `target/`: un `cargo clean` o una compilación a medias no deben romper todas las sesiones de Claude Code.
+The hook points to a **copy** of the binary, never to `target/`: a `cargo clean` or a half-finished build must not break every Claude Code session.
 
-La TUI toma el token de `daemon.json` cuando no se le pasa `--token`, ni hay `JEVALAN_TOKEN` ni `.env`, así que `jevalan tui` funciona desde cualquier carpeta.
+The TUI takes the token from `daemon.json` when it is not given `--token` and there is neither `JEVALAN_TOKEN` nor a `.env`, so `jevalan tui` works from any folder.
 
-## Invocar `jevalan` desde cualquier terminal
+## Running `jevalan` from any terminal
 
-El directorio del binario estable no está en el `PATH` por defecto. Para poder escribir `jevalan` a secas, añádelo al `PATH` **de usuario** (no hace falta admin, y así la consola y el daemon ejecutan la misma copia):
+The stable binary's directory is not on the `PATH` by default. To be able to type plain `jevalan`, add it to the **user** `PATH` (no admin needed, and this way the console and the daemon run the same copy):
 
 ```powershell
 $dir = Join-Path $env:LOCALAPPDATA 'jevalan\bin'
 $cur = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (($cur -split ';') -contains $dir) {
-    "Ya estaba en el PATH de usuario."
+    "Already on the user PATH."
 } else {
     [Environment]::SetEnvironmentVariable('Path', ($cur.TrimEnd(';') + ';' + $dir), 'User')
-    "Añadido: $dir"
+    "Added: $dir"
 }
 ```
 
-Dos detalles que importan:
+Two details that matter:
 
-- **Se lee la variable de usuario, no `$env:PATH`.** `$env:PATH` es la vista mezclada de usuario y máquina; escribirla de vuelta en la de usuario incrustaría las rutas de máquina dentro de la tuya. La comprobación previa evita duplicar la entrada si se ejecuta dos veces.
-- **Solo afecta a procesos nuevos.** Una terminal ya abierta conserva el `PATH` con el que arrancó, así que `Get-Command jevalan` falla ahí aunque el cambio esté hecho. Abre otra, o refresca la actual:
+- **It reads the user variable, not `$env:PATH`.** `$env:PATH` is the merged view of user and machine; writing it back to the user variable would embed the machine paths inside yours. The prior check avoids duplicating the entry if you run it twice.
+- **It only affects new processes.** A terminal that is already open keeps the `PATH` it started with, so `Get-Command jevalan` fails there even though the change is done. Open another one, or refresh the current one:
 
   ```powershell
   $env:PATH = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
   ```
 
-Comprueba en una terminal nueva:
+Check in a new terminal:
 
 ```powershell
 Get-Command jevalan
 jevalan --version
 ```
 
-El binario responde a `--version`.
+The binary answers to `--version`.
 
-El hook y la tarea programada siguen invocando la **ruta absoluta**, así que no se ven afectados por este cambio.
+The hook and the scheduled task keep invoking the **absolute path**, so they are not affected by this change.
 
-Como lo que queda en el `PATH` es la copia **estable**, `jevalan` ejecuta la versión instalada, que puede ir por detrás del código fuente — esa copia existe precisamente para que un `cargo clean` o una compilación a medias no rompan todas las sesiones de Claude Code. Para el fuente de ahora, `cargo run -p jevalan -- tui`; para poner al día la copia, `cargo build --release -p jevalan` y `./tools/scripts/update-installed-binary.ps1`.
+Because what ends up on the `PATH` is the **stable** copy, `jevalan` runs the installed version, which may lag behind the source — that copy exists precisely so that a `cargo clean` or a half-finished build does not break every Claude Code session. For the current source, `cargo run -p jevalan -- tui`; to bring the copy up to date, `cargo build --release -p jevalan` and `./tools/scripts/update-installed-binary.ps1`.
 
-## Sustituir el .exe tras recompilar
+## Replacing the .exe after rebuilding
 
 ```powershell
 cargo build --release -p jevalan
 ./tools/scripts/update-installed-binary.ps1
 ```
 
-Hay que recompilar y reinstalar la copia estable (`cargo build --release -p jevalan` y `./tools/scripts/update-installed-binary.ps1`) siempre que `config/flows/` use algo que el binario instalado no conoce — por ejemplo `signals:`, desde la capa de señales. Un binario anterior conserva la versión del flujo que ya tenía cargada, pero tras un reinicio marca ese flujo como inválido y deja de servirlo.
+You must rebuild and reinstall the stable copy whenever `config/flows/` uses something the installed binary does not know — for example `signals:`, since the signal layer. An older binary keeps the version of the flow it already had loaded, but after a restart it marks that flow as invalid and stops serving it.
 
-### Si falla con «el proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso»
+### If it fails with "the process cannot access the file because it is being used by another process"
 
-Windows no deja sobrescribir un `.exe` que se está ejecutando, y la copia estable la usan **el daemon** (siempre) y **el hook** (un instante en cada herramienta). El script ya lo resuelve; a mano es:
+Windows does not let you overwrite a running `.exe`, and the stable copy is used by **the daemon** (always) and **the hook** (for an instant on every tool). The script already handles it; by hand it is:
 
 ```powershell
-Stop-ScheduledTask jevalan-daemon                 # 1. parar el daemon
-Get-Process jevalan | Select-Object Id, Path      # 2. ¿queda alguno? (p. ej. un serve lanzado a mano)
+Stop-ScheduledTask jevalan-daemon                 # 1. stop the daemon
+Get-Process jevalan | Select-Object Id, Path      # 2. any left? (e.g. a serve launched by hand)
 Copy-Item target\release\jevalan.exe "$env:LOCALAPPDATA\jevalan\bin\jevalan.exe" -Force
-Start-ScheduledTask jevalan-daemon                # 3. arrancarlo de nuevo
+Start-ScheduledTask jevalan-daemon                # 3. start it again
 ```
 
-Si la copia sigue fallando, es un hook en curso: espera un segundo y repite. Mientras el daemon está parado, el hook en modo sombra no molesta: apunta `"sin daemon"` y sale.
+If the copy still fails, it is a hook in flight: wait a second and repeat. While the daemon is stopped, the hook in shadow mode does not get in the way: it records `"sin daemon"` (no daemon) and exits.
 
-## Gestionar el daemon
+## Managing the daemon
 
 ```powershell
 Start-ScheduledTask jevalan-daemon
 Stop-ScheduledTask jevalan-daemon
 Get-Content "$env:LOCALAPPDATA\jevalan\serve.log" -Tail 20
-Unregister-ScheduledTask jevalan-daemon -Confirm:$false   # quitarlo del todo
+Unregister-ScheduledTask jevalan-daemon -Confirm:$false   # remove it entirely
 ```
 
-## Desinstalar el hook
+## Uninstalling the hook
 
-Quitar la entrada `jevalan.exe` de `PreToolUse` en `~/.claude/settings.json` (o desactivarla desde `/hooks`).
+Remove the `jevalan.exe` entry from `PreToolUse` in `~/.claude/settings.json` (or disable it from `/hooks`).
 
-## Privacidad: solo modelos locales 
+## Privacy: local models only
 
-El hook es **global**: cada herramienta de **cualquier** proyecto de la máquina (también repos de clientes y repos personales con tokens, `.env`, secretos de Kubernetes…) se envía al daemon, y este la pasa a quien sirva `tool.risk`. La redacción del registro sombra solo protege el fichero local; **lo que el daemon reenvía va tal cual**.
+The hook is **global**: every tool of **any** project on the machine (including client repos and personal repos with tokens, `.env` files, Kubernetes secrets…) is sent to the daemon, and the daemon passes it to whatever serves `tool.risk`. Shadow-log redaction only protects the local file; **what the daemon forwards goes out as is**.
 
-Por eso:
+Therefore:
 
-- El daemon del hook usa **`config/lab/config.local.yaml`**: `tool.risk` lo decide `config/flows/tool-risk-local.yaml` contra **Kev (`127.0.0.1:8009`) o Laya (`127.0.0.1:8021`)**. Nada sale de la máquina.
-- **Prohibido** apuntar ese daemon a un backend o especialista en la nube (Toolgate, Jev vía OpenRouter o TypeSafe) mientras no exista el blindaje de salida:
-  1. no consultar en absoluto si la herramienta toca rutas sensibles (`.env*`, `*.pem`, `*.key`, `id_rsa*`, kubeconfig, `secret*.yaml`, `sealed*`, `credentials*`, `.npmrc`…), incluidos comandos que las nombren;
-  2. redactar también la **entrada saliente**, no solo el registro, dejando marcas `[REDACTED:<tipo>]`;
-  3. no pasar `transcript_path` tal cual: generar una transcripción temporal saneada;
-  4. lista blanca de carpetas (`cwd`);
-  5. patrones de redacción validados contra un escaneo de secretos de tus propios repositorios (tipo y fichero, nunca valores).
-- `shadow.jsonl` es local pero guarda los comandos completos (con lo reconocible tachado): no se sube a ningún repo ni se comparte. Lo publicable es `jevalan shadow report`, que no incluye entradas.
+- The hook's daemon uses **`config/lab/config.local.yaml`**: `tool.risk` is decided by `config/flows/tool-risk-local.yaml` against **Kev (`127.0.0.1:8009`) or Laya (`127.0.0.1:8021`)**. Nothing leaves the machine.
+- It is **forbidden** to point that daemon at a cloud backend or specialist (Toolgate, Jev via OpenRouter or TypeSafe) until the outbound shield exists:
+  1. do not query at all if the tool touches sensitive paths (`.env*`, `*.pem`, `*.key`, `id_rsa*`, kubeconfig, `secret*.yaml`, `sealed*`, `credentials*`, `.npmrc`…), including commands that name them;
+  2. redact the **outgoing input** too, not just the log, leaving `[REDACTED:<type>]` marks;
+  3. do not pass `transcript_path` as is: generate a sanitized temporary transcript;
+  4. a folder allowlist (`cwd`);
+  5. redaction patterns validated against a secret scan of your own repositories (type and file, never values).
+- `shadow.jsonl` is local but stores the full commands (with what is recognizable redacted): it is not uploaded to any repo or shared. What is publishable is `jevalan shadow report`, which includes no inputs.

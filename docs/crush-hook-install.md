@@ -1,53 +1,55 @@
-# Instalación del hook de Crush en esta máquina (Windows)
+# Installing the Crush hook (Windows)
 
-Cómo se monta el hook `PreToolUse` para que Crush pase por jevalan, en modo sombra y
-sin frenar nunca. Es el mismo papel que el hook de Claude Code (`docs/claude-code-hook-install.md`),
-pero por el subcomando propio `jevalan hook crush`: firma cada petición como `crush/<proyecto>:<sesión>`
-—para que en la TUI no aparezca como `unknown`— y responde en la envoltura nativa de Crush.
+*[Versión en español](es/crush-hook-install.md)*
 
-## Por qué encaja sin puente
+How to set up the `PreToolUse` hook so Crush goes through jevalan, in shadow mode and
+never slowing it down. It plays the same role as the Claude Code hook (`docs/claude-code-hook-install.md`),
+but through its own subcommand `jevalan hook crush`: it signs each request as `crush/<project>:<session>`
+— so it does not show up as `unknown` in the TUI — and answers in Crush's native envelope.
 
-Los hooks de Crush son compatibles con los de Claude Code, y su contrato ya coincide con lo
-que jevalan necesita:
+## Why it fits without a bridge
 
-- **Entrada (stdin JSON):** `{event, session_id, cwd, tool_name, tool_input}` — justo los campos
-  que `extract_input` lee.
-- **Salida:** Crush entiende `{"decision":"deny","reason":"…"}`, que es lo que emite el modo
-  `enforce`. Crush solo distingue `allow` de `deny`; no sabe pedir confirmación desde un hook,
-  así que en Crush el modo activo **bloquea o deja decidir a sus permisos**, nunca fuerza un
-  diálogo. El hook jamás emite `allow`: solo puede endurecer.
+Crush hooks are compatible with Claude Code's, and their contract already matches what
+jevalan needs:
 
-## Piezas
+- **Input (stdin JSON):** `{event, session_id, cwd, tool_name, tool_input}` — exactly the fields
+  that `extract_input` reads.
+- **Output:** Crush understands `{"decision":"deny","reason":"…"}`, which is what `enforce` mode
+  emits. Crush only tells `allow` from `deny`; it cannot ask for confirmation from a hook,
+  so in Crush active mode **blocks or lets its permissions decide**, and never forces a
+  dialog. The hook never emits `allow`: it can only tighten.
 
-| Pieza | Dónde |
+## Pieces
+
+| Piece | Where |
 |---|---|
-| Binario estable (lo usan hook y daemon) | `%LOCALAPPDATA%\jevalan\bin\jevalan.exe` |
-| Hook global | `%USERPROFILE%\.config\crush\crushrc` → `hook add PreToolUse …` |
-| Daemon | tarea programada `jevalan-daemon` (al iniciar sesión), cwd = repo, `serve --config config/lab/config.openrouter.yaml` |
-| Salida del daemon | `%LOCALAPPDATA%\jevalan\serve.log` |
-| Descubrimiento (addr + token) | `%LOCALAPPDATA%\jevalan\daemon.json` |
-| Registro sombra | `%LOCALAPPDATA%\jevalan\shadow.jsonl` |
+| Stable binary | `%LOCALAPPDATA%\jevalan\bin\jevalan.exe` |
+| Global hook | `%USERPROFILE%\.config\crush\crushrc` → `hook add PreToolUse …` |
+| Daemon | scheduled task `jevalan-daemon` (at logon) |
+| Daemon output | `%LOCALAPPDATA%\jevalan\serve.log` |
+| Discovery (addr + token) | `%LOCALAPPDATA%\jevalan\daemon.json` |
+| Shadow log | `%LOCALAPPDATA%\jevalan\shadow.jsonl` |
 
-El hook apunta a una **copia** del binario, nunca a `target/`: un `cargo clean` o una compilación
-a medias no deben romper todas las sesiones de Crush. Para ponerla al día, `cargo build --release -p jevalan`
-y `./tools/scripts/update-installed-binary.ps1`.
+The hook points to a **copy** of the binary, never to `target/`: a `cargo clean` or a half-finished
+build must not break every Crush session. To bring it up to date, `cargo build --release -p jevalan`
+and `./tools/scripts/update-installed-binary.ps1`.
 
-## Configurar el hook
+## Configuring the hook
 
-En el `crushrc` global (`%USERPROFILE%\.config\crush\crushrc`), una línea:
+In the global `crushrc` (`%USERPROFILE%\.config\crush\crushrc`), one line:
 
 ```bash
 hook add PreToolUse --name jevalan --matcher '^(bash|edit|write|multiedit)$' --command '"$LOCALAPPDATA/jevalan/bin/jevalan.exe" hook run --client crush --dialect crush --mode shadow' --timeout 8
 ```
 
-- El subcomando es genérico: `hook run --client <nombre> --dialect <claude|crush>`. Añadir un
-  harness nuevo no añade código a jevalan, solo cambia flags; `hook crush` es un alias de
+- The subcommand is generic: `hook run --client <name> --dialect <claude|crush>`. Adding a new
+  harness adds no code to jevalan, only changes flags; `hook crush` is an alias for
   `hook run --client crush --dialect crush`.
-- El `--matcher` deja fuera las herramientas que no ejecutan nada ni tocan el disco (`view`, `ls`,
-  `grep`, `glob`, `question`, `todos`, …): el hook Rust consulta por toda herramienta con `tool_name`,
-  así que el filtro vive aquí, no en jevalan.
-- `--command` es una línea de shell que Crush ejecuta con su shell embebido; `$LOCALAPPDATA` se
-  expande al lanzarla. Si prefieres ruta absoluta o `crush.json`, el equivalente es:
+- The `--matcher` leaves out the tools that neither execute anything nor touch the disk (`view`, `ls`,
+  `grep`, `glob`, `question`, `todos`, …): the Rust hook queries for every tool with a `tool_name`,
+  so the filter lives here, not in jevalan.
+- `--command` is a shell line that Crush runs with its embedded shell; `$LOCALAPPDATA` is
+  expanded when it is launched. If you prefer an absolute path or `crush.json`, the equivalent is:
 
   ```jsonc
   {
@@ -64,30 +66,30 @@ hook add PreToolUse --name jevalan --matcher '^(bash|edit|write|multiedit)$' --c
   }
   ```
 
-Cambia `--mode shadow` por `--mode enforce` para que un veredicto `deny` bloquee la herramienta.
-En `enforce`, `ask` y las indecisiones dejan pasar: el hook no puede pedir confirmación.
+Change `--mode shadow` to `--mode enforce` so that a `deny` verdict blocks the tool.
+In `enforce`, `ask` and indecision let it through: the hook cannot ask for confirmation.
 
-Los hooks se releen al arrancar Crush; para aplicar el cambio, reinicia la sesión.
+Hooks are re-read when Crush starts; to apply the change, restart the session.
 
-## Comprobar
+## Checking
 
-Con el daemon levantado, una herramienta (por ejemplo `bash`) debe aparecer en la TUI como
-`crush/<proyecto>:<sesión>`, y cada decisión queda en `shadow.jsonl`. Sin daemon, el hook apunta
-`"sin daemon"` y sale sin estorbar.
+With the daemon up, a tool (for example `bash`) should appear in the TUI as
+`crush/<project>:<session>`, and every decision is recorded in `shadow.jsonl`. Without a daemon, the hook
+records `"sin daemon"` (no daemon) and exits without getting in the way.
 
-## Desinstalar
+## Uninstalling
 
-Quita la entrada `jevalan` del `crushrc` (`hook remove PreToolUse --name jevalan`) o del bloque
-`hooks.PreToolUse` de `crush.json`.
+Remove the `jevalan` entry from the `crushrc` (`hook remove PreToolUse --name jevalan`) or from the
+`hooks.PreToolUse` block of `crush.json`.
 
-## Privacidad: solo modelos locales (regla vigente)
+## Privacy: local models only
 
-El hook es **global**: cada herramienta de **cualquier** proyecto de la máquina se envía al daemon.
-Por eso rige la misma regla que para el hook de Claude Code (véase `docs/local-development.md`):
+The hook is **global**: every tool of **any** project on the machine is sent to the daemon.
+So the same rule applies as for the Claude Code hook (see `docs/local-development.md`):
 
-- El daemon del hook usa **`config/lab/config.local.yaml`**: `tool.risk` lo decide `config/flows/tool-risk-local.yaml`
-  contra **Kev (`127.0.0.1:8009`) o Laya (`127.0.0.1:8021`)**. Nada sale de la máquina.
-- **Prohibido** apuntar ese daemon a un backend o especialista en la nube mientras no exista el
-  blindaje de salida.
-- `shadow.jsonl` guarda los comandos completos (con lo reconocible tachado): no se sube a ningún
-  repo ni se comparte. Lo publicable es `jevalan shadow report`.
+- The hook's daemon uses **`config/lab/config.local.yaml`**: `tool.risk` is decided by `config/flows/tool-risk-local.yaml`
+  against **Kev (`127.0.0.1:8009`) or Laya (`127.0.0.1:8021`)**. Nothing leaves the machine.
+- It is **forbidden** to point that daemon at a cloud backend or specialist until the outbound
+  shield exists.
+- `shadow.jsonl` stores the full commands (with what is recognizable redacted): it is not uploaded to any
+  repo or shared. What is publishable is `jevalan shadow report`.
