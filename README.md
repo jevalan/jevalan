@@ -7,7 +7,46 @@ something; jevalan decides — or has a specialist decide — and returns a type
 Release candidate: `0.1.0-alpha.1` (unpublished). See the [release policy](docs/releases.md) for
 versioning and platform builds.
 
-The full design, with diagrams, is in [`docs/architecture.md`](docs/architecture.md).
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph clients["Clients"]
+        direction TB
+        CC["Claude Code / Crush<br/>PreToolUse hook"]
+        SC["Scripts and agents"]
+    end
+
+    subgraph jevalan["jevalan daemon"]
+        direction TB
+        PT["Passthrough<br/>POST /{backend}/v1/systemone"]
+        FE["Flow engine<br/>POST /v1/decide/{flow}<br/>rule · noul · choice · score · batch"]
+        REG["Capability registry<br/>POST /v1/hub"]
+        BUS["Event bus<br/>WebSocket /events"]
+        REG -->|provider: flow| FE
+    end
+
+    subgraph backends["Backends"]
+        direction TB
+        S1["System One models<br/>OpenRouter · TypeSafe · Ollama · local"]
+        SP["Specialists<br/>exec process · http service"]
+    end
+
+    TUI["Terminal UI<br/>jevalan tui / edit"]
+    LAB["jevalan lab<br/>offline · record · live"]
+
+    CC -->|"tool.risk"| REG
+    SC --> PT
+    SC --> FE
+    SC --> REG
+    PT --> S1
+    FE --> S1
+    REG -->|"provider: exec / http"| SP
+    BUS -.->|events| TUI
+    LAB -.->|"same path, in process"| REG
+```
+
+Jevalan returns a typed decision and never performs the effect: the client that asked stays in control. The full design, with more detailed diagrams, is in [`docs/architecture.md`](docs/architecture.md).
 
 ## Status
 
