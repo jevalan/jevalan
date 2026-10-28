@@ -178,3 +178,15 @@ fn hook_run_is_silent_without_a_readable_input() {
     assert!(out.status.success());
     assert!(out.stdout.is_empty(), "{}", String::from_utf8_lossy(&out.stdout));
 }
+
+#[test]
+fn mcp_help_lists_its_options_and_hides_the_token() {
+    let out = Command::new(env!("CARGO_BIN_EXE_jevalan"))
+        .args(["mcp", "--help"])
+        .env("JEVALAN_TOKEN", "supersecret123")
+        .output()
+        .unwrap();
+    let help = String::from_utf8_lossy(&out.stdout);
+    assert!(help.contains("--addr") && help.contains("--token") && help.contains("--allow-live"), "{help}");
+    assert!(!help.contains("supersecret123"), "{help}");
+}

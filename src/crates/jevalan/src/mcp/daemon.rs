@@ -61,7 +61,8 @@ impl HttpDaemon {
         let list = candidates(self.addr.as_deref(), self.token.as_deref(), discovery::read());
         let mut last = String::from("sin daemon");
         for (addr, token) in list {
-            let mut req = self.http.request(method.clone(), format!("http://{addr}{path}")).header("X-Jevalan-Client", "mcp");
+            let mut req =
+                self.http.request(method.clone(), format!("http://{addr}{path}")).header("X-Jevalan-Client", "mcp");
             if let Some(token) = &token {
                 req = req.bearer_auth(token);
             }
@@ -76,14 +77,20 @@ impl HttpDaemon {
             });
             match sent {
                 Ok((status, text)) => {
-                    let value: Value = serde_json::from_str(&text).map_err(|_| format!("respuesta ilegible (HTTP {status})"))?;
+                    let value: Value =
+                        serde_json::from_str(&text).map_err(|_| format!("respuesta ilegible (HTTP {status})"))?;
                     if status.is_success() {
                         return Ok(value);
                     }
-                    let why = value.get("error").and_then(Value::as_str).map_or_else(|| format!("HTTP {status}"), str::to_string);
+                    let why = value
+                        .get("error")
+                        .and_then(Value::as_str)
+                        .map_or_else(|| format!("HTTP {status}"), str::to_string);
                     return Err(why);
                 }
-                Err(e) if e.is_connect() || e.is_timeout() => last = format!("daemon inalcanzable en {addr}: {}", e.without_url()),
+                Err(e) if e.is_connect() || e.is_timeout() => {
+                    last = format!("daemon inalcanzable en {addr}: {}", e.without_url())
+                }
                 Err(e) => return Err(format!("fallo hablando con el daemon: {}", e.without_url())),
             }
         }

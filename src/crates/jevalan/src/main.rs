@@ -76,6 +76,18 @@ enum Cmd {
         #[arg(long, default_value = "./config/signals")]
         signals_dir: PathBuf,
     },
+    /// Servidor MCP por stdio: expone las capacidades del hub como herramientas.
+    Mcp {
+        /// Dirección `host:puerto` del daemon; sin ella, la de `daemon.json`, y después la de por defecto.
+        #[arg(long)]
+        addr: Option<String>,
+        /// Token del daemon, si exige autenticación.
+        #[arg(long, env = "JEVALAN_TOKEN", hide_env_values = true)]
+        token: Option<String>,
+        /// Permite que `jevalan_try_draft` use los transportes `live` y `record`, que llaman a modelos reales.
+        #[arg(long)]
+        allow_live: bool,
+    },
     /// Cliente de agentes externos.
     Hook {
         #[command(subcommand)]
@@ -243,6 +255,7 @@ fn main() -> ExitCode {
         Cmd::Edit { file, url, token, no_events, signals_dir } => {
             edit::run(edit::Opts { file, url, token, no_events, signals_dir })
         }
+        Cmd::Mcp { addr, token, allow_live } => mcp::run(mcp::McpOptions { addr, token, allow_live }),
         Cmd::Hook { action } => match action {
             HookAction::Run { client, dialect, mode } => hook::run(mode, &client, dialect),
             HookAction::ClaudeCode { mode } => hook::run(mode, "claude-code", hook::Dialect::Claude),

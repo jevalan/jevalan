@@ -103,7 +103,7 @@ impl<H: Http> Catalog<H> {
         answered(self.http.post(&format!("/v1/decide/{flow}"), &json!({ "state": state, "client": "mcp" })))
     }
 
-    fn flow_and_yaml<'a>(args: &'a Value) -> Result<(&'a str, &'a str), ToolOutcome> {
+    fn flow_and_yaml(args: &Value) -> Result<(&str, &str), ToolOutcome> {
         let flow = args.get("flow").and_then(Value::as_str).filter(|f| valid_flow_name(f));
         let yaml = args.get("yaml").and_then(Value::as_str);
         match (flow, yaml) {
@@ -268,7 +268,14 @@ mod tests {
         got.sort();
         assert_eq!(
             got,
-            ["agent_wakeup", "jevalan_list_flows", "jevalan_run_flow", "jevalan_try_draft", "jevalan_validate_flow", "tool_risk"]
+            [
+                "agent_wakeup",
+                "jevalan_list_flows",
+                "jevalan_run_flow",
+                "jevalan_try_draft",
+                "jevalan_validate_flow",
+                "tool_risk"
+            ]
         );
         let risk = c.list_tools().into_iter().find(|t| t.name == "tool_risk").unwrap();
         assert_eq!(risk.input_schema, json!({ "type": "object", "required": ["x"] }));
@@ -328,8 +335,9 @@ mod tests {
     fn draft_live_without_flag_is_refused_before_any_request() {
         for transport in ["live", "record"] {
             let c = Catalog::new(FakeHttp::default(), false);
-            let out =
-                c.call("jevalan_try_draft", json!({ "flow": "x", "yaml": "y", "input": {}, "transport": transport })).unwrap();
+            let out = c
+                .call("jevalan_try_draft", json!({ "flow": "x", "yaml": "y", "input": {}, "transport": transport }))
+                .unwrap();
             assert!(out.is_error);
             assert!(out.value["error"].as_str().unwrap().contains("--allow-live"));
             assert!(c.http.log.borrow().is_empty());
@@ -337,7 +345,8 @@ mod tests {
         let mut h = FakeHttp::default();
         h.posts.insert("/v1/flows/draft/run".into(), Ok(json!({ "outcome": "ok" })));
         let c = Catalog::new(h, true);
-        let out = c.call("jevalan_try_draft", json!({ "flow": "x", "yaml": "y", "input": {}, "transport": "live" })).unwrap();
+        let out =
+            c.call("jevalan_try_draft", json!({ "flow": "x", "yaml": "y", "input": {}, "transport": "live" })).unwrap();
         assert!(!out.is_error);
         assert_eq!(c.http.log.borrow().len(), 1);
     }

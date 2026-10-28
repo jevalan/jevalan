@@ -107,7 +107,11 @@ mod tests {
 
     impl Daemon for FakeDaemon {
         fn list_tools(&self) -> Vec<Tool> {
-            vec![Tool { name: "echo".into(), description: "Devuelve lo recibido".into(), input_schema: json!({"type":"object"}) }]
+            vec![Tool {
+                name: "echo".into(),
+                description: "Devuelve lo recibido".into(),
+                input_schema: json!({"type":"object"}),
+            }]
         }
         fn call(&self, name: &str, args: Value) -> Result<ToolOutcome, ProtocolError> {
             match name {
