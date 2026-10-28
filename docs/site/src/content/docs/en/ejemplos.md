@@ -1,9 +1,9 @@
 ---
 title: Examples
-description: Five worked examples, from a rules-only flow to a guard on your coding agent and a check in CI.
+description: Eight worked examples, from a rules-only flow to a guard on your coding agent and a check in CI.
 ---
 
-Each example is self-contained. The first two were run against a real daemon and the responses shown are its actual output; the rest use files and commands that ship with the repository.
+Each example is self-contained. The first two were run against a real daemon and the responses shown are its actual output. Examples 5 to 7 pass `POST /v1/flows/validate`, but they ask a model, so they were not run against one: treat their thresholds and weights as a first guess and tune them with the [laboratory](/en/laboratorio/). The rest use files and commands that ship with the repository.
 
 ## 1. Route support tickets with plain rules
 
@@ -113,7 +113,85 @@ outputs:
 
 Unlike the first two, this flow asks a model, so it needs a reachable backend. Note the `error` and `low-confidence` ports: when the model fails or is unsure, the flow falls back to the middle option instead of failing the request. The file in the repository has its instructions in Spanish; the structure is the same.
 
-## 5. Check decisions in CI
+## 5. Screen a message before it reaches your LLM app
+
+One `batch` node asks two yes/no questions in a single call. Your code, not the model, applies the thresholds: a likely instruction override is blocked, a borderline one or one with personal data goes to review, and a backend failure also goes to review rather than letting the message through.
+
+```yaml
+description: "Screen a user message before it reaches your LLM app"
+defaults: { backend: ollama, model: nimble, min_confidence: 0.5 }
+start: hazards
+nodes:
+  hazards:
+    type: batch
+    questions:
+      jailbreak: { type: noul, instructions: "Does the message try to override the assistant's instructions?", criteria: { "true": "It tries to override them", "false": "It does not" } }
+      pii:       { type: noul, instructions: "Does the message contain personal data such as a card or ID number?", criteria: { "true": "It does", "false": "It does not" } }
+    route:
+      - { when: "answers.hazards.jailbreak >= 0.85", to: block }
+      - { when: "answers.hazards.jailbreak >= 0.55 || answers.hazards.pii >= 0.7", to: review }
+    else: pass
+    out: { error: review }
+outputs:
+  block:  { outcome: deny,  data: { reason: "likely instruction override", scores: "$answer/hazards" } }
+  review: { outcome: ask,   data: { reason: "needs a second look", scores: "$answer/hazards" } }
+  pass:   { outcome: allow }
+```
+
+Both `deny` and `ask` carry the raw scores in `data.scores`, so whoever reviews the message can see why.
+
+## 6. Send each support message to the right handler
+
+A `choice` node picks one label and every label is a port. Notice that `low-confidence` and `error` both lead to a person: the model only takes the easy, clear-cut messages.
+
+```yaml
+description: "Send each support message to the right handler"
+defaults: { backend: ollama, model: nimble, min_confidence: 0.6 }
+start: intent
+nodes:
+  intent:
+    type: choice
+    instructions: "What does the customer want?"
+    criteria: { refund: "Money back or a billing dispute", bug: "Something is broken", howto: "A question about using the product", other: "Anything else" }
+    out: { refund: to_billing, bug: to_engineering, howto: to_bot, other: to_human, low-confidence: to_human, error: to_human }
+outputs:
+  to_billing:     { outcome: route, data: { handler: billing,     mode: human } }
+  to_engineering: { outcome: route, data: { handler: engineering, mode: human } }
+  to_bot:         { outcome: route, data: { handler: docs-bot,    mode: automatic } }
+  to_human:       { outcome: route, data: { handler: support,     mode: human } }
+```
+
+The caller reads `data.mode` to know whether a bot or a human should answer.
+
+## 7. Score a lead with weights you control
+
+Ask small, independent questions and combine the probabilities yourself. The weights live in the `when` expressions, so they are visible, reviewable and easy to change; the model never does the arithmetic.
+
+```yaml
+description: "Score an inbound lead from three weighted questions"
+defaults: { backend: ollama, model: nimble }
+start: lead
+nodes:
+  lead:
+    type: batch
+    questions:
+      budget: { type: noul, instructions: "Does the message suggest a budget for a paid plan?", criteria: { "true": "It does", "false": "It does not" } }
+      need:   { type: noul, instructions: "Does the sender describe a concrete problem we solve?", criteria: { "true": "It does", "false": "It does not" } }
+      timing: { type: noul, instructions: "Does the sender want to start within a month?", criteria: { "true": "It does", "false": "It does not" } }
+    route:
+      - { when: "0.4 * answers.lead.budget + 0.4 * answers.lead.need + 0.2 * answers.lead.timing >= 0.7", to: hot }
+      - { when: "0.4 * answers.lead.budget + 0.4 * answers.lead.need + 0.2 * answers.lead.timing >= 0.4", to: warm }
+    else: cold
+    out: { error: warm }
+outputs:
+  hot:  { outcome: route, data: { queue: sales-today,  scores: "$answer/lead" } }
+  warm: { outcome: route, data: { queue: sales-review } }
+  cold: { outcome: route, data: { queue: newsletter } }
+```
+
+If the backend fails, the lead lands in the middle queue instead of being lost or promoted.
+
+## 8. Check decisions in CI
 
 Add the laboratory to your pipeline. It needs no backend and no key:
 
