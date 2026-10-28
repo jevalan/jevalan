@@ -3,6 +3,7 @@ mod fixtures;
 mod hook;
 mod lab;
 mod live;
+mod mcp;
 mod shadow;
 mod specialist;
 
