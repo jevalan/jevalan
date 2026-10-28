@@ -1,5 +1,5 @@
-# Como config.yaml, más el backend OpenRouter (Decisions API). Exige OPENROUTER_API_KEY (entorno o .env):
-#   cargo run -p jevalan -- lab live --target openrouter --config config/lab/config.openrouter.yaml
+# Like config.yaml, plus the OpenRouter backend (Decisions API). Needs OPENROUTER_API_KEY (environment or .env):
+# cargo run -p jevalan -- lab live --target openrouter --config config/lab/config.openrouter.yaml
 backends:
   typesafe: { url: "https://api.typesafe.ai", timeout_ms: 2000 }
   ollama: { url: "http://localhost:11434", timeout_ms: 5000 }
