@@ -374,15 +374,36 @@ async fn deadline_kills_the_whole_tree() {
     while pid_alive(pid) && started.elapsed() < Duration::from_secs(3) {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+    assert!(!reap(pid), "el nieto {pid} sigue vivo");
+}
+
+/// True if `pid` is still alive, in which case it is killed so that a failing test leaves no orphans.
+fn reap(pid: u32) -> bool {
     let alive = pid_alive(pid);
     if alive {
-        // So that the test leaves no orphans even if it fails.
         let pid = pid.to_string();
         let (tool, flags) = if cfg!(windows) { ("taskkill", "/F") } else { ("kill", "-KILL") };
         let args = if cfg!(windows) { vec![flags, "/PID", &pid] } else { vec![flags, &pid] };
         let _ = std::process::Command::new(tool).args(args).output();
     }
-    assert!(!alive, "el nieto {pid} sigue vivo");
+    alive
+}
+
+#[tokio::test]
+async fn an_answer_is_not_held_back_by_a_descendant_and_leaves_no_orphan() {
+    let dir = TempDir::with(&[]);
+    let pid_file = dir.0.join("orphan.pid");
+    let daemon = exec_daemon(&[], 5000).await;
+
+    let started = Instant::now();
+    let reply = risk(&daemon, json!({ "mode": "orphan", "pid_file": pid_file }), Some(8000)).await;
+    let took = started.elapsed();
+
+    let pid: u32 = std::fs::read_to_string(&pid_file).expect("el nieto no llegó a nacer").trim().parse().unwrap();
+    let orphan_survived = reap(pid);
+    assert_eq!(reply["status"], "ok", "{reply}");
+    assert!(took < Duration::from_secs(4), "la respuesta esperó al nieto: {took:?}");
+    assert!(!orphan_survived, "el nieto huérfano {pid} sigue vivo");
 }
 
 /// Test HTTP specialist: `/ok` decides, `/bad` fails with 500.

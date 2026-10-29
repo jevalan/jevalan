@@ -26,6 +26,18 @@ fn main() {
             }
             std::thread::sleep(std::time::Duration::from_secs(10));
         }
+        "orphan" => {
+            // Like `spawn-grandchild`, but the parent answers and exits at once, leaving the grandchild behind.
+            let exe = std::env::current_exe().expect("current_exe");
+            #[allow(clippy::zombie_processes)] // the grandchild must outlive its parent
+            let mut child =
+                std::process::Command::new(exe).stdin(std::process::Stdio::piped()).spawn().expect("grandchild");
+            let _ = child.stdin.take().expect("stdin").write_all(br#"{"mode":"sleep"}"#);
+            if let Some(path) = input["pid_file"].as_str() {
+                std::fs::write(path, child.id().to_string()).expect("pid_file");
+            }
+            verdict("allow", "ok", "model");
+        }
         "flood" => {
             let block = [b'x'; 64 * 1024];
             let mut out = std::io::stdout();
