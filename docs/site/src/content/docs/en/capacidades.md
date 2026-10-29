@@ -77,7 +77,7 @@ Both schemas are enforced: a request that does not match `input_schema` is rejec
 `exec` providers launch a program on your machine, so they are disabled unless you set `hub.allow_exec: true` (or `JEVALAN_ALLOW_EXEC=1`). When they run:
 
 - The process is started **without a shell**, with an empty environment plus `PATH` (and `SystemRoot` on Windows) and only the variables named in `env`.
-- It is killed, with its whole process tree, if it exceeds the deadline. The response is not complete until its output closes: a child process that inherits it and stays alive holds the response back until the deadline, and if the main process had already exited, that orphaned child is not killed. Make sure your specialist leaves no processes behind.
+- It is killed, with its whole process tree, if it exceeds the deadline. When the specialist finishes, any processes it left running are killed too: none outlives the call.
 - Its output is capped at 1 MiB.
 - On Windows, `.cmd` and `.bat` files are refused, because launching them goes through a shell.
 - The command, its environment, and its URL never appear in events, logs, or `GET /v1/hub/capabilities`.

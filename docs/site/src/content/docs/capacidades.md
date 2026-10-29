@@ -77,7 +77,7 @@ Se aplican los dos esquemas: una petición que no cumple el `input_schema` se re
 Los proveedores `exec` lanzan un programa en tu máquina, así que están desactivados salvo que pongas `hub.allow_exec: true` (o `JEVALAN_ALLOW_EXEC=1`). Cuando corren:
 
 - El proceso se lanza **sin shell**, con un entorno vacío más `PATH` (y `SystemRoot` en Windows) y solo las variables nombradas en `env`.
-- Se mata, con todo su árbol de procesos, si supera el plazo. La respuesta no se da por completa hasta que se cierra su salida: un proceso hijo que la herede y siga vivo retrasa la respuesta hasta el plazo, y si el proceso principal ya había terminado, ese hijo huérfano no se mata. Haz que tu especialista no deje procesos tras de sí.
+- Se mata, con todo su árbol de procesos, si supera el plazo. Cuando el especialista termina, se matan también los procesos que haya dejado en marcha: no sobrevive ninguno a la llamada.
 - Su salida está limitada a 1 MiB.
 - En Windows se rechazan los `.cmd` y `.bat`, porque lanzarlos pasa por una shell.
 - El comando, su entorno y su URL nunca aparecen en eventos, registros ni en `GET /v1/hub/capabilities`.
