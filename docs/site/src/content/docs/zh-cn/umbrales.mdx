@@ -1,0 +1,26 @@
+---
+title: 试试阈值
+description: 拖动 tool.risk 和 agent.wakeup 的阈值，看看每个流程会如何决定，无需发出任何请求。
+---
+
+import UmbralPlayground from '../../../components/UmbralPlayground.astro';
+
+模型返回概率，**由你的流程决定如何处理这些概率**。这两个小玩具在你的浏览器里应用与自带流程（`tool-risk-local` 和 `agent-wakeup`）相同的规则。它们不调用任何模型，也不发出任何请求：概率由你来拖动。
+
+<UmbralPlayground labels={{
+  toolTitle: "tool.risk：四种风险，两个阈值",
+  risks: [["destructive", "破坏性"], ["exfiltration", "外泄"], ["privilege", "提权"], ["secret_exposure", "机密泄露"]],
+  askAt: "ask 阈值", denyAt: "deny 阈值", verdict: "判定",
+  allow: "allow", ask: "ask", deny: "deny",
+  wakeTitle: "agent.wakeup：值得唤醒吗？",
+  prob: "模型概率", sleepBelow: "低于此值则休眠", judgedFrom: "从此值起明确判定",
+  outcome: "结果", sleep: "休眠（judged）", unsure: "唤醒（unsure）", judged: "唤醒（judged）"
+}} />
+
+## 看什么
+
+- 在 `tool.risk` 中，先满足的阈值生效，且 `deny` 排在 `ask` 之前。只要**一个**风险就足以决定：只调高一个，看判定如何变化。
+- 在 `agent.wakeup` 中区间是左闭右开的：概率等于阈值时落入上面一档。把两个值都设为 0.30：它就不再休眠了。
+- 模型从头到尾没有变化。变的是你的策略，以及有多少决策会交给人。
+
+自带流程的数值（0.55 和 0.85；0.3 和 0.5）只是初步估计。想用你自己的数据固定它们，请看[决策指南](/zh-cn/guia-decisiones/)和[练习](/zh-cn/ejercicios/)。
