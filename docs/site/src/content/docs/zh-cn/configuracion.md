@@ -57,6 +57,8 @@ backends:
 
 后端名称使用小写字母、数字和连字符，且不能是 `v1`。无论 `path` 是什么，你的客户端调用的路由 `/{backend}/v1/systemone` 都不会改变。
 
+**把 Ollama 当作后端。** 从 0.35.0 版本起，Ollama 通过同一契约提供决策模型（例如 `ollama pull nimble`），按模型名调用。版本更旧，或没有拉取决策模型时，`/v1/systemone` 不会按 System One 应答（0.32.15 返回 `404`），所有节点都会走 `error` 端口。普通的 Ollama 聊天模型不行：它不会返回自己的概率。
+
 如果 `default_backend` 未定义、某个 `url` 不是 http 或 https，或者某个 `api_key_env` 变量为空或未设置，守护进程会立即失败，并给出清晰的信息。
 
 流程会指定它们所用的后端。如果流程指定了你的配置中没有定义的后端，该流程会显示为无效，直到你把它加上。参见[故障排查](/zh-cn/solucion-de-problemas/)。

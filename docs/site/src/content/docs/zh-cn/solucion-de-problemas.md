@@ -17,6 +17,10 @@ capacidad inválida: agent.wakeup: proveedor inválido: flujo desconocido: agent
 
 使用只定义了部分后端的最小配置时，这是预期的情况。它不是故障，但需要缺失后端的流程将不会被提供服务。
 
+## 使用本地后端时，所有节点都走 `error` 端口
+
+**不经过 Jevalan** 直接检查服务器（见[兼容的后端](/zh-cn/backends/)）。如果是 Ollama，且 `POST /v1/systemone` 返回 `404`，说明版本低于 0.35.0：请升级并拉取一个决策模型（`ollama pull nimble`）。如果它返回 `200`，节点仍走 `error` 端口，请查看响应 `path` 中的消息：通常是服务器没有实现该节点的问题类型。
+
 ## 守护进程无法启动
 
 - **缺少变量。** 如果 `default_backend` 未定义、某个 `url` 不是 http 或 https，或者某个 `api_key_env` 所指的变量为空或未设置，守护进程会立即失败。错误信息以 `configuración inválida:` 开头，会说明是哪一个，并且守护进程以退出码 `2` 结束。

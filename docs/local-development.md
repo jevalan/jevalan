@@ -28,7 +28,7 @@ backends. If the port answers but is not jevalan, it exits with code 2.
 ## Requirements
 
 - Rust toolchain (stable) with the MSVC target on Windows.
-- Optional: [Ollama](https://ollama.com) listening on `http://localhost:11434` for the `ollama` backend.
+- Optional: [Ollama](https://ollama.com) **0.35.0 or later**, listening on `http://localhost:11434`, with a decision model pulled (for example `ollama pull nimble`), for the `ollama` backend. Older versions answer `404` on `/v1/systemone`.
 - Optional: a TypeSafe API key for the `typesafe` backend.
 
 ### Windows note
@@ -76,7 +76,7 @@ The daemon fails fast if `default_backend` is not defined, a `url` is not http(s
 
 ### Backends
 
-- `ollama`: local, no auth, `http://localhost:11434`.
+- `ollama`: local, no auth, `http://localhost:11434`. Needs Ollama 0.35.0 or later and a decision model pulled (`ollama pull nimble`); an ordinary chat model does not return System One probabilities.
 - `typesafe`: `https://api.typesafe.ai`, needs `TYPESAFE_API_KEY`.
 - `openrouter`: OpenRouter's Decisions API, `url: https://openrouter.ai` with `path: /api/alpha/decisions`, needs
   `OPENROUTER_API_KEY`. Same body as System One (`model: typesafe/jev-1.13`). Two differences: a `noul` question

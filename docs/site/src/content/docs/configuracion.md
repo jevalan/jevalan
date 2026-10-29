@@ -57,6 +57,8 @@ backends:
 
 Los nombres de backend usan minúsculas, dígitos y guiones, y no pueden ser `v1`. La ruta que llaman tus clientes, `/{backend}/v1/systemone`, nunca cambia, sea cual sea el `path`.
 
+**Ollama como backend.** A partir de la versión 0.35.0, Ollama sirve modelos de decisión por este mismo contrato (por ejemplo, `ollama pull nimble`) y se llaman por el nombre del modelo. Con una versión anterior, o sin un modelo de decisión descargado, `/v1/systemone` no responde como System One (en una 0.32.15 devuelve `404`) y todos los nodos salen por `error`. Un modelo de chat corriente de Ollama no sirve: no devuelve probabilidades propias.
+
 El daemon falla enseguida, con un mensaje claro, si `default_backend` no está definido, una `url` no es http ni https, o una variable de `api_key_env` está vacía o sin definir.
 
 Los flujos nombran el backend que usan. Si un flujo nombra un backend que tu configuración no define, ese flujo aparece como inválido hasta que lo añadas. Mira [Solución de problemas](/solucion-de-problemas/).
