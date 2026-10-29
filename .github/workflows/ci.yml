@@ -21,6 +21,21 @@ jobs:
       - run: cargo run -p jevalan -- lab check
       - run: cargo run -p jevalan -- lab offline
 
+  sdk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/sdk-ts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/sdk-ts/package-lock.json
+      - run: npm ci
+      - run: npm test
+
   deny:
     runs-on: ubuntu-latest
     steps:
