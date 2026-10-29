@@ -41,8 +41,13 @@ async fn pump(mut socket: WebSocket, state: AppState, mut rx: Receiver<Event>) {
 async fn send_initial(socket: &mut WebSocket, state: &AppState) -> bool {
     let names = state.cfg.backends.keys().cloned().collect();
     let routes = state.cfg.routes.keys().cloned().collect();
-    let backends =
-        new_event(&format!("backends:{}", state.boot), 1, "daemon", EventKind::Backends { backends: names, routes });
+    let remote = state.cfg.backends.iter().filter(|(_, b)| b.is_remote()).map(|(n, _)| n.clone()).collect();
+    let backends = new_event(
+        &format!("backends:{}", state.boot),
+        1,
+        "daemon",
+        EventKind::Backends { backends: names, routes, remote },
+    );
     if !send(socket, &backends).await {
         return false;
     }

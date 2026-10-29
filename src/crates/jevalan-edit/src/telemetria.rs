@@ -111,7 +111,7 @@ impl Telemetria {
     /// because its name is not among the current flows.
     fn anotar(&mut self, e: &Event, ahora: Instant) {
         match &e.kind {
-            EventKind::Backends { backends, routes } => {
+            EventKind::Backends { backends, routes, .. } => {
                 self.backends = backends.clone();
                 self.rutas = routes.clone();
             }
@@ -197,7 +197,11 @@ mod tests {
     fn el_catalogo_de_backends_y_la_actividad_llegan_por_el_bus() {
         let mut telemetria = sorda("tool-risk-local");
         telemetria.anotar(
-            &evento(EventKind::Backends { backends: vec!["kev".into(), "laya".into()], routes: Vec::new() }),
+            &evento(EventKind::Backends {
+                backends: vec!["kev".into(), "laya".into()],
+                routes: Vec::new(),
+                remote: Vec::new(),
+            }),
             Instant::now(),
         );
         assert_eq!(telemetria.backends, ["kev", "laya"]);

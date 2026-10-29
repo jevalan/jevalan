@@ -16,8 +16,10 @@ use rataflow::{
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEventKind, MouseButton, MouseEventKind};
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::symbols::Marker;
 use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::canvas::{Canvas, Painter, Shape};
 use ratatui::widgets::{Block, BorderType, Paragraph, Widget};
 use std::collections::BTreeMap;
 use std::time::Instant;
@@ -54,6 +56,8 @@ enum NodeKind {
     Chip,
     /// `exec`/`http` specialist of a capability: chip with the notch on the right.
     ProviderChip,
+    /// A backend that does not live on this machine: a cloud in the chip's own slot. It wins over `ProviderChip`.
+    Cloud,
     Port,
 }
 
@@ -93,7 +97,67 @@ fn wrap_name(name: &str, width: u16) -> Vec<String> {
     out
 }
 
+/// Braille dots across and down a chip-sized slot (`CHIP_W` x `CHIP_H` cells, 2 x 4 dots each).
+const CLOUD_DOTS: (f64, f64) = (39.0, 19.0);
+/// The cloud as the union of five ellipses `(cx, cy, rx, ry)` in dots, y growing upwards: two bumps on top, two
+/// below and a wide body that carries the label.
+const CLOUD: [(f64, f64, f64, f64); 5] = [
+    (20.0, 9.5, 19.0, 6.0),
+    (13.0, 12.5, 7.5, 6.0),
+    (26.0, 13.0, 8.5, 5.5),
+    (10.0, 6.5, 8.0, 4.5),
+    (30.0, 6.5, 8.5, 4.5),
+];
+/// Canvas step, in dots: half a dot is finer than the grid, so no border sample is lost.
+const CLOUD_STEP: f64 = 0.5;
+
+fn in_cloud(x: f64, y: f64) -> bool {
+    CLOUD.iter().any(|&(cx, cy, rx, ry)| ((x - cx) / rx).powi(2) + ((y - cy) / ry).powi(2) <= 1.0)
+}
+
+/// Only the outline of the union: a point inside with a neighbour outside. Drawing five circles one after another
+/// would also show the arcs inside, where the ellipses overlap.
+struct CloudOutline(Color);
+
+impl Shape for CloudOutline {
+    fn draw(&self, painter: &mut Painter) {
+        let steps = |max: f64| (0..=(max / CLOUD_STEP) as u32).map(|i| f64::from(i) * CLOUD_STEP);
+        for x in steps(CLOUD_DOTS.0) {
+            for y in steps(CLOUD_DOTS.1) {
+                let edge = in_cloud(x, y)
+                    && [(CLOUD_STEP, 0.0), (-CLOUD_STEP, 0.0), (0.0, CLOUD_STEP), (0.0, -CLOUD_STEP)]
+                        .iter()
+                        .any(|(dx, dy)| !in_cloud(x + dx, y + dy));
+                if edge && let Some((px, py)) = painter.get_point(x, y) {
+                    painter.paint(px, py, self.0);
+                }
+            }
+        }
+    }
+}
+
+/// Column of the label's first cell inside a slot `width` cells wide: centred, never before the slot.
+fn label_x(width: u16, label_cells: u16) -> u16 {
+    width.saturating_sub(label_cells) / 2
+}
+
 impl NodeBox {
+    fn cloud(&self, border: Style, area: Rect, buf: &mut Buffer) {
+        Canvas::default()
+            .marker(Marker::Braille)
+            .x_bounds([0.0, CLOUD_DOTS.0])
+            .y_bounds([0.0, CLOUD_DOTS.1])
+            .paint(|ctx| ctx.draw(&CloudOutline(border.fg.unwrap_or(Color::Reset))))
+            .render(area, buf);
+        // The widest row of the cloud is the middle one: the label goes there, one cell of air on each side.
+        let label: Vec<char> = self.label.chars().take(area.width.saturating_sub(2) as usize).collect();
+        let x0 = area.x + label_x(area.width, label.len() as u16);
+        let y = area.y + area.height / 2;
+        for (i, c) in label.iter().enumerate() {
+            put(buf, area, x0 + i as u16, y, &c.to_string(), self.style);
+        }
+    }
+
     fn plain(&self, border: Style, area: Rect, buf: &mut Buffer) {
         let titled = self.kind == NodeKind::Titled || matches!(self.kind, NodeKind::Switch { .. });
         let mut block = Block::bordered().border_style(border);
@@ -186,6 +250,7 @@ impl NodeContent for NodeBox {
             NodeKind::Chip | NodeKind::ProviderChip if fits && area.height >= CHIP_H && area.width >= 5 => {
                 self.chip(self.kind == NodeKind::ProviderChip, border, area, buf);
             }
+            NodeKind::Cloud if fits && area.height >= CHIP_H && area.width >= 5 => self.cloud(border, area, buf),
             NodeKind::Port => self.port(border, area, buf),
             _ => self.plain(border, area, buf),
         }
@@ -467,10 +532,13 @@ impl TopologyView {
                 }
                 NodeId::Port(name) => (name.clone(), port_text(name), NodeKind::Plain),
                 NodeId::Backend(name) => {
-                    let provider = topo.is_provider(name);
-                    let kind = match (p.h == CHIP_H, provider) {
-                        (true, true) => NodeKind::ProviderChip,
-                        (true, false) => NodeKind::Chip,
+                    // A cloud says "outside this machine", which tells more than "it is an exec/http specialist".
+                    let remote = topo.is_remote(name);
+                    let provider = topo.is_provider(name) && !remote;
+                    let kind = match (p.h == CHIP_H, remote, provider) {
+                        (true, true, _) => NodeKind::Cloud,
+                        (true, false, true) => NodeKind::ProviderChip,
+                        (true, false, false) => NodeKind::Chip,
                         _ => NodeKind::Plain,
                     };
                     let up = if provider { theme::provider() } else { theme::text() };
@@ -665,6 +733,13 @@ mod tests {
         topo
     }
 
+    /// `loaded_topo` after the daemon announced its backends: `typesafe` lives outside, `ollama` does not.
+    fn cloud_topo(now: Instant) -> Topology {
+        let mut topo = loaded_topo(now);
+        topo.reduce(&crate::fake::backends_event(), now);
+        topo
+    }
+
     /// Like `loaded_topo`, plus the `agent.wakeup` flow and the two example capabilities, already with a first
     /// traffic that reveals which flow serves `agent.wakeup` (and takes its own port away).
     fn hub_topo(now: Instant) -> Topology {
@@ -781,6 +856,63 @@ mod tests {
         view.handle(&n, area);
         assert_eq!(view.selected(), Some(&NodeId::Hub));
         assert!(view.node_area(&NodeId::Hub).is_some());
+    }
+
+    #[test]
+    fn a_remote_backend_is_a_cloud_and_a_local_one_keeps_its_pins() {
+        let now = Instant::now();
+        let topo = cloud_topo(now);
+        assert!(topo.is_remote("typesafe") && !topo.is_remote("ollama"));
+        let area = Rect::new(0, 0, 100, 20);
+        let mut buf = Buffer::empty(area);
+        let mut view = TopologyView::new();
+        view.render(&topo, now, FxMode::Events, area, &mut buf);
+        let inside = |name: &str| {
+            let b = view.node_area(&NodeId::Backend(name.into())).expect("caja");
+            text(&buf, b)
+        };
+        let cloud = inside("typesafe");
+        assert!(cloud.contains("typesafe ● up"), "{cloud}");
+        assert!(cloud.chars().any(|c| ('\u{2801}'..='\u{28ff}').contains(&c)), "sin trazo braille:\n{cloud}");
+        assert!(!cloud.contains('┴') && !cloud.contains('┬'), "una nube no lleva patillas:\n{cloud}");
+        let chip = inside("ollama");
+        assert!(chip.contains("ollama ● up") && chip.contains('┴') && chip.contains('┬'), "{chip}");
+    }
+
+    #[test]
+    fn the_cloud_stays_inside_its_slot_and_the_label_is_centred() {
+        assert_eq!(label_x(20, 15), 2);
+        assert_eq!(label_x(20, 20), 0);
+        assert_eq!(label_x(20, 30), 0, "a label wider than the slot starts at its edge and is cut there");
+        let area = Rect::new(3, 2, 20, 5);
+        let mut buf = Buffer::empty(Rect::new(0, 0, 30, 10));
+        let node = NodeBox {
+            label: "openrouter ● up".into(),
+            style: theme::text(),
+            kind: NodeKind::Cloud,
+            led: None,
+            wrap: false,
+        };
+        node.cloud(theme::text(), area, &mut buf);
+        for y in 0..10 {
+            for x in 0..30 {
+                if !area.contains((x, y).into()) {
+                    assert_eq!(buf[(x, y)].symbol(), " ", "celda pintada fuera del hueco en ({x},{y})");
+                }
+            }
+        }
+        let middle = text(&buf, Rect::new(area.x, area.y + 2, area.width, 1));
+        assert!(middle.contains("openrouter ● up"), "{middle:?}");
+    }
+
+    #[test]
+    fn snapshot_with_a_cloud_and_a_chip() {
+        let now = Instant::now();
+        let topo = cloud_topo(now);
+        let area = Rect::new(0, 0, 100, 18);
+        let mut buf = Buffer::empty(area);
+        TopologyView::new().render(&topo, now, FxMode::Events, area, &mut buf);
+        insta::assert_snapshot!(text(&buf, area));
     }
 
     #[test]

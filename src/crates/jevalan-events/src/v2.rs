@@ -94,6 +94,9 @@ pub enum EventKind {
         /// Names of the configured routes; a flow may name one where it would name a backend.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         routes: Vec<String>,
+        /// Of `backends`, the ones that do not live on this machine. Never urls, hosts or keys.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        remote: Vec<String>,
     },
     FlowLoaded {
         flow: String,
@@ -218,7 +221,7 @@ mod tests {
     use std::path::Path;
     use std::time::Duration;
 
-    const FIXTURES: [&str; 19] = [
+    const FIXTURES: [&str; 21] = [
         "request_received",
         "node_start",
         "backend_request",
@@ -228,6 +231,8 @@ mod tests {
         "decision_made",
         "passthrough_done",
         "backends",
+        "backends_local",
+        "backends_routes",
         "flow_loaded",
         "flow_invalid",
         "flow_removed",

@@ -403,7 +403,7 @@ mod tests {
     #[test]
     fn backends_is_applied_even_if_seen() {
         let (mut a, _) = app();
-        let kind = EventKind::Backends { backends: vec!["ollama".into()], routes: Vec::new() };
+        let kind = EventKind::Backends { backends: vec!["ollama".into()], routes: Vec::new(), remote: Vec::new() };
         a.update(flow_event("backends:1", kind.clone()));
         assert_eq!(a.ctx.topo.backends().count(), 1);
         a.update(flow_event("backends:1", kind));
@@ -411,7 +411,11 @@ mod tests {
         // A restarted daemon repeats the same (trace, seq) with other names.
         a.update(flow_event(
             "backends:1",
-            EventKind::Backends { backends: vec!["ollama".into(), "nuevo".into()], routes: Vec::new() },
+            EventKind::Backends {
+                backends: vec!["ollama".into(), "nuevo".into()],
+                routes: Vec::new(),
+                remote: Vec::new(),
+            },
         ));
         assert_eq!(a.ctx.topo.backends().count(), 2);
     }

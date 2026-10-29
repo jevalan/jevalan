@@ -151,7 +151,11 @@ impl Topology {
                     self.finish(e, PacketStatus::Failed, now);
                 }
             }
-            EventKind::Backends { backends, .. } => backends.iter().for_each(|b| self.ensure_backend(b)),
+            EventKind::Backends { backends, remote, .. } => {
+                backends.iter().for_each(|b| self.ensure_backend(b));
+                // The truth about which backends exist stays with `backends`: a remote name outside it is ignored.
+                self.remote = remote.iter().filter(|r| backends.contains(r)).cloned().collect();
+            }
             EventKind::FlowLoaded { flow, definition, .. } => {
                 self.loaded_flows.insert(flow.clone());
                 self.rebuild_ports();
@@ -354,13 +358,33 @@ mod tests {
     #[test]
     fn backends_event_adds_chips() {
         let mut t = Topology::new();
-        let kind = EventKind::Backends { backends: vec!["ollama".into(), "typesafe".into()], routes: Vec::new() };
+        let kind = EventKind::Backends {
+            backends: vec!["ollama".into(), "typesafe".into()],
+            routes: Vec::new(),
+            remote: Vec::new(),
+        };
         assert!(t.reduce(&ev("backends:1", kind.clone()), Instant::now()).is_empty());
         let names: Vec<_> = t.backends().collect();
         assert_eq!(names, [("ollama", BackendState::Up), ("typesafe", BackendState::Up)]);
         t.reduce(&backend_resp("t", "ollama", false), Instant::now());
         t.reduce(&ev("backends:1", kind), Instant::now());
         assert_eq!(t.backends().count(), 2, "repetirlo no duplica");
+    }
+
+    #[test]
+    fn backends_event_marks_the_remote_ones_and_only_those() {
+        let mut t = Topology::new();
+        let kind = EventKind::Backends {
+            backends: vec!["ollama".into(), "typesafe".into()],
+            routes: Vec::new(),
+            // `fantasma` is not among the backends: the list of backends is the truth, so it is ignored.
+            remote: vec!["typesafe".into(), "fantasma".into()],
+        };
+        t.reduce(&ev("backends:1", kind), Instant::now());
+        assert!(t.is_remote("typesafe") && !t.is_remote("ollama") && !t.is_remote("fantasma"));
+        let local = EventKind::Backends { backends: vec!["ollama".into()], routes: Vec::new(), remote: Vec::new() };
+        t.reduce(&ev("backends:2", local), Instant::now());
+        assert!(!t.is_remote("typesafe"), "a new announcement replaces the old one");
     }
 
     #[test]

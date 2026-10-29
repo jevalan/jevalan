@@ -21,6 +21,11 @@ in the topology (`n` / `N`) and press `x`. The mock then answers `500` at once, 
 `down` after three failed responses and flows take their `error` port; press `x` again to bring
 it back. With an already-running daemon (or `--fake`) the key is absent.
 
+The topology draws a backend as a chip with pins when it lives on this machine (`localhost`, `127.x.x.x`, `::1`) and as a
+cloud when it does not, so a glance tells whether a call stays home or goes out. The daemon announces only that fact in
+`BACKENDS` (a list `remote` of names), never a url, a host or a key; a url it cannot read counts as remote. `--fake`
+shows both shapes; `--demo` has no clouds because its mocks are loopback.
+
 Plain `jevalan tui` (without `--demo`) also auto-starts a daemon when none answers, loading
 `--config` or the defaults and `.env` just like `serve`, but sends no traffic and uses real
 backends. If the port answers but is not jevalan, it exits with code 2.

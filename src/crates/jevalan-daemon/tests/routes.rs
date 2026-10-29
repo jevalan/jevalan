@@ -2,7 +2,7 @@
 
 mod common;
 
-use common::{Scripted, TempDir, answer, cfg_with, say, scripted_backend};
+use common::{Scripted, TempDir, answer, cfg_with, connect, next_json, say, scripted_backend, start_daemon};
 use jevalan_daemon::config::{Member, Route};
 use jevalan_daemon::{AppState, router};
 use serde_json::{Value, json};
@@ -117,4 +117,31 @@ async fn a_route_with_every_member_down_takes_the_error_port() {
     assert_eq!(step["port"], "error");
     assert_eq!(step["tried"], json!(["kev", "laya"]));
     assert_eq!(step["backend"], "local", "nobody answered, so the node keeps the name it declared");
+}
+
+#[tokio::test]
+async fn the_announcement_names_the_routes_and_the_remote_backends_but_never_a_url() {
+    let mut cfg = cfg_with(&[("kev", "http://127.0.0.1:8009", None), ("nube", "https://openrouter.ai", None)], None);
+    cfg.routes.insert("local".into(), Route { allow_cloud: false, members: vec![member("kev", "k")] });
+    let daemon = start_daemon(cfg).await;
+    let mut ws = connect(&daemon).await;
+
+    let event = next_json(&mut ws).await;
+
+    assert_eq!(event["type"], "BACKENDS");
+    assert_eq!(event["payload"]["backends"], json!(["kev", "nube"]));
+    assert_eq!(event["payload"]["routes"], json!(["local"]));
+    assert_eq!(event["payload"]["remote"], json!(["nube"]));
+    let text = event.to_string();
+    assert!(!text.contains("openrouter.ai") && !text.contains("8009"), "{text}");
+}
+
+#[tokio::test]
+async fn without_remotes_or_routes_the_announcement_is_the_one_of_always() {
+    let daemon = start_daemon(cfg_with(&[("kev", "http://127.0.0.1:8009", None)], None)).await;
+    let mut ws = connect(&daemon).await;
+
+    let event = next_json(&mut ws).await;
+
+    assert_eq!(event["payload"], json!({ "backends": ["kev"] }));
 }

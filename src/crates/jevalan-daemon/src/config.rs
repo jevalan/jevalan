@@ -78,6 +78,29 @@ pub struct Backend {
     pub cloud: bool,
 }
 
+impl Backend {
+    /// The backend does not live on this machine. Only the url's text is read: no DNS, no call. A host that
+    /// cannot be read counts as remote, because the costly mistake is to hide that the data leaves the machine.
+    pub fn is_remote(&self) -> bool {
+        !host_of(&self.url).is_some_and(|host| {
+            // `127.` must be a real loopback address: a name like `127.0.0.1.example.org` is somebody else's.
+            host == "localhost" || host == "::1" || host.parse::<std::net::Ipv4Addr>().is_ok_and(|ip| ip.is_loopback())
+        })
+    }
+}
+
+/// The host of an http(s) url, in lowercase: without scheme, userinfo, port, path, query or fragment.
+fn host_of(url: &str) -> Option<String> {
+    let rest = url.split_once("://")?.1;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let authority = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+    let host = match authority.strip_prefix('[') {
+        Some(inner) => inner.split_once(']')?.0,
+        None => authority.split(':').next()?,
+    };
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
+}
+
 // The key must never leak through a `{:?}`.
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -393,6 +416,40 @@ default_backend: kev
             ),
             &[],
         )
+    }
+
+    #[test]
+    fn local_and_remote_hosts_are_told_apart() {
+        let remote = |url: &str| Backend { url: url.into(), ..backend() }.is_remote();
+        for local in [
+            "http://localhost:11434",
+            "http://LOCALHOST",
+            "http://127.0.0.1:8009",
+            "http://[::1]:8021",
+            "http://localhost/v1?x=1",
+        ] {
+            assert!(!remote(local), "{local}");
+        }
+        for far in [
+            "http://192.168.1.5:8080",
+            "https://api.typesafe.ai",
+            "https://openrouter.ai/api/alpha",
+            "http://user:pass@openrouter.ai",
+            "http://user@127.0.0.1.evil.example/",
+            "http://",
+        ] {
+            assert!(remote(far), "{far}");
+        }
+    }
+
+    fn backend() -> Backend {
+        Backend {
+            url: String::new(),
+            path: DEFAULT_PATH.into(),
+            api_key: None,
+            timeout: Duration::from_millis(1),
+            cloud: false,
+        }
     }
 
     #[test]
