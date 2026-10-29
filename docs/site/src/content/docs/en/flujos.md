@@ -139,3 +139,5 @@ A heuristic that fails sends its node to the `error` port; it is never read as `
 - **Validate before you save.** Send the YAML to `POST /v1/flows/validate`, or run a draft once with `POST /v1/flows/draft/run`. Neither publishes anything. See [HTTP API](/en/api/).
 - **Use the visual editor.** `jevalan edit config/flows/<flow>.yaml` opens a draft in the terminal and writes changes back as patches, so comments and ordering survive. It never writes a draft that does not validate.
 - **Mind the live flows.** `config/flows/tool-risk-local.yaml` and `config/signals/` decide for real when the Claude Code hook is installed. Practise on a copy.
+
+![Terminal screenshot of the flow editor on a copy of tool-risk-local: the graph of nodes and ports, the inspector of the selected node, and the bottom band reporting that it validates with the local parser.](../../../assets/editor-flujos.png)
