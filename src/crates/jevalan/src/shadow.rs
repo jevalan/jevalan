@@ -5,10 +5,12 @@ use jevalan_hub::lab::metrics::percentile;
 use jevalan_hub::shadow::{
     Entry, HIGH_THRESHOLD, NAMES, RISK_THRESHOLD, category, parse, pct, sorted_latencies, suspicious,
 };
+use regex::Regex;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::OnceLock;
 
 const MAX_EXAMPLES: usize = 10;
 const INPUT_CHARS: usize = 120;
@@ -184,6 +186,45 @@ pub struct Opts {
     pub with_inputs: bool,
 }
 
+/// Validates a `--since` value (RFC 3339 or `YYYY-MM-DD`) and returns it as the UTC instant the log uses,
+/// so that entries can be compared with it as text.
+pub fn parse_since(text: &str) -> Result<String, String> {
+    static SHAPE: OnceLock<Regex> = OnceLock::new();
+    let shape = SHAPE.get_or_init(|| {
+        Regex::new(r"^(\d{4})-(\d{2})-(\d{2})(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?(?:([Zz])|([+-])(\d{2}):(\d{2}))?)?$")
+            .expect("static pattern")
+    });
+    let invalid = || format!("fecha no válida «{text}»: use AAAA-MM-DD o RFC 3339 (sin zona se entiende UTC)");
+    let caps = shape.captures(text.trim()).ok_or_else(invalid)?;
+    let num = |i: usize| caps.get(i).map_or(0, |m| m.as_str().parse::<i64>().unwrap_or(i64::MAX));
+    let (year, month, day, hour, minute, second) = (num(1), num(2), num(3), num(4), num(5), num(6));
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let month_days = match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    let offset = num(10) * 3600 + num(11) * 60;
+    if !(1..=12).contains(&month) || !(1..=month_days).contains(&day) || hour > 23 || minute > 59 || second > 59 {
+        return Err(invalid());
+    }
+    if num(10) > 23 || num(11) > 59 {
+        return Err(invalid());
+    }
+    let offset = if caps.get(9).is_some_and(|m| m.as_str() == "-") { -offset } else { offset };
+    // Days since 1970 from a civil date (Howard Hinnant's algorithm, the inverse of `hook::iso`).
+    let y = year - i64::from(month <= 2);
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day - 1;
+    let days = era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468;
+    let secs = days * 86_400 + hour * 3600 + minute * 60 + second - offset;
+    let millis =
+        caps.get(7).map_or(0, |m| format!("{:0<3}", &m.as_str()[..m.as_str().len().min(3)]).parse().unwrap_or(0));
+    Ok(crate::hook::iso(secs, millis))
+}
+
 /// Keeps the entries since `since` (ISO string; lexical comparison is valid in UTC).
 pub fn since_filter(entries: Vec<Entry>, since: &str) -> Vec<Entry> {
     entries.into_iter().filter(|e| e.ts.as_str() >= since).collect()
@@ -306,6 +347,37 @@ mod tests {
         let (e, _) = parse(&sample());
         assert_eq!(since_filter(e.clone(), "2026-10-10T07:03").len(), 3);
         assert_eq!(since_filter(e, "2026-10-11").len(), 0);
+    }
+
+    #[test]
+    fn since_is_normalised_to_the_utc_instant_of_the_log() {
+        let utc = |t: &str| parse_since(t).unwrap();
+        assert_eq!(utc("2026-10-29"), "2026-10-29T00:00:00.000Z");
+        assert_eq!(utc("2026-10-29T16:26:00.164Z"), "2026-10-29T16:26:00.164Z");
+        assert_eq!(utc("2026-10-29T12:00:00+02:00"), "2026-10-29T10:00:00.000Z");
+        assert_eq!(utc("2026-10-29T00:30:00-01:30"), "2026-10-29T02:00:00.000Z");
+        // Without a zone it is UTC, as the help says; seconds are optional.
+        assert_eq!(utc("2026-10-10T07:03"), "2026-10-10T07:03:00.000Z");
+        assert_eq!(utc("2024-02-29"), "2024-02-29T00:00:00.000Z");
+    }
+
+    #[test]
+    fn since_that_is_not_a_date_is_an_error() {
+        for bad in
+            ["", "ayer", "2026-13-45", "2026-02-30", "2023-02-29", "2026-10-29T25:00:00Z", "2026-10-29T10:00:00+25:00"]
+        {
+            let err = parse_since(bad).expect_err(bad);
+            assert!(err.contains("fecha"), "{bad}: {err}");
+        }
+    }
+
+    #[test]
+    fn a_since_with_an_offset_filters_by_instant_not_by_text() {
+        let (e, _) = parse(&sample());
+        // 07:03 UTC on the 10th is 09:03 at +02:00: both spellings must keep the same entries.
+        let a = since_filter(e.clone(), &parse_since("2026-10-10T07:03:00Z").unwrap());
+        let b = since_filter(e, &parse_since("2026-10-10T09:03:00+02:00").unwrap());
+        assert_eq!(a.len(), b.len());
     }
 
     #[test]
