@@ -7,7 +7,7 @@ nodes:
     type: noul
     instructions: "¿El comando borra o sobrescribe datos fuera del proyecto?"
     threshold: 0.8
-    out: { "true": deny, "false": kind, error: abstain }
+    out: { "true": deny, "false": kind, low-confidence: ask, error: abstain }
   kind:
     type: choice
     backend: typesafe

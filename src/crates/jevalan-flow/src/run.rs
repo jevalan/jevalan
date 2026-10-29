@@ -516,8 +516,18 @@ mod tests {
 
     #[test]
     fn low_confidence_is_ignored_when_not_wired() {
-        let (end, ports) = drive(&guard(), vec![ok(json!(0.1), 0.1), ok(json!("research"), 0.9)]);
-        assert_eq!((end.as_str(), ports[0].as_str()), ("allow", "false"));
+        // `risk` wires no `low-confidence`: a hesitant score still follows its range.
+        let (end, ports) = drive(&guard(), vec![ok(json!(0.1), 0.9), ok(json!("shell"), 0.9), ok(json!(0.5), 0.1)]);
+        assert_eq!((end.as_str(), ports[2].as_str()), ("allow", "0..1.5"));
+    }
+
+    #[test]
+    fn a_hesitant_destructive_answer_asks_instead_of_being_trusted() {
+        // Either way the answer goes: a doubtful "not destructive" must not let the command through.
+        for answer in [0.1, 0.95] {
+            let (end, ports) = drive(&guard(), vec![ok(json!(answer), 0.1)]);
+            assert_eq!((end.as_str(), ports[0].as_str()), ("ask-user", "low-confidence"), "answer {answer}");
+        }
     }
 
     #[test]
