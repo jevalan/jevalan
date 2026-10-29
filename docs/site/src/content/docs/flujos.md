@@ -57,7 +57,7 @@ Los nodos que preguntan a un modelo llevan `instructions` (la pregunta) y `crite
 Además de tus puertos, un nodo con modelo puede usar dos especiales:
 
 - `error`: se toma cuando el backend falla o agota el plazo. Sin él, un nodo que falla termina la petición con `502`.
-- `low-confidence`: se toma cuando la confianza del modelo queda por debajo de `min_confidence`.
+- `low-confidence`: se toma cuando la confianza del modelo queda por debajo de `min_confidence`, **pero solo si lo cableas** en `out`. Sin él se ignora la confianza y el nodo sigue por su respuesta. Los nodos `rule` y `batch` no lo admiten.
 
 Un flujo que enruta el trabajo a un modelo según la dificultad, tomado de `config/flows/model-route.yaml` del repositorio, usa todo esto:
 

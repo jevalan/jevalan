@@ -57,7 +57,7 @@ curl -s http://127.0.0.1:8080/v1/decide/ticket-triage \
 除了你自己的端口，带模型的节点还可以使用两个特殊端口：
 
 - `error`：后端失败或超时时进入。没有它时，失败的节点会以 `502` 结束请求。
-- `low-confidence`：模型的置信度低于 `min_confidence` 时进入。
+- `low-confidence`：模型的置信度低于 `min_confidence` 时进入，**但只有在 `out` 中连接了它才会生效**。未连接时置信度会被忽略，节点照常按答案走。`rule` 和 `batch` 节点不支持它。
 
 下面这个按难度把任务路由给模型的流程来自仓库中的 `config/flows/model-route.yaml`，它用到了以上所有内容：
 

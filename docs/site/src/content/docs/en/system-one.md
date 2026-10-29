@@ -89,7 +89,7 @@ A [flow](/en/flujos/) node is a System One question with output ports:
 | `score` | `type: score`, with `criteria` | `a..b` ranges over the scale. |
 | `batch` | Several questions in a single call | The `route` rules see every answer. |
 
-Every node also has the `error` port (the backend failed or answered badly) and the `low-confidence` port (the `confidence` fell below `min_confidence`). That is why a backend that does not support a question type sends every request out the `error` port: see example 4 in [Examples](/en/ejemplos/).
+Nodes that ask a model can also wire the `error` port (the backend failed or answered badly) and the `low-confidence` port (the `confidence` fell below `min_confidence`; if you do not wire it, the confidence is ignored, and `batch` does not accept it). That is why a backend that does not support a question type sends every request out the `error` port: see example 4 in [Examples](/en/ejemplos/).
 
 ## Errors
 
