@@ -41,7 +41,9 @@ curl -s http://127.0.0.1:8080/v1/hub \
 {"capability":"nope.nope","capability_version":"1","error":{"code":"unknown_capability","message":"capacidad desconocida: nope.nope","retryable":false},"protocol_version":"jev-hub/0.1","provider":{"id":"-","version":"-"},"request_id":"r2","status":"error","trace":{"cost":"not_measured","elapsed_ms":0,"trace_id":"18e2ca4a825001080006"}}
 ```
 
-你还可能看到的错误码有 `provider_failed`、`deadline_exceeded`、`provider_disabled` 和 `invalid_decision`。`retryable` 告诉你重试是否可能有帮助。
+你还可能看到的错误码有 `invalid_input`（`input` 不符合 `input_schema`）、`version_mismatch`（`capability_version` 与已加载的版本不一致）、`provider_failed`、`deadline_exceeded`、`provider_disabled` 和 `invalid_decision`。`retryable` 告诉你重试是否可能有帮助。
+
+即使是这些错误，HTTP 状态码也是 `200`，因为它们通过 `status` 传递。只有格式错误的请求（例如 `protocol_version` 不是 `jev-hub/0.1`）才会返回 `400`。
 
 ## 定义能力
 
@@ -68,14 +70,14 @@ defaults: { deadline_ms: 3000 }
 | Http | `http` | 向某个 `url` 发送 POST。 |
 | Exec | `exec` | 一个本地进程：`command`，加上 `env` 中列出的环境变量名。 |
 
-`abstain_when` 和 `error_when` 是可选的表达式，作用于提供者的 `response`，可把一次响应转成 `abstain` 或 `error`。这让你无需修改第三方工具就能适配它。
+`abstain_when` 和 `error_when` 是可选的表达式，作用于提供者的 `response`，可把一次响应转成 `abstain` 或 `error`。这让你无需修改第三方工具就能适配它。如果某个表达式无法求值（例如读取了响应中不存在的字段），响应会是 `error`，错误码为 `provider_failed`。
 
 ### 默认禁止运行进程
 
 `exec` 提供者会在你的机器上启动程序，因此除非你设置 `hub.allow_exec: true`（或 `JEVALAN_ALLOW_EXEC=1`），否则它们是禁用的。它们运行时：
 
-- 进程在**没有 shell** 的情况下启动，环境为空，仅有 `PATH` 和 `env` 中列出的变量。
-- 如果超过截止时间，它会连同整个进程树一起被终止。
+- 进程在**没有 shell** 的情况下启动，环境为空，仅有 `PATH`（Windows 上还有 `SystemRoot`）和 `env` 中列出的变量。
+- 如果超过截止时间，它会连同整个进程树一起被终止。专家程序结束时，它遗留的所有进程也会被终止：没有任何进程能在调用结束后继续存活。
 - 它的输出上限为 1 MiB。
 - 在 Windows 上，`.cmd` 和 `.bat` 文件会被拒绝，因为启动它们要经过 shell。
 - 命令、它的环境和它的 URL 永远不会出现在事件、日志或 `GET /v1/hub/capabilities` 中。

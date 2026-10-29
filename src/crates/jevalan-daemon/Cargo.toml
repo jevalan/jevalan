@@ -20,6 +20,9 @@ axum = { version = "0.8", features = ["ws"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 notify = "8"
 
+[target.'cfg(windows)'.dependencies]
+win32job = "2"
+
 [dev-dependencies]
 tokio-tungstenite = "0.29"
 futures-util = "0.3"

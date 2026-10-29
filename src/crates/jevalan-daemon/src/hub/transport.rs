@@ -173,9 +173,20 @@ impl<'a> Io<'a> {
                 }
             }
             if let (Transport::Record(rec), Some(body)) = (self.transport, parsed) {
-                rec.lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(node.into(), json!({ "status": status, "body": body }));
+                let mut tape = rec.lock().unwrap_or_else(PoisonError::into_inner);
+                if questions.is_empty() {
+                    tape.insert(node.into(), json!({ "status": status, "body": body }));
+                } else {
+                    // A `batch` is replayed question by question (`replay_many`), so it is recorded that way too.
+                    // A reply without the question's answer (a failure) is kept whole, for `--force` to inspect.
+                    for key in questions {
+                        let kept = match body["answers"].get(key) {
+                            Some(answer) => json!({ "answers": { key: answer }, "model": body["model"] }),
+                            None => body.clone(),
+                        };
+                        tape.insert(key.clone(), json!({ "status": status, "body": kept }));
+                    }
+                }
             }
         }
         let mut t = self.tally();

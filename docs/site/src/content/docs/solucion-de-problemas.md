@@ -19,9 +19,9 @@ Esto es lo esperado con las configuraciones mínimas, que definen solo algunos b
 
 ## El daemon no arranca
 
-- **Falta una variable.** El daemon falla enseguida si `default_backend` no está definido, una `url` no es http ni https, o un `api_key_env` nombra una variable vacía o sin definir. El mensaje dice cuál.
-- **El puerto está ocupado.** Cambia `server.addr`, o define `JEVALAN_ADDR`.
-- **Rutas relativas.** `flows_dir`, `capabilities_dir` y `signals_dir` se resuelven desde la carpeta en la que arrancas el daemon. Arráncalo desde la raíz del proyecto, o usa rutas absolutas y define también `signals_dir`, o `tool-risk-local` no cargará.
+- **Falta una variable.** El daemon falla enseguida si `default_backend` no está definido, una `url` no es http ni https, o un `api_key_env` nombra una variable vacía o sin definir. El mensaje empieza por `configuración inválida:`, dice cuál, y el daemon sale con el código `2`.
+- **El puerto está ocupado.** El daemon sale con el código `1` y el error del sistema de «dirección ya en uso» (`os error 10048` en Windows). Cambia `server.addr`, o define `JEVALAN_ADDR`.
+- **Rutas relativas.** `flows_dir`, `capabilities_dir` y `signals_dir` se resuelven desde la carpeta en la que arrancas el daemon. Arráncalo desde la raíz del proyecto, o usa rutas absolutas y define también `signals_dir`, o `tool-risk-local` no cargará. Un directorio que no existe no es un error: el daemon arranca, escribe un aviso como `aviso: no existe el directorio de flujos ./flows` y no sirve nada de él.
 
 ## La interfaz de terminal no muestra nada
 

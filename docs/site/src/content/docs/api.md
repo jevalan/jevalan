@@ -15,6 +15,8 @@ curl -s http://127.0.0.1:8080/v1/flows -H "Authorization: Bearer $JEVALAN_TOKEN"
 
 El WebSocket de `/events` también acepta `?token=<token>`, porque los navegadores no pueden poner cabeceras en un WebSocket.
 
+Sin un token válido, una ruta responde `401` con el texto plano `token requerido` (no JSON), y `/events` rechaza la actualización con el mismo estado.
+
 ## Rutas
 
 | Ruta | Qué hace |
@@ -57,6 +59,7 @@ Los errores son JSON con un mensaje `error`:
 |---|---|
 | `400` | El cuerpo no tiene `state`: `{"error":"falta «state»"}`. |
 | `404` | Flujo desconocido: `{"error":"flujo desconocido: nope"}`. |
+| `401` | Falta el token o es incorrecto. El cuerpo es el texto plano `token requerido`. |
 | `502` | Un nodo falló y no tiene puerto `error`, o el backend no responde. |
 
 ## Validar y probar un borrador
@@ -87,6 +90,8 @@ curl -s http://127.0.0.1:8080/v1/flows/draft/run \
 {"confidence":null,"data":{"r":"yes"},"flow":"x","outcome":"ok","path":[{"answer":true,"backend":"-","confidence":1.0,"duration_ms":0,"model":"-","node":"a","port":"true"}],"trace_id":"18e2ca4a96f0d9840007"}
 ```
 
+`transport` es `live` (llama a los backends reales), `record` (también los llama y devuelve en la respuesta el `cassette` grabado) o `replay` (toma un `cassette` de la petición y no llama a nadie). Cualquier otro valor es un `400`.
+
 ## Proxy a un backend
 
 El passthrough reenvía tu petición System One sin tocarla y añade la clave del backend si hay una configurada. Identifica a tu cliente con la cabecera `X-Jevalan-Client`; por defecto es `unknown`.
@@ -106,6 +111,6 @@ Mira [Capacidades y hub](/capacidades/) para `POST /v1/hub` y `GET /v1/hub/capab
 
 ## Eventos
 
-`GET /events` se convierte en un WebSocket y publica un evento JSON por mensaje: peticiones recibidas, nodos iniciados y terminados, decisiones tomadas, flujos y capacidades cargados, y errores. La interfaz de terminal es un cliente de este flujo.
+`GET /events` se convierte en un WebSocket y publica un evento JSON por mensaje: peticiones recibidas, nodos iniciados y terminados, decisiones tomadas, flujos y capacidades cargados, y errores. La interfaz de terminal es un cliente de este flujo. Al conectarte recibes primero el estado actual (los backends y los flujos cargados) y después los eventos en vivo.
 
 Los eventos no llevan un campo con la entrada original, pero sí pueden llevar respuestas, resultados, señales, definiciones de flujo y errores. Trata el flujo como datos sensibles y no compartas una captura sin revisarla.

@@ -42,7 +42,7 @@ Las aserciones son booleanos CEL sobre `status` (`ok`, `abstain` o `error`), `de
 ## Replay y cassettes
 
 - **`replay`** vive en el fixture y siempre gana. Para un nodo con modelo es `{ answer, confidence }`; para un especialista `exec` o `http` es el JSON que devolvería.
-- Una **cassette** la escribe `jevalan lab record`, un fichero por fixture y target. Guarda solo estado y cuerpo, nunca cabeceras, claves ni la petición. Puede expresar lo que un `replay` no, como un fallo HTTP.
+- Una **cassette** la escribe `jevalan lab record`, un fichero por fixture y target. Guarda solo estado y cuerpo, nunca cabeceras, claves ni la petición. Puede expresar lo que un `replay` no, como un fallo HTTP. Si el backend falló al grabar (un `401`, un `500`, un `error`), `record` conserva la cassette anterior y lo dice en el informe; añade `--force` para sobrescribirla igualmente.
 - Una cassette anota la `version` del fixture y un hash de su `input`. Si cambia cualquiera de los dos, el fixture queda `skipped` hasta que grabes de nuevo, así una grabación vieja nunca da un aprobado falso.
 - `modes: [offline]` o `[live]` limita dónde corre un fixture.
 
@@ -71,7 +71,7 @@ prices:
   jev-latest: { input_per_mtok: 1.0, output_per_mtok: 2.0 }   # usa la tarifa real en USD por millón de tokens
 ```
 
-Un target sustituye `backend` y `model` en cada nodo con modelo de una capacidad de tipo flujo, que es como comparas backends con casos idénticos. La ejecución se detiene, escribiendo lo que hizo, si fuera a superar el presupuesto. Un target sin precio da su coste como `unknown`, y el tope de coste no puede controlarlo; Jevalan nunca da una estimación como si fuera un coste.
+Un target sustituye `backend` y `model` en cada nodo con modelo de una capacidad de tipo flujo, que es como comparas backends con casos idénticos. Si las llamadas previstas ya superan `max_calls`, no se ejecuta nada. Si el presupuesto se agota durante la ejecución, se detiene y escribe lo que hizo, marcado como parcial. Un target sin precio da su coste como `unknown`, y el tope de coste no puede controlarlo; Jevalan nunca da una estimación como si fuera un coste.
 
 ## Leer el informe
 

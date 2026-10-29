@@ -15,6 +15,8 @@ curl -s http://127.0.0.1:8080/v1/flows -H "Authorization: Bearer $JEVALAN_TOKEN"
 
 `/events` WebSocket 也接受 `?token=<token>`，因为浏览器无法为 WebSocket 设置请求头。
 
+没有有效令牌时，路由会返回 `401` 和纯文本 `token requerido`（不是 JSON），`/events` 也会以相同状态拒绝升级。
+
 ## 路由
 
 | 路由 | 作用 |
@@ -57,6 +59,7 @@ curl -s http://127.0.0.1:8080/v1/decide/ticket-triage \
 |---|---|
 | `400` | 请求体中没有 `state`：`{"error":"falta «state»"}`。 |
 | `404` | 流程不存在：`{"error":"flujo desconocido: nope"}`。 |
+| `401` | 缺少令牌或令牌错误。响应体是纯文本 `token requerido`。 |
 | `502` | 某个节点失败且没有 `error` 端口，或后端不可达。 |
 
 ## 校验并试运行草稿
@@ -87,6 +90,8 @@ curl -s http://127.0.0.1:8080/v1/flows/draft/run \
 {"confidence":null,"data":{"r":"yes"},"flow":"x","outcome":"ok","path":[{"answer":true,"backend":"-","confidence":1.0,"duration_ms":0,"model":"-","node":"a","port":"true"}],"trace_id":"18e2ca4a96f0d9840007"}
 ```
 
+`transport` 可以是 `live`（调用真实后端）、`record`（同样调用后端，并在响应中返回录制的 `cassette`）或 `replay`（从请求中取 `cassette`，不调用任何后端）。其他任何值都会返回 `400`。
+
 ## 代理到后端
 
 passthrough 会原样转发你的 System One 请求，并在配置了密钥时添加该后端的 API 密钥。用 `X-Jevalan-Client` 请求头标识你的客户端；默认值是 `unknown`。
@@ -106,6 +111,6 @@ curl -s http://127.0.0.1:8080/ollama/v1/systemone \
 
 ## 事件
 
-`GET /events` 会升级为 WebSocket，每条消息发布一个 JSON 事件：收到的请求、节点的开始与结束、做出的决策、加载的流程和能力，以及错误。终端界面就是这个事件流的客户端。
+`GET /events` 会升级为 WebSocket，每条消息发布一个 JSON 事件：收到的请求、节点的开始与结束、做出的决策、加载的流程和能力，以及错误。终端界面就是这个事件流的客户端。连接时会先收到当前状态（后端和已加载的流程），随后才是实时事件。
 
 事件中没有保存原始输入的字段，但可能包含答案、结果、信号、流程定义和错误。请把这个事件流视为敏感数据，在未经检查之前不要分享抓取的内容。

@@ -181,6 +181,9 @@ pub fn interpret(reply: &Value) -> Decision {
     d
 }
 
+/// Prefix of every reason the client shows: the capability that decided, never a provider's name.
+const REASON_PREFIX: &str = "jevalan/tool.risk:";
+
 /// Translation into the output of the requested dialect. It never emits `allow`: it only tightens.
 pub fn output(mode: Mode, dialect: Dialect, d: &Decision) -> Option<String> {
     if mode == Mode::Shadow {
@@ -196,8 +199,8 @@ pub fn output(mode: Mode, dialect: Dialect, d: &Decision) -> Option<String> {
 fn claude_output(d: &Decision) -> Option<String> {
     let reason = d.reason.as_deref().unwrap_or("sin motivo");
     match (d.status.as_str(), d.verdict.as_deref()) {
-        ("ok", Some("deny")) => Some(permission("deny", &format!("jevalan/toolgate: {reason}"))),
-        ("ok", Some("ask")) => Some(permission("ask", &format!("jevalan/toolgate: {reason}"))),
+        ("ok", Some("deny")) => Some(permission("deny", &format!("{REASON_PREFIX} {reason}"))),
+        ("ok", Some("ask")) => Some(permission("ask", &format!("{REASON_PREFIX} {reason}"))),
         ("ok", Some("allow" | "passthrough")) => None,
         _ => {
             let why = d.error.as_deref().or(d.reason.as_deref()).unwrap_or(d.status.as_str());
@@ -212,7 +215,7 @@ fn crush_output(d: &Decision) -> Option<String> {
     match (d.status.as_str(), d.verdict.as_deref()) {
         ("ok", Some("deny")) => {
             let reason = d.reason.as_deref().unwrap_or("sin motivo");
-            Some(crush_verdict("deny", &format!("jevalan/tool.risk: {reason}")))
+            Some(crush_verdict("deny", &format!("{REASON_PREFIX} {reason}")))
         }
         _ => None,
     }
@@ -376,7 +379,7 @@ mod tests {
         let deny: Value = serde_json::from_str(&output(Mode::Enforce, Dialect::Claude, &ok("deny")).unwrap()).unwrap();
         assert_eq!(deny["hookSpecificOutput"]["permissionDecision"], "deny");
         assert_eq!(deny["hookSpecificOutput"]["hookEventName"], "PreToolUse");
-        assert_eq!(deny["hookSpecificOutput"]["permissionDecisionReason"], "jevalan/toolgate: porque sí");
+        assert_eq!(deny["hookSpecificOutput"]["permissionDecisionReason"], "jevalan/tool.risk: porque sí");
         let ask: Value = serde_json::from_str(&output(Mode::Enforce, Dialect::Claude, &ok("ask")).unwrap()).unwrap();
         assert_eq!(ask["hookSpecificOutput"]["permissionDecision"], "ask");
         assert_eq!(output(Mode::Enforce, Dialect::Claude, &ok("allow")), None);

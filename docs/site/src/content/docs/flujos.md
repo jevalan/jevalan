@@ -50,6 +50,8 @@ El `state` de la petición es lo que tus expresiones ven como `input`. La respue
 | `score` | Pide una puntuación sobre una lista ordenada de `criteria`. Los puertos son rangos numéricos como `"0..1.5"`. | Sí |
 | `batch` | Hace varias preguntas en **una** llamada al backend y enruta según todas las respuestas. | Sí (una llamada) |
 
+Los rangos numéricos incluyen su límite inferior: una puntuación `score` de `1.5` toma el puerto `"1.5..3"`.
+
 Los nodos que preguntan a un modelo llevan `instructions` (la pregunta) y `criteria`, y heredan `backend` y `model` de `defaults` salvo que nombren los suyos.
 
 Además de tus puertos, un nodo con modelo puede usar dos especiales:
@@ -137,3 +139,5 @@ Una heurística que falla manda su nodo al puerto `error`; nunca se lee como `fa
 - **Valida antes de guardar.** Manda el YAML a `POST /v1/flows/validate`, o ejecuta un borrador una vez con `POST /v1/flows/draft/run`. Ninguno publica nada. Mira la [API HTTP](/api/).
 - **Usa el editor visual.** `jevalan edit config/flows/<flujo>.yaml` abre un borrador en la terminal y escribe los cambios como parches, así que los comentarios y el orden sobreviven. Nunca escribe un borrador que no valide.
 - **Ojo con los flujos en producción.** `config/flows/tool-risk-local.yaml` y `config/signals/` deciden de verdad cuando el hook de Claude Code está instalado. Practica sobre una copia.
+
+![Captura de la terminal con el editor de flujos sobre una copia de tool-risk-local: el grafo de nodos y puertos, el inspector del nodo seleccionado y la banda inferior avisando de que valida con el parser local.](../../assets/editor-flujos.png)

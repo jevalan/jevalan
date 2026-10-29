@@ -50,6 +50,8 @@ The request's `state` is what your expressions see as `input`. The reply tells y
 | `score` | Asks for a rating over an ordered list of `criteria`. Ports are numeric ranges such as `"0..1.5"`. | Yes |
 | `batch` | Asks several questions in **one** backend call and routes on all the answers. | Yes (one call) |
 
+Numeric ranges include their lower bound: a `score` of `1.5` takes the port `"1.5..3"`.
+
 Nodes that ask a model take `instructions` (the question) and `criteria`, and inherit `backend` and `model` from `defaults` unless they name their own.
 
 Besides your own ports, a model node can use two special ones:
@@ -137,3 +139,5 @@ A heuristic that fails sends its node to the `error` port; it is never read as `
 - **Validate before you save.** Send the YAML to `POST /v1/flows/validate`, or run a draft once with `POST /v1/flows/draft/run`. Neither publishes anything. See [HTTP API](/en/api/).
 - **Use the visual editor.** `jevalan edit config/flows/<flow>.yaml` opens a draft in the terminal and writes changes back as patches, so comments and ordering survive. It never writes a draft that does not validate.
 - **Mind the live flows.** `config/flows/tool-risk-local.yaml` and `config/signals/` decide for real when the Claude Code hook is installed. Practise on a copy.
+
+![Terminal screenshot of the flow editor on a copy of tool-risk-local: the graph of nodes and ports, the inspector of the selected node, and the bottom band reporting that it validates with the local parser.](../../../assets/editor-flujos.png)

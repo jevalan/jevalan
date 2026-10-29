@@ -19,9 +19,9 @@ capacidad inválida: agent.wakeup: proveedor inválido: flujo desconocido: agent
 
 ## 守护进程无法启动
 
-- **缺少变量。** 如果 `default_backend` 未定义、某个 `url` 不是 http 或 https，或者某个 `api_key_env` 所指的变量为空或未设置，守护进程会立即失败。错误信息会说明是哪一个。
-- **端口被占用。** 修改 `server.addr`，或设置 `JEVALAN_ADDR`。
-- **相对路径。** `flows_dir`、`capabilities_dir` 和 `signals_dir` 是从你启动守护进程的文件夹开始解析的。请从项目根目录启动，或者使用绝对路径并同时设置 `signals_dir`，否则 `tool-risk-local` 无法加载。
+- **缺少变量。** 如果 `default_backend` 未定义、某个 `url` 不是 http 或 https，或者某个 `api_key_env` 所指的变量为空或未设置，守护进程会立即失败。错误信息以 `configuración inválida:` 开头，会说明是哪一个，并且守护进程以退出码 `2` 结束。
+- **端口被占用。** 守护进程以退出码 `1` 结束，并给出操作系统的“地址已被使用”错误（Windows 上为 `os error 10048`）。修改 `server.addr`，或设置 `JEVALAN_ADDR`。
+- **相对路径。** `flows_dir`、`capabilities_dir` 和 `signals_dir` 是从你启动守护进程的文件夹开始解析的。请从项目根目录启动，或者使用绝对路径并同时设置 `signals_dir`，否则 `tool-risk-local` 无法加载。不存在的目录不算错误：守护进程会启动，打印类似 `aviso: no existe el directorio de flujos ./flows` 的警告，并且不会从中提供任何内容。
 
 ## 终端界面什么都不显示
 

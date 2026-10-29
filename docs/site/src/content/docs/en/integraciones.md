@@ -24,6 +24,8 @@ In `enforce`, the hook can only **tighten** permissions, never relax them:
 | `allow` | Stays silent: the client's own permissions still apply. |
 | no answer (no daemon, abstain, error, timeout, bad input) | Answers `ask`, never a blind `allow`. |
 
+That table is Claude Code's. Crush cannot ask from a hook, so there only `deny` prints anything: `ask` and "no answer" stay silent and Crush's own permissions decide.
+
 Start in `shadow`, read the report for a few days, and only then switch to `enforce`.
 
 ## Claude Code

@@ -50,6 +50,8 @@ curl -s http://127.0.0.1:8080/v1/decide/ticket-triage \
 | `score` | 让模型针对一组有序的 `criteria` 打分。端口是数值区间，例如 `"0..1.5"`。 | 是 |
 | `batch` | 在**一次**后端调用中提出多个问题，并根据所有答案进行路由。 | 是（一次调用） |
 
+数值区间包含其下限：`score` 为 `1.5` 时会走端口 `"1.5..3"`。
+
 向模型提问的节点带有 `instructions`（问题）和 `criteria`，并且除非自己指定，否则从 `defaults` 继承 `backend` 和 `model`。
 
 除了你自己的端口，带模型的节点还可以使用两个特殊端口：
@@ -137,3 +139,5 @@ risks:
 - **保存前先校验。** 把 YAML 发送到 `POST /v1/flows/validate`，或用 `POST /v1/flows/draft/run` 运行一次草稿。两者都不会发布任何内容。参见 [HTTP API](/zh-cn/api/)。
 - **使用可视化编辑器。** `jevalan edit config/flows/<flow>.yaml` 会在终端中打开草稿，并以补丁方式写回修改，所以注释和顺序都会保留。它绝不会写入未通过校验的草稿。
 - **留意线上流程。** 安装了 Claude Code hook 之后，`config/flows/tool-risk-local.yaml` 和 `config/signals/` 是真正在做决策的。请在副本上练习。
+
+![流程编辑器在 tool-risk-local 副本上的终端截图：节点与端口的图、所选节点的检查器，以及提示使用本地解析器校验的底部状态栏。](../../../assets/editor-flujos.png)
