@@ -24,6 +24,8 @@ En `enforce`, el hook solo puede **endurecer** los permisos, nunca relajarlos:
 | `allow` | Calla: los permisos del propio cliente siguen aplicando. |
 | sin respuesta (sin daemon, abstención, error, plazo, entrada mala) | Responde `ask`, nunca un `allow` a ciegas. |
 
+Esa tabla es la de Claude Code. Crush no puede preguntar desde un hook, así que ahí solo el `deny` imprime algo: el `ask` y la «falta de respuesta» callan y deciden los permisos propios de Crush.
+
 Empieza en `shadow`, lee el informe unos días y solo entonces pasa a `enforce`.
 
 ## Claude Code

@@ -24,6 +24,8 @@ Jevalan 自带 hook 适配器。hook 是客户端在**每次工具调用之前**
 | `allow` | 保持沉默：客户端自身的权限仍然生效。 |
 | 没有答案（无守护进程、弃权、错误、超时、输入有误） | 返回 `ask`，绝不盲目 `allow`。 |
 
+该表格针对 Claude Code。Crush 无法通过 hook 发起询问，因此在 Crush 中只有 `deny` 会输出内容：`ask` 和“无答复”保持沉默，由 Crush 自己的权限来决定。
+
 先从 `shadow` 开始，阅读几天报告，然后再切换到 `enforce`。
 
 ## Claude Code

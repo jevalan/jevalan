@@ -19,9 +19,9 @@ This is expected with the minimal configurations, which define only some backend
 
 ## The daemon does not start
 
-- **A variable is missing.** The daemon fails fast if `default_backend` is not defined, a `url` is not http or https, or an `api_key_env` names a variable that is empty or unset. The message says which one.
-- **The port is taken.** Change `server.addr`, or set `JEVALAN_ADDR`.
-- **Relative paths.** `flows_dir`, `capabilities_dir`, and `signals_dir` are resolved from the folder where you start the daemon. Start it from the project root, or use absolute paths and set `signals_dir` as well, or `tool-risk-local` will not load.
+- **A variable is missing.** The daemon fails fast if `default_backend` is not defined, a `url` is not http or https, or an `api_key_env` names a variable that is empty or unset. The message starts with `configuración inválida:`, says which one, and the daemon exits with code `2`.
+- **The port is taken.** The daemon exits with code `1` and the operating system's "address already in use" error (`os error 10048` on Windows). Change `server.addr`, or set `JEVALAN_ADDR`.
+- **Relative paths.** `flows_dir`, `capabilities_dir`, and `signals_dir` are resolved from the folder where you start the daemon. Start it from the project root, or use absolute paths and set `signals_dir` as well, or `tool-risk-local` will not load. A directory that does not exist is not an error: the daemon starts, prints a warning such as `aviso: no existe el directorio de flujos ./flows`, and serves nothing from it.
 
 ## The terminal UI shows nothing
 
