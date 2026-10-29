@@ -27,7 +27,7 @@ For Claude Code, add it to your project's `.mcp.json`, with the **absolute path*
 
 ## Tools
 
-**One per capability.** Each loaded capability becomes a tool whose input schema is the capability's own. The name is the capability id with every character outside letters, digits, `_` and `-` replaced by `_`, so `tool.risk` is `tool_risk` and `agent.wakeup` is `agent_wakeup`. The result is the hub's typed answer: `status` is `ok`, `abstain` or `error`, and only `error` is flagged as a failed call. When the daemon reloads capabilities, the client is told the list changed.
+**One per capability.** Each loaded capability becomes a tool whose input schema is the capability's own. The name is the capability id with every character outside letters, digits, `_` and `-` replaced by `_`, so `tool.risk` is `tool_risk` and `agent.wakeup` is `agent_wakeup`. The result is the hub's typed answer: `status` is `ok`, `abstain` or `error`, and only `error` is flagged as a failed call. Every 5 seconds the bridge checks whether the list changed (a capability that appears, disappears or changes its input schema) and, if so, tells the client. A change of description alone does not.
 
 **Four for flows**, always present:
 
@@ -46,7 +46,7 @@ For Claude Code, add it to your project's `.mcp.json`, with the **absolute path*
 
 ## About `--allow-live`
 
-`jevalan_try_draft` takes a `transport`. By default only `replay` is offered: it replays recorded answers and calls nothing. `live` and `record` call your real backends, which can cost money, so they are refused unless you start the bridge with `--allow-live`.
+`jevalan_try_draft` takes a `transport`. By default only `replay` is offered: it replays recorded answers and calls nothing. Without a `cassette` there is nothing to replay, and the flow takes its failure path instead of returning a tool error. `live` and `record` call your real backends, which can cost money, so they are refused unless you start the bridge with `--allow-live`.
 
 ## Ask yourself before you ask the agent
 

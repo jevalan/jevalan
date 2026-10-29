@@ -27,7 +27,7 @@ description: 用一条命令，让任何 MCP 客户端向 Jevalan 请求决策�
 
 ## 工具
 
-**每个能力一个工具。** 每个已加载的能力都会成为一个工具，其输入 schema 就是该能力自己的 schema。名称是能力 id，其中所有不是字母、数字、`_` 或 `-` 的字符都被替换为 `_`，因此 `tool.risk` 变成 `tool_risk`，`agent.wakeup` 变成 `agent_wakeup`。结果是能力中心的类型化答复：`status` 为 `ok`、`abstain` 或 `error`，只有 `error` 会被标记为调用失败。当守护进程重新加载能力时，客户端会收到列表已变化的通知。
+**每个能力一个工具。** 每个已加载的能力都会成为一个工具，其输入 schema 就是该能力自己的 schema。名称是能力 id，其中所有不是字母、数字、`_` 或 `-` 的字符都被替换为 `_`，因此 `tool.risk` 变成 `tool_risk`，`agent.wakeup` 变成 `agent_wakeup`。结果是能力中心的类型化答复：`status` 为 `ok`、`abstain` 或 `error`，只有 `error` 会被标记为调用失败。桥每 5 秒检查一次列表是否变化（某个能力出现、消失，或其输入 schema 改变），变化时会通知客户端。仅修改描述不会触发通知。
 
 **四个用于流程的工具**，始终存在：
 
@@ -46,7 +46,7 @@ description: 用一条命令，让任何 MCP 客户端向 Jevalan 请求决策�
 
 ## 关于 `--allow-live`
 
-`jevalan_try_draft` 接受一个 `transport`。默认只提供 `replay`：重放已录制的答案，不调用任何东西。`live` 和 `record` 会调用你真实的后端，可能产生费用，因此除非你用 `--allow-live` 启动这座桥，否则会被拒绝。
+`jevalan_try_draft` 接受一个 `transport`。默认只提供 `replay`：重放已录制的答案，不调用任何东西。没有 `cassette` 时无物可重放，流程会走它的失败路径，而不是返回工具错误。`live` 和 `record` 会调用你真实的后端，可能产生费用，因此除非你用 `--allow-live` 启动这座桥，否则会被拒绝。
 
 ## 询问不等于强制
 
