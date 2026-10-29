@@ -1,4 +1,4 @@
-//! SplitMix64: lo justo para barajar datos de mentirijillas, sin traer `rand`.
+//! SplitMix64: just enough to shuffle fake data, without pulling in `rand`.
 
 pub struct Rng(u64);
 
@@ -20,7 +20,7 @@ impl Rng {
         (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
     }
 
-    /// Uniforme en [lo, hi].
+    /// Uniform in [lo, hi].
     pub fn range(&mut self, lo: u64, hi: u64) -> u64 {
         if hi <= lo { lo } else { lo + self.next_u64() % (hi - lo + 1) }
     }

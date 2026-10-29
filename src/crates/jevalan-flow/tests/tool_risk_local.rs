@@ -1,5 +1,5 @@
-//! La migración de `tool-risk-local` a señales no cambia ninguna decisión: misma entrada, mismas respuestas,
-//! mismo desenlace y mismos datos que la versión congelada en `fixtures/`.
+//! The migration of `tool-risk-local` to signals changes no decision: same input, same answers,
+//! same outcome and same data as the version frozen in `fixtures/`.
 
 use jevalan_flow::{Flow, Next, Run, Signals, parse, parse_signal, parse_with};
 use serde_json::{Map, Value, json};
@@ -8,7 +8,7 @@ const V1: &str = include_str!("../fixtures/tool-risk-local-v1.yaml");
 const V2: &str = include_str!("../../../../config/flows/tool-risk-local.yaml");
 const RISKS: [&str; 4] = ["destructive", "exfiltration", "privilege", "secret_exposure"];
 
-/// El catálogo real, `config/signals/` en la raíz del repo.
+/// The real catalogue, `config/signals/` at the repo root.
 fn catalog() -> Signals {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../config/signals");
     std::fs::read_dir(dir)
@@ -24,8 +24,8 @@ fn catalog() -> Signals {
         .collect()
 }
 
-/// Conduce `flow` con las probabilidades dadas para el `batch` (o con su fallo) hasta el desenlace.
-/// Un flujo que falla sin puerto `error` devuelve `"<fallo>"`: también eso ha de coincidir.
+/// Drives `flow` with the given probabilities for the `batch` (or with its failure) to the outcome.
+/// A flow that fails without an `error` port returns `"<failure>"`: that too has to match.
 fn decide(flow: &Flow, input: &Value, risks: &Result<[f64; 4], String>) -> (String, Option<Value>) {
     let mut run = Run::new(flow, input.clone());
     loop {

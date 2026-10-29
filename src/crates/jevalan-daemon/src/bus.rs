@@ -1,4 +1,4 @@
-//! Bus de eventos: difusión a los suscriptores y numeración por traza.
+//! Event bus: broadcast to subscribers and numbering per trace.
 
 use jevalan_events::v2::{Event, EventKind, new_event};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -21,7 +21,7 @@ impl Bus {
         self.tx.subscribe()
     }
 
-    /// Sin suscriptores el evento se descarta, y es lo debido.
+    /// With no subscribers the event is dropped, as it should be.
     pub fn publish(&self, event: Event) {
         let _ = self.tx.send(event);
     }
@@ -31,7 +31,7 @@ impl Bus {
     }
 }
 
-/// Emite los eventos de una misma traza, numerados desde 1.
+/// Emits the events of a single trace, numbered from 1.
 pub struct Tracer {
     bus: Bus,
     trace_id: String,
@@ -49,7 +49,7 @@ impl Tracer {
     }
 }
 
-/// Hex de los nanosegundos del reloj más un contador; único dentro del proceso.
+/// Hex of the clock's nanoseconds plus a counter; unique within the process.
 pub fn new_trace_id() -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());

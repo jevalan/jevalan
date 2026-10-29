@@ -1,4 +1,4 @@
-//! Feed de decisiones recientes, seleccionable y navegable.
+//! Feed of recent decisions, selectable and navigable.
 
 use crate::screen::Ctx;
 use crate::store::Decision;
@@ -8,8 +8,8 @@ use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState, Widget};
 
-/// Línea de una decisión: `{hh:mm:ss} {cliente:<10} {flujo:<14} {outcome:<9} {confianza:.2}`.
-/// Una respuesta del hub lleva la capacidad, el `status` y los milisegundos en lugar de la confianza.
+/// A decision's line: `{hh:mm:ss} {client:<10} {flow:<14} {outcome:<9} {confidence:.2}`.
+/// A hub response carries the capability, the `status` and the milliseconds in place of the confidence.
 pub fn row(d: &Decision) -> Line<'static> {
     let ts_str = if d.ts.len() >= 19 { d.ts[11..19].to_string() } else { "--:--:--".to_string() };
     let (style, tail) = match d.hub_ms {
@@ -23,7 +23,7 @@ pub fn row(d: &Decision) -> Line<'static> {
     ])
 }
 
-/// Dibuja el panel del feed con las decisiones recientes.
+/// Draws the feed panel with the recent decisions.
 pub fn render(ctx: &Ctx, selected: usize, focused: bool, area: Rect, buf: &mut Buffer) {
     if area.height == 0 || area.width == 0 {
         return;
@@ -42,7 +42,7 @@ pub fn render(ctx: &Ctx, selected: usize, focused: bool, area: Rect, buf: &mut B
 
     list.render(area, buf);
 
-    // Aplicar highlight invertido si estamos en foco.
+    // Apply inverted highlight if focused.
     if focused && selected < decisions.len() {
         for x in area.left()..area.right() {
             if let Some(y) = area.top().checked_add(selected as u16)

@@ -1,5 +1,5 @@
-//! Informe del registro sombra: agrega `shadow.jsonl` y lo presenta en Markdown.
-//! Cabe señalar que la agregación es pura; el resto es una delgada capa de línea de órdenes.
+//! Shadow log report: aggregates `shadow.jsonl` and presents it as Markdown.
+//! Note that the aggregation is pure; the rest is a thin command-line layer.
 
 use jevalan_hub::lab::metrics::percentile;
 use jevalan_hub::shadow::{
@@ -46,7 +46,7 @@ fn truncate(s: &str, max: usize) -> String {
     if s.chars().count() <= max { s.to_string() } else { s.chars().take(max).collect::<String>() + "…" }
 }
 
-/// Informe Markdown. Sin `with_inputs` no incluye contenido alguno de `tool_input`.
+/// Markdown report. Without `with_inputs` it includes no `tool_input` content at all.
 pub fn report(entries: &[Entry], ignored: usize, with_inputs: bool) -> String {
     let total = entries.len();
     let mut out = String::from("# Informe del registro sombra\n\n");
@@ -66,7 +66,7 @@ pub fn report(entries: &[Entry], ignored: usize, with_inputs: bool) -> String {
     let sources = count_by(entries.iter(), |e| e.source.clone().unwrap_or_else(|| "(ninguna)".into()));
     count_table(&mut out, "Fuente", &sources, total);
 
-    // 2. Por herramienta
+    // 2. By tool
     out.push_str("## Por herramienta\n\n| Herramienta | Llamadas | % allow | % ask | % deny | p50 ms | p95 ms |\n|---|---:|---:|---:|---:|---:|---:|\n");
     let mut tools: BTreeMap<&str, Vec<&Entry>> = BTreeMap::new();
     for e in entries {
@@ -90,7 +90,7 @@ pub fn report(entries: &[Entry], ignored: usize, with_inputs: bool) -> String {
         );
     }
 
-    // 3. Anatomía del ask
+    // 3. Anatomy of the ask
     out.push_str("\n## Anatomía del ask\n\n");
     let asks: Vec<&Entry> = entries.iter().filter(|e| e.is("ask")).collect();
     let _ = writeln!(out, "Total de ask: {}\n", asks.len());
@@ -184,7 +184,7 @@ pub struct Opts {
     pub with_inputs: bool,
 }
 
-/// Se queda con las entradas desde `since` (cadena ISO; la comparación léxica es válida en UTC).
+/// Keeps the entries since `since` (ISO string; lexical comparison is valid in UTC).
 pub fn since_filter(entries: Vec<Entry>, since: &str) -> Vec<Entry> {
     entries.into_iter().filter(|e| e.ts.as_str() >= since).collect()
 }

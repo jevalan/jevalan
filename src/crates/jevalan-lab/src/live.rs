@@ -1,4 +1,4 @@
-//! `record` y `live`: la matriz fixtures × targets × repeticiones contra backends reales, con presupuesto.
+//! `record` and `live`: the fixtures × targets × repetitions matrix against real backends, with a budget.
 
 use crate::budget::{Tally, longest_path};
 use crate::load::input_hash;
@@ -18,9 +18,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
-    /// Llama en vivo y escribe cassettes.
+    /// Calls live and writes cassettes.
     Record,
-    /// Llama en vivo, repite y mide.
+    /// Calls live, repeats and measures.
     Live,
 }
 
@@ -32,37 +32,37 @@ impl Mode {
 
 #[derive(Debug, Clone, Default)]
 pub struct LiveOpts {
-    /// Solo este target (las capacidades `exec`/`http` solo lo admiten si se llama como su proveedor).
+    /// Only this target (`exec`/`http` capabilities only admit it if called as their provider).
     pub target: Option<String>,
-    /// Sustituye al `repeat` de `lab.yaml`; `record` ignora las repeticiones.
+    /// Overrides `lab.yaml`'s `repeat`; `record` ignores repetitions.
     pub repeat: Option<u32>,
-    /// Sin pedir confirmación.
+    /// Without asking for confirmation.
     pub yes: bool,
-    /// `record`: sobrescribe la cassette aunque la grabación traiga fallos.
+    /// `record`: overwrites the cassette even if the recording contains failures.
     pub force: bool,
 }
 
-/// Una ejecución prevista de la matriz.
+/// A planned run of the matrix.
 struct Job<'a> {
     case: &'a Case,
     target: String,
-    /// `None` en `exec`/`http`: el especialista se evalúa tal cual.
+    /// `None` in `exec`/`http`: the specialist is evaluated as is.
     spec: Option<&'a Target>,
     repeat: u32,
     calls: u64,
 }
 
-/// Lo que dejó una ejecución.
+/// What a run left behind.
 struct Done {
     line: ResultLine,
     cost: Cost,
     replies: Recordings,
-    /// Llamadas a backends que se hicieron de verdad.
+    /// Calls to backends that were actually made.
     made: u32,
 }
 
 impl Lab {
-    /// Ejecuta la matriz; `Err` si no hay presupuesto, lo supera o no se confirma, antes de la primera llamada.
+    /// Runs the matrix; `Err` if there is no budget, it is exceeded or it is not confirmed, before the first call.
     pub async fn live(
         &self,
         mode: Mode,
@@ -157,7 +157,7 @@ impl Lab {
         Ok(RunOutcome { results, failed, report, run_dir, write_error, stopped })
     }
 
-    /// La matriz en orden de fixture, target y repetición, más las líneas ya `skipped`.
+    /// The matrix in fixture, target and repetition order, plus the lines already `skipped`.
     fn plan<'a>(&'a self, filter: &Filter, opts: &LiveOpts, repeat: u32) -> (Vec<Job<'a>>, Vec<ResultLine>) {
         let (mut jobs, mut skipped) = (Vec::new(), Vec::new());
         let admitted = self.cases.iter().filter(|c| {
@@ -218,7 +218,7 @@ impl Lab {
             }
         };
         let flow = job.spec.and_then(|t| self.target_flow(&case.cap, t));
-        // `Record` actúa como `Live` y además deja ver lo que contestó el backend (el modelo, p. ej.).
+        // `Record` acts like `Live` and additionally lets you see what the backend replied (the model, e.g.).
         let tape = Arc::new(Mutex::new(Recordings::new()));
         let done = execute(&self.state, &req, Some(&case.cap), flow, &Transport::Record(tape.clone())).await;
         finish_line(&mut line, &case.fixture, &done);
@@ -242,13 +242,13 @@ impl Lab {
         Done { line, cost, replies, made: m.backend_calls }
     }
 
-    /// ¿Tiene precio el modelo del target? Solo entonces el presupuesto de coste lo controla.
+    /// Does the target's model have a price? Only then does the cost budget control it.
     fn priced(&self, job: &Job<'_>) -> bool {
         job.spec.is_some_and(|t| !t.local && self.config.prices.contains_key(&t.model))
     }
 
-    /// `cassettes/<cap>/<fixture>/<target>.json`: solo `status` y cuerpo; ni cabeceras, ni claves, ni petición.
-    /// Devuelve el motivo si respeta la cassette anterior en vez de sustituirla por una grabación con fallos.
+    /// `cassettes/<cap>/<fixture>/<target>.json`: only `status` and body; no headers, keys or request.
+    /// Returns the reason if it respects the previous cassette instead of replacing it with a recording that has failures.
     fn write_cassette(
         &self,
         job: &Job<'_>,
@@ -317,7 +317,7 @@ impl Lab {
     }
 }
 
-/// Motivo para no fiarse de una grabación: la ejecución acabó en error o algún backend no contestó 2xx.
+/// Reason not to trust a recording: the run ended in error or some backend did not answer 2xx.
 fn spoiled(replies: &Recordings, status: &str) -> Option<String> {
     if let Some(code) = replies.values().filter_map(|r| r["status"].as_u64()).find(|c| !(200..300).contains(c)) {
         return Some(format!("el backend respondió {code}"));
@@ -338,7 +338,7 @@ fn sample(r: &ResultLine, cost: Cost) -> Sample {
     }
 }
 
-/// Fallos con su porqué, inestables y `skipped` de un target.
+/// Failures with their why, flaky ones and `skipped` of a target.
 fn details(target: &str, runs: &[(&ResultLine, Cost)]) -> Vec<String> {
     let mut notes = BTreeSet::new();
     let mut outcomes: BTreeMap<&str, (bool, bool)> = BTreeMap::new();

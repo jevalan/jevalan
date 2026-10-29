@@ -1,4 +1,4 @@
-//! Bucle de terminal: lee teclado, ratón y eventos, y pinta solo cuando hace falta.
+//! Terminal loop: reads keyboard, mouse and events, and paints only when needed.
 
 use crate::app::App;
 use crate::fx::FxMode;
@@ -19,7 +19,7 @@ pub fn run(
     toggle: Option<BackendToggle>,
     shadow_log: Option<PathBuf>,
 ) -> io::Result<()> {
-    // ratatui::init encadena este hook: primero restaura el terminal y después suelta el ratón.
+    // ratatui::init chains this hook: it first restores the terminal and then releases the mouse.
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = execute!(io::stdout(), DisableMouseCapture);

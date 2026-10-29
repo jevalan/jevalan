@@ -1,6 +1,6 @@
-//! Geometría pura para dibujar paquetes sobre aristas.
+//! Pure geometry for drawing packets on edges.
 
-/// Punto a la fracción `t` (0..=1) de la longitud de una polilínea; `None` si no hay puntos.
+/// Point at fraction `t` (0..=1) of a polyline's length; `None` if there are no points.
 pub fn point_along(points: &[(f64, f64)], t: f64) -> Option<(f64, f64)> {
     let first = *points.first()?;
     let len = |a: (f64, f64), b: (f64, f64)| ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();

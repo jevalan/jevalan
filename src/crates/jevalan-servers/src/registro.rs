@@ -1,28 +1,28 @@
-//! El registro `servers.yaml`: qué servidores existen en esta máquina y cómo se arrancan.
+//! The `servers.yaml` registry: which servers exist on this machine and how they are started.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// Un servidor de modelos local, tal como lo declara el registro. La clave del mapa es su nombre,
-/// que es también el nombre del backend en la config del daemon.
+/// A local model server, as the registry declares it. The map key is its name,
+/// which is also the backend's name in the daemon config.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Servidor {
-    /// El nombre: la clave bajo la que aparece. No viaja en el fichero, se rellena al leerlo.
+    /// The name: the key under which it appears. It does not travel in the file, it is filled in on reading.
     #[serde(skip)]
     pub nombre: String,
-    /// Puerto donde escucha. Obligatorio: es la única señal de vida que sirve con Kev y con Laya.
+    /// Port where it listens. Mandatory: it is the only sign of life that works with Kev and with Laya.
     pub port: u16,
-    /// Una línea de shell, ejecutada con `cmd /c`: así siguen valiendo los `serve.bat` que ya funcionan.
+    /// A shell line, executed with `cmd /c`: this way the `serve.bat` files that already work stay valid.
     pub command: String,
-    /// Directorio de trabajo del proceso, y la base de `log` si es relativo.
+    /// The process's working directory, and the base of `log` if that is relative.
     pub cwd: PathBuf,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
-    /// Cuánto se le concede para cargar antes de darlo por perdido. Kev tarda uno o dos minutos.
+    /// How long it is given to load before being written off. Kev takes one or two minutes.
     #[serde(default = "ready_por_defecto")]
     pub ready_ms: u64,
-    /// Dónde van su stdout y su stderr. Relativo a `cwd`.
+    /// Where its stdout and stderr go. Relative to `cwd`.
     pub log: PathBuf,
 }
 
@@ -30,37 +30,37 @@ fn ready_por_defecto() -> u64 {
     120_000
 }
 
-/// El registro entero: la config del daemon que edita la pantalla, y los servidores.
+/// The whole registry: the daemon config the screen edits, and the servers.
 ///
-/// Es a la vez la forma del fichero: se lee y se escribe con esta misma estructura, para que un
-/// campo que se añada aquí no se pierda por el camino en una copia paralela que nadie actualice.
+/// It is also the shape of the file: it is read and written with this very structure, so that a
+/// field added here is not lost along the way in a parallel copy that nobody updates.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Registro {
-    /// Ruta del fichero de config del daemon que la pantalla abre; se recuerda entre arranques.
+    /// Path of the daemon config file that the screen opens; it is remembered between starts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<PathBuf>,
     #[serde(default)]
     pub servers: BTreeMap<String, Servidor>,
 }
 
-/// Ruta del registro por defecto: `./servers.yaml`, junto a donde se ejecute jevalan.
+/// Default registry path: `./servers.yaml`, next to where jevalan is run.
 pub fn ruta_por_defecto() -> PathBuf {
     PathBuf::from("./servers.yaml")
 }
 
-/// El directorio de datos donde viven los `.pid`: el mismo que ya usa `daemon.json`.
+/// The data directory where the `.pid` files live: the same one `daemon.json` already uses.
 pub fn dir_pids() -> Option<PathBuf> {
     jevalan_daemon::discovery::data_dir().map(|d| d.join("servers"))
 }
 
-/// Lee el registro. Un fichero que no se entiende, o un servidor al que le falta lo indispensable,
-/// se rechaza **con su motivo**: la pantalla ha de poder decirlo.
+/// Reads the registry. A file that is not understood, or a server missing the indispensable,
+/// is rejected **with its reason**: the screen must be able to say it.
 ///
-/// Al leer se rellena `nombre` desde la clave, y se resuelve `log` contra `cwd` **solo si `log` es
-/// relativo y `cwd` es absoluto**. Si `cwd` también es relativo, se dejan los dos tal cual: unir dos
-/// relativos para volver a escribirlos los apilaría una vez por ciclo (`kev` + `kev.log` daría
-/// `kev/kev.log`, y a la siguiente vuelta `kev/kev/kev.log`), así que la resolución se le deja a
-/// quien vaya a usar la ruta, que es el único que sabe desde dónde.
+/// On reading, `nombre` is filled in from the key, and `log` is resolved against `cwd` **only if `log` is
+/// relative and `cwd` is absolute**. If `cwd` is also relative, both are left as they are: joining two
+/// relative ones to write them back out would pile them up once per cycle (`kev` + `kev.log` would give
+/// `kev/kev.log`, and on the next round `kev/kev/kev.log`), so the resolution is left to
+/// whoever is going to use the path, who is the only one who knows from where.
 pub fn leer(ruta: &Path) -> Result<Registro, String> {
     let texto = std::fs::read_to_string(ruta).map_err(|e| format!("no se puede leer {}: {e}", ruta.display()))?;
     let leido: Registro =
@@ -77,8 +77,8 @@ pub fn leer(ruta: &Path) -> Result<Registro, String> {
         if s.cwd.as_os_str().is_empty() {
             return Err(format!("el servidor «{nombre}» no declara cwd"));
         }
-        // El log es relativo a `cwd`; se resuelve aquí para que nadie tenga que acordarse. Con `cwd`
-        // relativo no se toca: resolverlo obligaría a apilarlo en cada ciclo de lectura y escritura.
+        // The log is relative to `cwd`; it is resolved here so that nobody has to remember. With a relative
+        // `cwd` it is not touched: resolving it would force piling it up on every read-and-write cycle.
         if s.log.is_relative() && s.cwd.is_absolute() {
             s.log = s.cwd.join(&s.log);
         }
@@ -88,13 +88,13 @@ pub fn leer(ruta: &Path) -> Result<Registro, String> {
     Ok(Registro { config, servers: servidores })
 }
 
-/// Una copia del registro con la única verdad de `nombre` restablecida: **la clave del mapa manda**.
+/// A copy of the registry with the single truth of `nombre` restored: **the map key rules**.
 ///
-/// Existe porque `nombre` no viaja en el fichero —va `#[serde(skip)]`—, así que un `Servidor`
-/// construido a mano con el nombre sin rellenar, o con uno que no case con su clave, es un valor que
-/// se desmiente a sí mismo. Devolverlo a la clave deja el registro coherente consigo mismo, y de paso
-/// hace que las comparaciones que el resto del plan haga sobre un borrador no digan «ha cambiado»
-/// por un campo que el fichero nunca guardó.
+/// It exists because `nombre` does not travel in the file (it is `#[serde(skip)]`), so a `Servidor`
+/// built by hand with the name left blank, or with one that does not match its key, is a value that
+/// contradicts itself. Returning it to the key leaves the registry consistent with itself, and incidentally
+/// makes the comparisons the rest of the plan makes on a draft not say "it has changed"
+/// because of a field the file never stored.
 fn normalizar_nombres(reg: &Registro) -> Registro {
     let mut copia = reg.clone();
     for (nombre, s) in copia.servers.iter_mut() {
@@ -103,19 +103,19 @@ fn normalizar_nombres(reg: &Registro) -> Registro {
     copia
 }
 
-/// Escribe el registro.
+/// Writes the registry.
 ///
-/// **Normaliza el fichero**, y conviene saberlo antes de echar de menos algo:
+/// **It normalises the file**, and it is worth knowing before missing something:
 ///
-/// - No conserva comentarios: el registro lo genera jevalan, no se edita a mano.
-/// - El orden de los campos y el de los servidores es el de la estructura y el del `BTreeMap`, no
-///   el que tenía el fichero.
-/// - `env` sale siempre, aunque estuviera ausente, y `config` solo si lo hay —`None` se omite, en
-///   vez de escribirse como `null`—.
-/// - Un `log` que se resolvió al leer queda escrito ya resuelto, con lo que una segunda lectura ya
-///   no lo vuelve a tocar.
-/// - `nombre` no aparece en el fichero —va `#[serde(skip)]`—, pero la copia que se serializa lo
-///   lleva re-derivado de la clave, y el registro del llamante no se toca.
+/// - It does not preserve comments: the registry is generated by jevalan, not edited by hand.
+/// - The order of the fields and of the servers is that of the structure and of the `BTreeMap`, not
+///   the one the file had.
+/// - `env` always comes out, even if it was absent, and `config` only if there is one (`None` is omitted, instead
+///   of being written as `null`).
+/// - A `log` that was resolved on reading is left written already resolved, so a second reading does
+///   not touch it again.
+/// - `nombre` does not appear in the file (it is `#[serde(skip)]`), but the copy that is serialised
+///   carries it re-derived from the key, and the caller's registry is not touched.
 pub fn escribir(ruta: &Path, reg: &Registro) -> Result<(), String> {
     let texto = serde_yaml::to_string(&normalizar_nombres(reg)).map_err(|e| format!("no se puede serializar: {e}"))?;
     if let Some(dir) = ruta.parent().filter(|p| !p.as_os_str().is_empty()) {
@@ -147,12 +147,12 @@ servers:
     log: 'laya-serve.log'
 "#;
 
-    /// Directorio temporal que se borra al soltarse.
+    /// Temporary directory that is deleted when dropped.
     struct Tmp(PathBuf);
 
     impl Tmp {
         fn new() -> Self {
-            // Cada prueba necesita su directorio: corren en paralelo y comparten `temp_dir()`.
+            // Each test needs its own directory: they run in parallel and share `temp_dir()`.
             static SIGUIENTE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
             let n = SIGUIENTE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let dir = std::env::temp_dir().join(format!("jevalan-servers-{}-{n}", std::process::id()));
@@ -174,8 +174,8 @@ servers:
         }
     }
 
-    /// Un servidor verosímil y completo, del que cada prueba retoca lo que le interesa. `nombre` se
-    /// deja como lo dejaría una construcción a mano: vacío, que es lo que `escribir` ha de re-derivar.
+    /// A plausible, complete server, of which each test tweaks what interests it. `nombre` is
+    /// left as a hand construction would leave it: empty, which is what `escribir` has to re-derive.
     fn servidor(port: u16, cwd: &str, log: &str) -> Servidor {
         Servidor {
             nombre: String::new(),
@@ -203,7 +203,7 @@ servers:
         assert_eq!(kev.cwd, Path::new(r"C:\models\kev"));
         assert_eq!(kev.env.get("HF_HUB_DISABLE_SYMLINKS").map(String::as_str), Some("1"));
         assert_eq!(kev.ready_ms, 180_000);
-        // El `log` es relativo a `cwd`, y se resuelve al leerlo para que nadie tenga que acordarse.
+        // The `log` is relative to `cwd`, and is resolved on reading so that nobody has to remember.
         assert_eq!(kev.log, Path::new(r"C:\models\kev\kev-serve.log"));
     }
 
@@ -217,28 +217,28 @@ servers:
     #[test]
     fn un_registro_imposible_se_rechaza_con_su_motivo() {
         let tmp = Tmp::new();
-        // Sin puerto: es la única señal de vida que funciona con Kev y con Laya.
+        // Without a port: it is the only sign of life that works with Kev and with Laya.
         let sin_puerto = tmp.put("a.yaml", "servers: { kev: { command: x, cwd: 'C:\\', ready_ms: 1, log: l } }\n");
-        // Sin la clave, el rechazo es de serde (`missing field`), y su texto no es asunto nuestro:
-        // aquí solo se afirma que no pasa.
+        // Without the key, the rejection is serde's (`missing field`), and its text is none of our business:
+        // here it is only asserted that it does not pass.
         assert!(leer(&sin_puerto).is_err());
-        // Puerto cero: la clave está, y el rechazo ya es el nuestro, en castellano.
+        // Port zero: the key is there, and the rejection is now our own, in Spanish.
         let puerto_cero =
             tmp.put("b.yaml", "servers: { kev: { port: 0, command: x, cwd: 'C:\\', ready_ms: 1, log: l } }\n");
         assert!(leer(&puerto_cero).unwrap_err().contains("puerto"), "{}", leer(&puerto_cero).unwrap_err());
-        // Sin `command` no hay nada que arrancar; con la clave presente pero en blanco, tampoco. Las
-        // dos formas se prueban porque solo la segunda llega a la comprobación propia: la primera
-        // muere antes, en serde.
+        // Without `command` there is nothing to start; with the key present but blank, neither. Both
+        // forms are tested because only the second reaches our own check: the first
+        // dies earlier, in serde.
         let sin_orden = tmp.put("c.yaml", "servers: { kev: { port: 8009, cwd: 'C:\\', ready_ms: 1, log: l } }\n");
         assert!(leer(&sin_orden).is_err());
         let orden_en_blanco =
             tmp.put("e.yaml", "servers: { kev: { port: 8009, command: '  ', cwd: 'C:\\', ready_ms: 1, log: l } }\n");
         assert!(leer(&orden_en_blanco).unwrap_err().contains("command"), "{}", leer(&orden_en_blanco).unwrap_err());
-        // Y un `cwd` presente pero vacío, que es el otro rechazo que ningún otro caso alcanza.
+        // And a `cwd` that is present but empty, which is the other rejection that no other case reaches.
         let sin_directorio =
             tmp.put("f.yaml", "servers: { kev: { port: 8009, command: x, cwd: '', ready_ms: 1, log: l } }\n");
         assert!(leer(&sin_directorio).unwrap_err().contains("cwd"), "{}", leer(&sin_directorio).unwrap_err());
-        // Y un fichero que no es YAML.
+        // And a file that is not YAML.
         let basura = tmp.put("d.yaml", "esto: [no es un registro");
         assert!(leer(&basura).is_err());
     }
@@ -257,14 +257,14 @@ servers:
     #[test]
     fn el_ciclo_de_escritura_y_lectura_no_apila_un_log_relativo() {
         let tmp = Tmp::new();
-        // `cwd` relativo deja `log` sin resolver, para que nadie lo apile al volver a escribirlo.
+        // A relative `cwd` leaves `log` unresolved, so that nobody piles it up when writing it back.
         let mut reg = Registro::default();
         reg.servers.insert("kev".to_string(), servidor(8009, ".", "kev.log"));
         let ruta = tmp.0.join("ida.yaml");
         escribir(&ruta, &reg).unwrap();
         let vuelta = leer(&ruta).unwrap();
         assert_eq!(vuelta.servers["kev"].log, Path::new("kev.log"), "el primer ciclo ya lo torció");
-        // Y el segundo ciclo ha de dar lo mismo: es la idempotencia que se le pide al registro.
+        // And the second cycle must give the same: it is the idempotence asked of the registry.
         let otra = tmp.0.join("vuelta.yaml");
         escribir(&otra, &vuelta).unwrap();
         assert_eq!(leer(&otra).unwrap().servers, vuelta.servers);
@@ -278,7 +278,7 @@ servers:
         reg.servers.insert("kev".to_string(), a_mano);
         let copia = normalizar_nombres(&reg);
         assert_eq!(copia.servers["kev"].nombre, "kev");
-        // Y el registro del llamante no se toca: se trabaja sobre una copia.
+        // And the caller's registry is not touched: a copy is worked on.
         assert_eq!(reg.servers["kev"].nombre, "despistado");
     }
 
@@ -289,12 +289,12 @@ servers:
         reg.servers.insert("kev".to_string(), servidor(8009, ".", "kev.log"));
         let ruta = tmp.0.join("kev.yaml");
         escribir(&ruta, &reg).unwrap();
-        // `nombre` va `#[serde(skip)]`, así que no está en el texto: la clave del mapa es la única
-        // fuente, y por eso la re-derivación no puede observarse desde el fichero —se comprueba
-        // sobre la copia, en la prueba de arriba—.
+        // `nombre` is `#[serde(skip)]`, so it is not in the text: the map key is the only
+        // source, and that is why the re-derivation cannot be observed from the file (it is checked
+        // on the copy, in the test above).
         let texto = std::fs::read_to_string(&ruta).unwrap();
         assert!(!texto.contains("nombre"), "el nombre se coló en el fichero:\n{texto}");
-        // Al volver del disco, el nombre sale de la clave, que es lo que se le pide al ciclo.
+        // On coming back from disk, the name comes from the key, which is what the cycle is asked for.
         assert_eq!(leer(&ruta).unwrap().servers["kev"].nombre, "kev");
     }
 
@@ -303,7 +303,7 @@ servers:
         let tmp = Tmp::new();
         let ruta = tmp.put("servers.yaml", EJEMPLO);
         let reg = leer(&ruta).unwrap();
-        // La primera escritura normaliza; la segunda ya no ha de cambiar ni un carácter.
+        // The first write normalises; the second must not change a single character.
         let primera = tmp.0.join("primera.yaml");
         escribir(&primera, &reg).unwrap();
         let segunda = tmp.0.join("segunda.yaml");

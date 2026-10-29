@@ -1,4 +1,4 @@
-//! Contrato de eventos v2: System One, flujos de decisión y passthrough.
+//! Event contract v2: System One, decision flows and passthrough.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,7 +52,7 @@ pub enum EventKind {
     BackendResponse {
         backend: String,
         ok: bool,
-        /// 0 si no hubo respuesta HTTP (timeout, conexión rechazada).
+        /// 0 if there was no HTTP response (timeout, connection refused).
         status: u16,
         duration_ms: u64,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -61,13 +61,13 @@ pub enum EventKind {
     NodeEnd {
         flow: String,
         node: String,
-        /// Número para noul y score, texto para choice; `null` si el backend falló.
+        /// A number for noul and score, text for choice; `null` if the backend failed.
         answer: Value,
         confidence: f64,
         port: String,
     },
-    /// Lo que decidió un paso sin preguntar a nadie: las heurísticas que leyó y la regla `route` que ganó.
-    /// Solo nombres y booleanos, nunca la entrada.
+    /// What a step decided without asking anyone: the heuristics it read and the `route` rule that won.
+    /// Names and booleans only, never the input.
     NodeAudit {
         flow: String,
         node: String,
@@ -88,7 +88,7 @@ pub enum EventKind {
         status: u16,
         duration_ms: u64,
     },
-    /// Nombres de los backends configurados, nunca sus urls ni claves.
+    /// Names of the configured backends, never their urls or keys.
     Backends {
         backends: Vec<String>,
     },
@@ -125,15 +125,15 @@ pub enum EventKind {
         provider: String,
         /// `flow`, `exec` o `http`.
         provider_type: String,
-        /// Flujo que sirve la capacidad, si el proveedor es un flujo.
+        /// Flow that serves the capability, if the provider is a flow.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         flow: Option<String>,
         #[serde(default, skip_serializing_if = "String::is_empty")]
         description: String,
-        /// Claves de primer nivel de `properties` del esquema de entrada, ordenadas.
+        /// Top-level keys of the input schema's `properties`, sorted.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         input_fields: Vec<String>,
-        /// Ídem para el esquema de decisión.
+        /// Likewise for the decision schema.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         decision_fields: Vec<String>,
     },
@@ -179,7 +179,7 @@ impl EventKind {
     }
 }
 
-/// Evento v2 con `id = "<trace_id>-<seq>"` y `ts` de ahora.
+/// v2 event with `id = "<trace_id>-<seq>"` and `ts` set to now.
 pub fn new_event(trace_id: &str, seq: u64, source: &str, kind: EventKind) -> Event {
     Event {
         v: SCHEMA_VERSION,
@@ -192,7 +192,7 @@ pub fn new_event(trace_id: &str, seq: u64, source: &str, kind: EventKind) -> Eve
     }
 }
 
-/// Fecha UTC en RFC3339 con precisión de segundos.
+/// UTC date in RFC3339 with second precision.
 pub fn rfc3339(t: SystemTime) -> String {
     let secs = t.duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs()) as i64;
     let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));

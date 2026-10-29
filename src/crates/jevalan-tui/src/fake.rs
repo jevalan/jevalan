@@ -1,4 +1,4 @@
-//! Generador de trazas ficticias: una parte pura y determinista, y otra con hilo.
+//! Fake trace generator: a pure, deterministic part, and another with a thread.
 
 use crate::screen::Feed;
 use jevalan_events::{Endpoint, Event, EventKind, SCHEMA_VERSION, new_event, rfc3339};
@@ -8,21 +8,21 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-/// Flujos de ejemplo del repositorio, embebidos.
+/// The repository's example flows, embedded.
 pub const FLOWS: [(&str, &str); 2] = [
     ("agent-guard", include_str!("../../../../config/flows/agent-guard.yaml")),
     ("model-route", include_str!("../../../../config/flows/model-route.yaml")),
 ];
 pub const BACKENDS: [&str; 2] = ["typesafe", "ollama"];
 const DEFAULT_BACKEND: &str = "ollama";
-/// Los de la topología más `openrouter`, que `agent-wakeup` pide y el tablero simulado no dibuja.
+/// Those of the topology plus `openrouter`, which `agent-wakeup` asks for and the simulated board does not draw.
 const FLOW_BACKENDS: [&str; 3] = ["typesafe", "ollama", "openrouter"];
-/// El flujo que sirve a `agent.wakeup`; no se invoca por `/v1/decide`, así que no entra en `FLOWS`.
+/// The flow that serves `agent.wakeup`; it is not invoked through `/v1/decide`, so it is not in `FLOWS`.
 const WAKEUP_FLOW: (&str, &str) = ("agent-wakeup", include_str!("../../../../config/flows/agent-wakeup.yaml"));
-/// (capacidad, versión, id del proveedor, tipo del proveedor) de las capacidades de ejemplo.
+/// (capability, version, provider id, provider type) of the example capabilities.
 pub const CAPABILITIES: [(&str, &str, &str, &str); 2] =
     [("agent.wakeup", "1", "jevalan-flow", "flow"), ("tool.risk", "1", "toolgate", "exec")];
-/// (flujo, descripción, campos de entrada, campos de decisión) de cada capacidad de `CAPABILITIES`, en el mismo orden.
+/// (flow, description, input fields, decision fields) of each capability in `CAPABILITIES`, in the same order.
 type Detail = (Option<&'static str>, &'static str, &'static [&'static str], &'static [&'static str]);
 const DETAILS: [Detail; 2] = [
     (
@@ -38,7 +38,7 @@ const DETAILS: [Detail; 2] = [
         &["probabilities", "reason", "source", "verdict"],
     ),
 ];
-/// Fracción de las trazas que pasan por el hub.
+/// Fraction of the traces that go through the hub.
 const HUB_SHARE: f64 = 0.3;
 
 /// (cliente, peso, segundos activo, segundos callado); callado 0 = siempre activo.
@@ -53,7 +53,7 @@ const RHYTHM: [(&str, u64, u64, u64); 8] = [
     ("cron", 1, 15, 45),
 ];
 
-/// SplitMix64: determinista y sin dependencias.
+/// SplitMix64: deterministic and dependency-free.
 #[derive(Debug, Clone)]
 pub struct Rng(u64);
 
@@ -75,7 +75,7 @@ impl Rng {
         (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
     }
 
-    /// Entero uniforme en [lo, hi].
+    /// Uniform integer in [lo, hi].
     pub fn range(&mut self, lo: u64, hi: u64) -> u64 {
         lo + self.next_u64() % (hi - lo + 1)
     }
@@ -85,7 +85,7 @@ impl Rng {
     }
 }
 
-/// Flujo con un nodo `batch` de tres preguntas, para el generador de trazas y el grafo.
+/// Flow with a `batch` node of three questions, for the trace generator and the graph.
 #[cfg(test)]
 pub(crate) const BATCH_FLOW: &str = r#"
 defaults: { backend: ollama, model: nimble }
@@ -109,13 +109,13 @@ outputs:
   abstain: { outcome: abstain }
 "#;
 
-/// El flujo de `BATCH_FLOW`, ya validado; solo lo usan las pruebas y el grafo de la TUI.
+/// The `BATCH_FLOW` flow, already validated; only used by tests and the TUI graph.
 #[cfg(test)]
 pub(crate) fn batch_flow() -> Flow {
     parse("tool-risk", BATCH_FLOW, &FLOW_BACKENDS, DEFAULT_BACKEND).expect("flujo de pruebas válido")
 }
 
-/// Los flujos embebidos, ya validados. Son del repositorio: si no validan, es un defecto de compilación.
+/// The embedded flows, already validated. They belong to the repository: if they do not validate, it is a build defect.
 pub fn flows() -> Vec<Flow> {
     FLOWS
         .iter()
@@ -123,12 +123,12 @@ pub fn flows() -> Vec<Flow> {
         .collect()
 }
 
-/// El flujo de `agent.wakeup`, ya validado.
+/// The `agent.wakeup` flow, already validated.
 pub fn wakeup_flow() -> Flow {
     parse(WAKEUP_FLOW.0, WAKEUP_FLOW.1, &FLOW_BACKENDS, DEFAULT_BACKEND).expect("flujo embebido")
 }
 
-/// Un `CAPABILITY_LOADED` por capacidad, como los que el daemon reenvía tras los flujos.
+/// One `CAPABILITY_LOADED` per capability, like the ones the daemon resends after the flows.
 pub fn capability_events() -> Vec<Event> {
     CAPABILITIES
         .iter()
@@ -150,7 +150,7 @@ pub fn capability_events() -> Vec<Event> {
         .collect()
 }
 
-/// Clientes activos en el segundo `elapsed` según su ritmo.
+/// Clients active in second `elapsed` according to their rhythm.
 pub fn active_clients(elapsed: Duration) -> Vec<&'static str> {
     let s = elapsed.as_secs();
     RHYTHM
@@ -161,7 +161,7 @@ pub fn active_clients(elapsed: Duration) -> Vec<&'static str> {
         .collect()
 }
 
-/// Elige un cliente activo, ponderado por su peso.
+/// Picks an active client, weighted by its weight.
 pub fn pick_client(rng: &mut Rng, elapsed: Duration) -> &'static str {
     let active = active_clients(elapsed);
     let weight = |n: &str| RHYTHM.iter().find(|r| r.0 == n).map_or(1, |r| r.1);
@@ -177,8 +177,8 @@ pub fn pick_client(rng: &mut Rng, elapsed: Duration) -> &'static str {
     active[0]
 }
 
-/// Backend caído en `elapsed`: typesafe de 90 a 100 s de cada 180 s; ollama de 40 a 48 s de cada 150 s;
-/// toolgate de 120 a 128 s de cada 200 s.
+/// Backend down at `elapsed`: typesafe from 90 to 100 s of every 180 s; ollama from 40 to 48 s of every 150 s;
+/// toolgate from 120 to 128 s of every 200 s.
 pub fn down_backend(elapsed: Duration) -> Option<&'static str> {
     let s = elapsed.as_secs();
     if (90..100).contains(&(s % 180)) {
@@ -192,8 +192,8 @@ pub fn down_backend(elapsed: Duration) -> Option<&'static str> {
     }
 }
 
-/// La definición que viaja en `FLOW_LOADED`: jamás lleva las `instructions`, tampoco las de las preguntas
-/// de un nodo `batch`, que son el prompt.
+/// The definition that travels in `FLOW_LOADED`: it never carries the `instructions`, nor those of the questions
+/// of a `batch` node, which are the prompt.
 fn definition(flow: &Flow) -> Value {
     let mut def = serde_json::to_value(flow).unwrap_or(Value::Null);
     if let Some(nodes) = def.get_mut("nodes").and_then(Value::as_object_mut) {
@@ -209,13 +209,13 @@ fn definition(flow: &Flow) -> Value {
     def
 }
 
-/// El `BACKENDS` que el daemon envía primero al abrirse una conexión.
+/// The `BACKENDS` that the daemon sends first when a connection opens.
 pub fn backends_event() -> Event {
     let backends = BACKENDS.iter().map(|b| b.to_string()).collect();
     new_event("backends:1", 1, "fake", EventKind::Backends { backends })
 }
 
-/// Un `FLOW_LOADED` por flujo, como el que el daemon envía al abrirse una conexión.
+/// One `FLOW_LOADED` per flow, like the one the daemon sends when a connection opens.
 pub fn loaded_events(flows: &[Flow]) -> Vec<Event> {
     flows
         .iter()
@@ -227,12 +227,12 @@ pub fn loaded_events(flows: &[Flow]) -> Vec<Event> {
         .collect()
 }
 
-/// Latencia de un backend ficticio, en ms.
+/// Latency of a fake backend, in ms.
 fn latency(rng: &mut Rng, backend: &str) -> u64 {
     if backend == "typesafe" { rng.range(80, 250) } else { rng.range(20, 120) }
 }
 
-/// Respuesta de una pregunta: la opción elegida, la puntuación o la probabilidad de «true», con su confianza.
+/// Answer to a question: the chosen option, the score or the probability of "true", with its confidence.
 fn question_reply(rng: &mut Rng, ty: NodeType, criteria: Option<&Criteria>) -> Reply {
     let answer = match (ty, criteria) {
         (NodeType::Choice, Some(Criteria::Options(options))) => {
@@ -246,11 +246,11 @@ fn question_reply(rng: &mut Rng, ty: NodeType, criteria: Option<&Criteria>) -> R
     Reply { answer, confidence: round3(0.4 + 0.6 * rng.unit()) }
 }
 
-/// Respuesta aleatoria pero determinista a la pregunta de un nodo. En un `batch`, una por pregunta.
+/// Random but deterministic answer to a node's question. In a `batch`, one per question.
 fn random_reply(rng: &mut Rng, flow: &Flow, node: &str) -> Reply {
     let n = &flow.nodes[node];
     if n.ty == NodeType::Batch {
-        // El flujo espera un objeto con todas las respuestas, no un valor suelto.
+        // The flow expects an object with all the answers, not a single value.
         let answers: Map<String, Value> = n
             .questions
             .iter()
@@ -261,13 +261,13 @@ fn random_reply(rng: &mut Rng, flow: &Flow, node: &str) -> Reply {
     question_reply(rng, n.ty, n.criteria.as_ref())
 }
 
-/// Tres decimales: bastan y viajan por JSON sin perder ni una cifra.
+/// Three decimals: enough, and they travel through JSON without losing a single digit.
 fn round3(x: f64) -> f64 {
     (x * 1000.0).round() / 1000.0
 }
 
-/// Respuestas de cada pregunta de un nodo `batch` con la forma que devuelve System One:
-/// `{ "<pregunta>": {type, <tipo>, confidence} }`, a partir del objeto que da `random_reply`.
+/// Answers to each question of a `batch` node in the form System One returns:
+/// `{ "<question>": {type, <type>, confidence} }`, from the object `random_reply` gives.
 fn batch_entries(answer: &Value, flow: &Flow, node: &str) -> Map<String, Value> {
     let n = &flow.nodes[node];
     n.questions
@@ -284,7 +284,7 @@ fn batch_entries(answer: &Value, flow: &Flow, node: &str) -> Map<String, Value> 
         .collect()
 }
 
-/// Acumula los eventos de una traza con su desfase y su `seq`.
+/// Accumulates a trace's events with their offset and their `seq`.
 struct Out<'a> {
     trace_id: &'a str,
     events: Vec<(Duration, Event)>,
@@ -306,8 +306,8 @@ impl Out<'_> {
     }
 }
 
-/// Genera una traza completa; cada evento va con su desfase desde el inicio de la traza.
-/// El 85 % recorre un flujo con la misma secuencia de eventos que el daemon; el resto es passthrough.
+/// Generates a complete trace; each event comes with its offset from the start of the trace.
+/// 85% walk a flow with the same event sequence as the daemon; the rest is passthrough.
 pub fn trace(
     rng: &mut Rng,
     trace_id: &str,
@@ -336,7 +336,7 @@ fn decide(out: &mut Out, rng: &mut Rng, client: &str, flow: &Flow, down: Option<
     walk(out, rng, flow, Value::Null, down);
 }
 
-/// Recorre `flow` con la misma secuencia de eventos que el daemon. Devuelve el instante final y si hubo desenlace.
+/// Walks `flow` with the same event sequence as the daemon. Returns the final instant and whether there was an outcome.
 fn walk(out: &mut Out, rng: &mut Rng, flow: &Flow, input: Value, down: Option<&str>) -> (u64, bool) {
     let name = flow.name.as_str();
     let mut t = 0u64;
@@ -413,7 +413,7 @@ fn walk(out: &mut Out, rng: &mut Rng, flow: &Flow, input: Value, down: Option<&s
                         model: model.into(),
                     },
                 );
-                // Una sola petición con todas las preguntas del nodo: el evento lleva su cuenta.
+                // A single request with all of the node's questions: the event carries their count.
                 let asked = questions.as_object().map_or(0, |q| q.len()) as u32;
                 out.push(
                     t,
@@ -432,7 +432,7 @@ fn walk(out: &mut Out, rng: &mut Rng, flow: &Flow, input: Value, down: Option<&s
                         input_tokens: None,
                     },
                 );
-                // `random_reply` da el objeto de respuestas; `answer_batch` espera el cuerpo de cada pregunta.
+                // `random_reply` gives the object of answers; `answer_batch` expects each question's body.
                 let reply = if ok { Ok(random_reply(rng, flow, node)) } else { Err("timeout".to_string()) };
                 if let Some(step) = run.answer_batch(reply.map(|r| batch_entries(&r.answer, flow, node)), dur) {
                     let end = EventKind::NodeEnd {
@@ -464,7 +464,7 @@ fn walk(out: &mut Out, rng: &mut Rng, flow: &Flow, input: Value, down: Option<&s
     }
 }
 
-/// Una entrada plausible para `agent.wakeup`.
+/// A plausible input for `agent.wakeup`.
 fn wakeup_input(rng: &mut Rng) -> Value {
     match rng.range(0, 3) {
         0 => json!({ "waiting_for": "respuesta del usuario", "from_user": true, "skipped": 0 }),
@@ -474,8 +474,8 @@ fn wakeup_input(rng: &mut Rng) -> Value {
     }
 }
 
-/// Traza de una petición al hub con la misma secuencia de eventos que el daemon: mitad `agent.wakeup`
-/// (proveedor `flow`, con los eventos del flujo en la misma traza) y mitad `tool.risk` (especialista `exec`).
+/// Trace of a request to the hub with the same event sequence as the daemon: half `agent.wakeup`
+/// (`flow` provider, with the flow's events in the same trace) and half `tool.risk` (`exec` specialist).
 pub fn hub_trace(
     rng: &mut Rng,
     trace_id: &str,
@@ -558,8 +558,8 @@ fn passthrough(out: &mut Out, rng: &mut Rng, client: &str, down: Option<&str>) {
     out.push(t, done);
 }
 
-/// Lanza un hilo que emite trazas ficticias a `rate` peticiones por segundo, cada
-/// evento en su momento. El hilo termina cuando se suelta el `Receiver`.
+/// Launches a thread that emits fake traces at `rate` requests per second, each
+/// event at its moment. The thread ends when the `Receiver` is dropped.
 pub fn spawn(rate: f64, seed: u64) -> Receiver<Feed> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || emit(tx, rate.max(0.1), seed));
@@ -661,7 +661,7 @@ mod tests {
                         matches!(k[k.len() - 1], EventKind::DecisionMade { .. } | EventKind::Error { .. }),
                         "seed {seed}"
                     );
-                    // Cada NODE_START va seguido de su NODE_END antes del siguiente NODE_START.
+                    // Each NODE_START is followed by its NODE_END before the next NODE_START.
                     let mut open = false;
                     for e in &k {
                         match e {
@@ -823,7 +823,7 @@ mod tests {
         assert_eq!(down_backend(Duration::from_secs(10)), None);
     }
 
-    /// Flujo con un nodo `batch` de tres preguntas, compartido con la pantalla de flujo.
+    /// Flow with a `batch` node of three questions, shared with the flow screen.
     fn batch_flow() -> Flow {
         super::batch_flow()
     }

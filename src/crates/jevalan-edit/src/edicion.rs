@@ -1,4 +1,4 @@
-//! Borrador: las operaciones de edición sobre el `FlowDef` en curso y su validación con el parser real.
+//! Draft: the editing operations over the `FlowDef` in progress and its validation with the real parser.
 
 use crate::daemon::Cliente;
 use crate::documento::Documento;
@@ -7,16 +7,16 @@ use jevalan_flow::{Criteria, FlowError, NodeDef, NodeType, RouteDef, Signals, pa
 use std::collections::BTreeMap;
 use std::path::Path;
 
-/// Los tipos que el motor ya soporta, y por tanto los que el editor puede añadir.
+/// The types the engine already supports, and therefore the ones the editor can add.
 pub const TIPOS: [NodeType; 5] = [NodeType::Rule, NodeType::Noul, NodeType::Choice, NodeType::Score, NodeType::Batch];
 
-/// El veredicto de la validación en curso.
+/// The verdict of the validation in progress.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Validez {
     pub ok: bool,
-    /// El mensaje del `FlowError` real, tal cual.
+    /// The real `FlowError` message, as is.
     pub error: Option<String>,
-    /// Nodo que el parser señala, si el error nombra uno.
+    /// Node the parser points at, if the error names one.
     pub nodo: Option<String>,
 }
 
@@ -30,19 +30,19 @@ impl Validez {
     }
 }
 
-/// El borrador: el documento y el veredicto del parser sobre él.
+/// The draft: the document and the parser's verdict on it.
 pub struct Borrador {
     pub doc: Documento,
-    /// Catálogo de backends del daemon, que llega por el bus; sin él, la validación local no sabe
-    /// juzgar los backends y lo dirá.
+    /// The daemon's backend catalogue, which arrives over the bus; without it, local validation cannot
+    /// judge the backends and will say so.
     backends: Vec<String>,
     backend_por_defecto: String,
-    /// Catálogo de señales: sin él, un flujo que las use no se puede juzgar en local.
+    /// Signal catalogue: without it, a flow that uses them cannot be judged locally.
     senales: Signals,
-    /// Cliente del daemon; sin él, la validación es la del parser local.
+    /// Daemon client; without it, validation is the local parser's.
     cliente: Option<Cliente>,
     pub validez: Validez,
-    /// Aviso de la banda cuando el daemon no responde y se validó en local.
+    /// Band notice for when the daemon does not answer and validation was done locally.
     pub aviso_validacion: Option<String>,
 }
 
@@ -59,30 +59,30 @@ impl Borrador {
         }
     }
 
-    /// El catálogo de backends que el daemon declaró por el bus.
+    /// The backend catalogue the daemon declared over the bus.
     pub fn catalogo(&mut self, backends: Vec<String>, por_defecto: String) {
         self.backends = backends;
         self.backend_por_defecto = por_defecto;
     }
 
-    /// El catálogo de señales con el que se juzga el borrador en local.
+    /// The signal catalogue against which the draft is judged locally.
     pub fn senales(&mut self, senales: Signals) {
         self.senales = senales;
     }
 
-    /// El nombre del flujo, que es el tallo del fichero.
+    /// The flow's name, which is the file stem.
     pub fn nombre(&self) -> String {
         self.doc.nombre()
     }
 
-    /// El cliente del daemon: con él, el veredicto es el suyo; sin él, el del parser local.
+    /// The daemon client: with it, the verdict is the daemon's; without it, the local parser's.
     pub fn con_daemon(&mut self, cliente: Option<Cliente>) {
         self.cliente = cliente;
     }
 
-    /// Revalida el borrador: el veredicto del daemon si responde, y si no el del parser local (D6).
+    /// Revalidates the draft: the daemon's verdict if it answers, otherwise the local parser's (D6).
     pub fn revisar(&mut self) {
-        // Un documento ilegible no se le manda a nadie: ya se sabe que no vale.
+        // An unreadable document is sent to nobody: it is already known not to be valid.
         if let Some(razon) = self.doc.solo_lectura() {
             self.validez = Validez::invalido(format!("el YAML no se pudo leer: {razon}"), None);
             return;
@@ -90,8 +90,8 @@ impl Borrador {
         let yaml = self.doc.yaml();
         let local = self.juzgar();
         match self.cliente.as_ref().map(|c| c.validar(&self.nombre(), &yaml)) {
-            // El daemon es la autoridad: su mensaje manda. El nodo culpable lo sigue señalando el
-            // parser local, que es exactamente el que él usa.
+            // The daemon is the authority: its message rules. The guilty node is still pointed out by the
+            // local parser, which is exactly the one it uses.
             Some(Ok(veredicto)) => {
                 self.aviso_validacion = None;
                 self.validez = match (veredicto.ok, veredicto.error) {
@@ -99,7 +99,7 @@ impl Borrador {
                     (false, error) => Validez::invalido(error.unwrap_or_default(), local.nodo),
                 };
             }
-            // El daemon no responde: se sigue con el parser local, y se avisa en la banda inferior.
+            // The daemon does not answer: carry on with the local parser, and say so in the bottom band.
             Some(Err(aviso)) => {
                 self.aviso_validacion = Some(format!("{aviso}; validación local{}", self.aviso_backends()));
                 self.validez = local;
@@ -111,20 +111,20 @@ impl Borrador {
         }
     }
 
-    /// El aviso que acompaña a una validación local hecha **sin** el catálogo del daemon.
+    /// The notice that accompanies a local validation done **without** the daemon's catalogue.
     fn aviso_backends(&self) -> &'static str {
         if self.backends.is_empty() { "; los backends no se comprueban sin daemon" } else { "" }
     }
 
-    /// El veredicto del parser real sobre el YAML en curso.
+    /// The real parser's verdict on the YAML in progress.
     ///
-    /// Sin daemon no llega el evento `BACKENDS`, así que no se sabe qué backends hay ni cuál es el
-    /// del sistema. Juzgar con la lista vacía condenaría todo flujo —`validate` rechaza cualquier
-    /// backend que no figure en ella— y el editor quedaría de solo lectura justo cuando el daemon no
-    /// responde (spec §8). Por eso, sin catálogo se juzga una **copia** del flujo con los backends que
-    /// él mismo declara: el backend no se comprueba —eso lo hará el daemon cuando responda— pero todo
-    /// lo demás sí. No basta con perdonar el error de backend: `parse` aborta en el primero, así que
-    /// perdonarlo taparía la CEL rota o el puerto mal cableado que vinieran detrás.
+    /// Without a daemon the `BACKENDS` event does not arrive, so it is not known which backends exist or which is the
+    /// system's. Judging with an empty list would condemn every flow (`validate` rejects any
+    /// backend not in it) and the editor would end up read-only exactly when the daemon does not
+    /// answer (spec §8). So, without a catalogue, a **copy** of the flow is judged with the backends
+    /// it declares itself: the backend is not checked (the daemon will do that when it answers) but everything
+    /// else is. Forgiving the backend error is not enough: `parse` aborts at the first one, so
+    /// forgiving it would hide the broken CEL or the badly wired port that came after.
     fn juzgar(&self) -> Validez {
         if !self.backends.is_empty() {
             let backends: Vec<&str> = self.backends.iter().map(String::as_str).collect();
@@ -140,15 +140,15 @@ impl Borrador {
             };
         }
         let mut def = self.doc.def().clone();
-        // Los backends que el propio flujo declara, sin repetir: los de los nodos y el de `defaults`.
+        // The backends the flow itself declares, without repeats: those of the nodes and that of `defaults`.
         let mut declarados: Vec<String> = Vec::new();
         for b in def.nodes.values().filter_map(|d| d.backend.clone()).chain(def.defaults.backend.clone()) {
             if !b.is_empty() && !declarados.contains(&b) {
                 declarados.push(b);
             }
         }
-        // La copia se juzga con esos backends y con el primero por defecto, para que un flujo que no
-        // declare `defaults.backend` tampoco se condena por ello. El texto en curso no se toca.
+        // The copy is judged with those backends and with the first as the default, so that a flow that does not
+        // declare `defaults.backend` is not condemned for that either. The text in progress is not touched.
         def.defaults.backend = declarados.first().cloned();
         let backends: Vec<&str> = declarados.iter().map(String::as_str).collect();
         let por_defecto = declarados.first().cloned().unwrap_or_default();
@@ -159,7 +159,7 @@ impl Borrador {
         }
     }
 
-    /// Edita un campo de un nodo. Un texto vacío borra el campo opcional.
+    /// Edits a field of a node. An empty text deletes the optional field.
     pub fn campo(&mut self, nodo: &str, campo: &Campo, valor: &str) -> Result<(), String> {
         if let Some(razon) = self.doc.solo_lectura() {
             return Err(format!("el YAML no se pudo leer: {razon}"));
@@ -203,7 +203,7 @@ impl Borrador {
         Ok(())
     }
 
-    /// El valor que hoy tiene un campo, para que el inspector lo muestre y lo edite.
+    /// The value a field has today, for the inspector to show and edit.
     pub fn valor(&self, nodo: &str, campo: &Campo) -> Option<String> {
         let d = self.doc.def().nodes.get(nodo)?;
         Some(match campo {
@@ -227,8 +227,8 @@ impl Borrador {
         })
     }
 
-    /// Añade una opción a un `choice` (o un criterio `true`/`false` a un `noul`). El puerto nace **sin
-    /// cablear**: el parser lo denuncia hasta que se recablee, que es la verdad y no un apaño.
+    /// Adds an option to a `choice` (or a `true`/`false` criterion to a `noul`). The port is born **unwired**:
+    /// the parser reports it until it is rewired, which is the truth and not a patch-up.
     pub fn anadir_opcion(&mut self, nodo: &str, clave: &str) -> Result<(), String> {
         let clave = clave.trim();
         if clave.is_empty() {
@@ -249,7 +249,7 @@ impl Borrador {
         Ok(())
     }
 
-    /// Quita una opción y su puerto: sin la opción, el puerto ya no existe para el parser.
+    /// Removes an option and its port: without the option, the port no longer exists for the parser.
     pub fn quitar_opcion(&mut self, nodo: &str, clave: &str) -> Result<(), String> {
         let d = self.doc.def_mut().nodes.get_mut(nodo).ok_or_else(|| format!("nodo desconocido: {nodo}"))?;
         match &mut d.criteria {
@@ -265,7 +265,7 @@ impl Borrador {
         Ok(())
     }
 
-    /// Añade un nodo del tipo pedido con un nombre libre (`nuevo-1`, `nuevo-2`…) y lo devuelve.
+    /// Adds a node of the requested type with a free name (`nuevo-1`, `nuevo-2`…) and returns it.
     pub fn anadir(&mut self, tipo: NodeType) -> Result<String, String> {
         if let Some(razon) = self.doc.solo_lectura() {
             return Err(format!("el YAML no se pudo leer: {razon}"));
@@ -280,10 +280,10 @@ impl Borrador {
         Ok(nombre)
     }
 
-    /// Borra un nodo. Se niega si algún puerto, regla `route`, `else` o el `start` lo referencia, y
-    /// los lista: borrar a ciegas dejaría el flujo con un destino que no existe. Las referencias se
-    /// miran **antes** de exigir que el nombre sea un nodo: borrar una salida es igual de peligroso, y
-    /// quien lo intenta merece la lista de quien la cita, no un «desconocido» que no explica nada.
+    /// Deletes a node. It refuses if any port, `route` rule, `else` or the `start` references it, and
+    /// lists them: deleting blindly would leave the flow with a destination that does not exist. The references are
+    /// checked **before** requiring the name to be a node: deleting an output is just as dangerous, and
+    /// whoever tries deserves the list of those citing it, not an "unknown" that explains nothing.
     pub fn borrar(&mut self, nodo: &str) -> Result<(), String> {
         let referencias = self.referencias(nodo);
         if !referencias.is_empty() {
@@ -296,9 +296,9 @@ impl Borrador {
         Ok(())
     }
 
-    /// Puertos, reglas `route`, `else` y `start` que apuntan a `nodo`. **No** mira las referencias
-    /// `$answer/<nodo>` de las salidas: no son un destino del grafo, y quien las deja colgando se
-    /// entera por el parser, no por aquí (ver la prueba que lo deja escrito más abajo).
+    /// Ports, `route` rules, `else` and `start` that point to `nodo`. It does **not** look at the
+    /// `$answer/<node>` references of the outputs: they are not a graph destination, and whoever leaves them dangling
+    /// finds out from the parser, not from here (see the test that spells it out below).
     pub fn referencias(&self, nodo: &str) -> Vec<String> {
         let def = self.doc.def();
         let mut referencias = Vec::new();
@@ -323,7 +323,7 @@ impl Borrador {
         referencias
     }
 
-    /// Cablea `puerto` de `nodo` al destino pedido; el destino ha de existir en el borrador.
+    /// Wires `puerto` of `nodo` to the requested destination; the destination must exist in the draft.
     pub fn cablear(&mut self, nodo: &str, puerto: &str, destino: &str) -> Result<(), String> {
         if !self.destinos().iter().any(|d| d == destino) {
             return Err(format!("destino desconocido: {destino}"));
@@ -336,7 +336,7 @@ impl Borrador {
         Ok(())
     }
 
-    /// Los destinos posibles: los nodos y, después, las salidas, cada grupo por orden de nombre.
+    /// The possible destinations: the nodes and then the outputs, each group in name order.
     pub fn destinos(&self) -> Vec<String> {
         let def = self.doc.def();
         let mut destinos: Vec<String> = def.nodes.keys().cloned().collect();
@@ -344,7 +344,7 @@ impl Borrador {
         destinos
     }
 
-    /// Guarda el borrador por parches. Se niega mientras haya un error de validación (D5).
+    /// Saves the draft by patches. It refuses while there is a validation error (D5).
     pub fn guardar(&mut self) -> Result<usize, String> {
         if let Some(razon) = self.doc.solo_lectura() {
             return Err(format!("el YAML no se pudo leer: {razon}"));
@@ -356,9 +356,9 @@ impl Borrador {
         self.doc.guardar()
     }
 
-    /// Guarda el borrador en **otro** fichero (la salida cuando el fichero original cambió por
-    /// debajo). Se niega igual que `guardar`: un flujo inválido no llega al disco desde el editor,
-    /// ni al fichero de siempre ni a uno nuevo (D5).
+    /// Saves the draft to **another** file (the way out when the original file changed
+    /// underneath). It refuses just like `guardar`: an invalid flow does not reach the disk from the editor,
+    /// neither the usual file nor a new one (D5).
     pub fn guardar_como(&self, ruta: &Path) -> Result<(), String> {
         if !self.validez.ok {
             let motivo = self.validez.error.clone().unwrap_or_default();
@@ -367,7 +367,7 @@ impl Borrador {
         self.doc.guardar_como(ruta)
     }
 
-    /// Recarga desde el disco, descartando el borrador.
+    /// Reloads from disk, discarding the draft.
     pub fn recargar(&mut self) -> Result<(), String> {
         self.doc.recargar()?;
         self.revisar();
@@ -375,7 +375,7 @@ impl Borrador {
     }
 }
 
-/// El nodo al que un `FlowError` señala, si el error nombra uno; los del flujo entero no lo hacen.
+/// The node a `FlowError` points at, if the error names one; whole-flow ones do not.
 pub fn nodo_de(e: &FlowError) -> Option<String> {
     let nodo = match e {
         FlowError::UnknownTarget { node, .. }
@@ -401,12 +401,12 @@ pub fn nodo_de(e: &FlowError) -> Option<String> {
     Some(nodo.clone())
 }
 
-/// Texto vacío es «sin valor»: así se borra un campo opcional.
+/// Empty text means "no value": this is how an optional field is deleted.
 fn opcion(valor: &str) -> Option<String> {
     (!valor.trim().is_empty()).then(|| valor.to_string())
 }
 
-/// Un número opcional; error si lo escrito no lo es.
+/// An optional number; an error if what was typed is not one.
 fn numero(valor: &str) -> Result<Option<f64>, String> {
     let valor = valor.trim();
     if valor.is_empty() {
@@ -415,19 +415,19 @@ fn numero(valor: &str) -> Result<Option<f64>, String> {
     valor.parse::<f64>().map(Some).map_err(|e| format!("no es un número: {valor} ({e})"))
 }
 
-/// Un número como texto; vacío si no lo hay.
+/// A number as text; empty if there is none.
 fn numero_texto(valor: Option<f64>) -> String {
     valor.map_or(String::new(), |v| v.to_string())
 }
 
-/// Un nodo nuevo del tipo pedido, con lo mínimo para que el parser lo juzgue. Nace **sin cablear** a
-/// propósito: sus puertos se ven en el grafo y el parser pide que se cableen. Un `batch` nace con una
-/// pregunta y una regla, vacías, porque sin ellas no habría nada que editar en el inspector.
+/// A new node of the requested type, with the minimum for the parser to judge it. It is born **unwired** on
+/// purpose: its ports show in the graph and the parser asks for them to be wired. A `batch` is born with one
+/// question and one rule, empty, because without them there would be nothing to edit in the inspector.
 pub fn nodo_nuevo(tipo: NodeType) -> NodeDef {
     NodeDef {
         ty: tipo,
         instructions: String::new(),
-        // Un `rule` sin `when` no vale, y el parser lo dice; se deja vacío para que se escriba.
+        // A `rule` without `when` is not valid, and the parser says so; it is left empty so it gets written.
         when: (tipo == NodeType::Rule).then(String::new),
         criteria: match tipo {
             NodeType::Choice => Some(Criteria::Options(BTreeMap::from([
@@ -442,7 +442,7 @@ pub fn nodo_nuevo(tipo: NodeType) -> NodeDef {
         model: None,
         min_confidence: None,
         questions: match tipo {
-            // Una pregunta no puede ser `rule` ni `batch`: es un `noul`, que es la forma más simple.
+            // A question cannot be a `rule` or a `batch`: it is a `noul`, which is the simplest form.
             NodeType::Batch => BTreeMap::from([("pregunta_1".to_string(), nodo_nuevo(NodeType::Noul))]),
             _ => BTreeMap::new(),
         },
@@ -456,7 +456,7 @@ pub fn nodo_nuevo(tipo: NodeType) -> NodeDef {
     }
 }
 
-// crates/jevalan-edit/src/edicion.rs — al final del fichero
+// crates/jevalan-edit/src/edicion.rs — at the end of the file
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,7 +465,7 @@ mod tests {
 
     const LOCAL: &str = include_str!("../../jevalan-flow/fixtures/tool-risk-local-v1.yaml");
 
-    /// El `choice` mínimo de un flujo, para las pruebas de las opciones.
+    /// A flow's minimal `choice`, for the option tests.
     const CHOICE: &str = r#"
 defaults: { backend: kev, model: "kev-latest" }
 start: kind
@@ -479,13 +479,13 @@ outputs:
   allow: { outcome: ok }
 "#;
 
-    /// Directorio temporal que se borra al soltarse.
+    /// Temporary directory that is deleted when dropped.
     struct Tmp(PathBuf);
 
     impl Tmp {
         fn new() -> Self {
-            // Cada directorio necesita nombre propio: las pruebas corren en paralelo y comparten
-            // `temp_dir()`; con un nombre fijo, el `remove_dir_all` de una borra el de otra.
+            // Each directory needs its own name: the tests run in parallel and share
+            // `temp_dir()`; with a fixed name, one test's `remove_dir_all` deletes another's.
             static SIGUIENTE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
             let unico = SIGUIENTE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let nombre =
@@ -509,7 +509,7 @@ outputs:
         }
     }
 
-    /// Un borrador listo para editar, con el catálogo de `config/lab/config.local.yaml`.
+    /// A draft ready to edit, with the catalogue of `config/lab/config.local.yaml`.
     fn borrador(texto: &str, nombre: &str) -> (Tmp, Borrador) {
         let tmp = Tmp::new();
         let ruta = tmp.put(nombre, texto);
@@ -523,9 +523,9 @@ outputs:
     fn el_catalogo_de_backends_es_el_que_juzga_los_backends() {
         let (_tmp, mut borrador) = borrador(LOCAL, "tool-risk-local.yaml");
         assert!(borrador.validez.ok, "{:?}", borrador.validez);
-        // Nuestro flujo declara `defaults: { backend: kev }`, así que con el daemon caído y un
-        // catálogo inventado que no lo incluya se denuncia; con uno que sí, se aprueba. El backend
-        // que manda es el declarado, no el que el editor suponga.
+        // Our flow declares `defaults: { backend: kev }`, so with the daemon down and an invented
+        // catalogue that does not include it, it is reported; with one that does, it is approved. The backend
+        // that rules is the declared one, not the one the editor assumes.
         borrador.catalogo(vec!["laya".into()], "laya".into());
         borrador.revisar();
         assert!(!borrador.validez.ok, "kev no está en ese catálogo: {:?}", borrador.validez);
@@ -534,8 +534,8 @@ outputs:
 
     #[test]
     fn sin_daemon_el_editor_sigue_sirviendo_para_guardar() {
-        // Sin catálogo (sin daemon) el backend no se puede juzgar, así que se perdona; pero se dice,
-        // para que nadie confunda «no lo he podido comprobar» con «está bien».
+        // Without a catalogue (no daemon) the backend cannot be judged, so it is forgiven; but it is said,
+        // so that nobody confuses "I could not check it" with "it is fine".
         let (_tmp, mut borrador) = borrador(LOCAL, "tool-risk-local.yaml");
         borrador.catalogo(Vec::new(), String::new());
         borrador.revisar();
@@ -551,7 +551,7 @@ outputs:
 
     #[test]
     fn sin_daemon_lo_demas_se_sigue_juzgando() {
-        // Perdonar el backend no puede abrir la mano a lo demás: una CEL rota se sigue denunciando.
+        // Forgiving the backend cannot open the hand to everything else: a broken CEL is still reported.
         let (_tmp, mut borrador) = borrador(LOCAL, "tool-risk-local.yaml");
         borrador.catalogo(Vec::new(), String::new());
         borrador.campo("risks", &Campo::RouteWhen(1), "answers.risks.destructive >=").unwrap();
@@ -568,7 +568,7 @@ outputs:
         assert_eq!(borrador.validez.nodo.as_deref(), Some("risks.route"));
         assert!(borrador.guardar().is_err(), "no se guarda un flujo inválido (D5)");
 
-        // El cambio del guion manual: 0.55 → 0.6 en la regla del `ask`.
+        // The change from the manual script: 0.55 → 0.6 in the `ask` rule.
         let cuando = "answers.risks.destructive >= 0.6 || answers.risks.exfiltration >= 0.6 || answers.risks.privilege >= 0.6 || answers.risks.secret_exposure >= 0.6";
         borrador.campo("risks", &Campo::RouteWhen(1), cuando).unwrap();
         assert!(borrador.validez.ok, "{:?}", borrador.validez);
@@ -588,7 +588,7 @@ outputs:
 
     #[test]
     fn anadir_una_opcion_deja_su_puerto_sin_cablear_y_quitar_se_lo_lleva() {
-        // El binding local no puede llamarse `borrador`: sombrearía a la función auxiliar homónima.
+        // The local binding cannot be called `borrador`: it would shadow the helper function of the same name.
         let (_tmp, mut kind) = borrador(CHOICE, "kind.yaml");
         assert!(kind.validez.ok, "{:?}", kind.validez);
 
@@ -598,7 +598,7 @@ outputs:
         kind.quitar_opcion("kind", "c").unwrap();
         assert!(kind.validez.ok, "{:?}", kind.validez);
 
-        // Un `batch` no tiene opciones: lo dice en vez de inventárselas.
+        // A `batch` has no options: it says so instead of inventing them.
         let (_tmp, mut de_batch) = borrador(LOCAL, "tool-risk-local.yaml");
         assert!(de_batch.anadir_opcion("risks", "otra").is_err());
     }
@@ -607,16 +607,16 @@ outputs:
     fn el_nodo_culpable_lo_nombra_el_parser() {
         assert_eq!(nodo_de(&FlowError::MissingPort { node: "kind".into(), port: "c".into() }), Some("kind".into()));
         assert_eq!(nodo_de(&FlowError::Cycle("a".into())), Some("a".into()));
-        // Los errores del flujo entero no señalan a nadie.
+        // Whole-flow errors point at nobody.
         assert_eq!(nodo_de(&FlowError::UnknownStart("nadie".into())), None);
         assert_eq!(nodo_de(&FlowError::Yaml("basura".into())), None);
     }
 
-    /// Un flujo con un nodo que nadie cita: ni un puerto, ni una regla `route`, ni una salida con
-    /// `$answer/...`. Es el único que se puede borrar y guardar, y lleva un comentario a propósito.
-    /// El orden de las ediciones da igual desde que `patch::aplicar` fusiona sustituciones y borrados
-    /// en una sola pasada de abajo arriba; antes, sustituir un nodo anterior al borrado descolocaba
-    /// los índices del segundo.
+    /// A flow with a node nobody cites: no port, no `route` rule, no output with
+    /// `$answer/...`. It is the only one that can be deleted and saved, and it carries a comment on purpose.
+    /// The order of the edits does not matter since `patch::aplicar` merges replacements and deletions
+    /// in a single bottom-up pass; before, replacing a node earlier than the deletion misplaced
+    /// the second one's indices.
     const SIN_CITAS: &str = r#"# tool.risk servido en local: el comentario que ha de sobrevivir
 defaults: { backend: kev, model: "kev-latest" }
 start: puerta
@@ -642,13 +642,13 @@ outputs:
         assert_eq!(borrador.validez.nodo.as_deref(), Some("nuevo-1"));
         assert_eq!(borrador.validez.error.as_deref(), Some("nuevo-1 no cablea el puerto \"true\""));
 
-        // Se le cablean sus puertos y ya solo le falta que alguien lo alcance.
+        // Its ports are wired and all it lacks is for someone to reach it.
         for puerto in ["true", "false"] {
             borrador.cablear(&nombre, puerto, "allow").unwrap();
         }
         assert_eq!(borrador.validez.error.as_deref(), Some("el nodo nuevo-1 no es alcanzable desde start"));
 
-        // Un `batch` nace con una pregunta y una regla, vacías, para poder llenarlas desde el inspector.
+        // A `batch` is born with one question and one rule, empty, so they can be filled in from the inspector.
         let batch = borrador.anadir(NodeType::Batch).unwrap();
         let d = &borrador.doc.def().nodes[&batch];
         assert_eq!(d.questions.keys().collect::<Vec<_>>(), ["pregunta_1"]);
@@ -662,11 +662,11 @@ outputs:
         let error = borrador.borrar("risks").unwrap_err();
         assert_eq!(error, "no se puede borrar risks: lo referencian pipe_sh.false");
 
-        // `rm_root` es el `start`: tampoco se va sin más.
+        // `rm_root` is the `start`: it does not simply leave either.
         let error = borrador.borrar("rm_root").unwrap_err();
         assert!(error.contains("start"), "{error}");
 
-        // Una salida no es un nodo, y sus referencias se listan igual.
+        // An output is not a node, and its references are listed just the same.
         let error = borrador.borrar("allow").unwrap_err();
         assert!(error.contains("risks.else"), "{error}");
     }
@@ -685,7 +685,7 @@ outputs:
     #[test]
     fn borrar_un_nodo_sin_referencias_reescribe_solo_lo_tocado() {
         let (_tmp, mut borrador) = borrador(SIN_CITAS, "sin-citas.yaml");
-        // Se recablea el puerto que lo referenciaba, y entonces sí se puede borrar.
+        // The port that referenced it is rewired, and only then can it be deleted.
         borrador.cablear("puerta", "false", "allow").unwrap();
         borrador.borrar("sobra").unwrap();
         assert!(borrador.validez.ok, "{:?}", borrador.validez);
@@ -698,10 +698,10 @@ outputs:
         assert!(texto.contains("# tool.risk servido en local"), "y los comentarios siguen: {texto}");
     }
 
-    /// El límite que el plan no vio: `risks` no se puede borrar del flujo local ni recableando su
-    /// puerto, porque las salidas citan sus respuestas con `$answer/risks` y el parser lo denuncia.
-    /// Se deja escrito para que la trampa —un borrador que ya no se puede guardar— no se descubra
-    /// en producción. Cuando las salidas se puedan editar o podar, esta prueba cambiará.
+    /// The limit the plan did not foresee: `risks` cannot be deleted from the local flow even by rewiring its
+    /// port, because the outputs cite its answers with `$answer/risks` and the parser reports it.
+    /// It is written down so the trap (a draft that can no longer be saved) is not discovered
+    /// in production. When outputs can be edited or pruned, this test will change.
     #[test]
     fn borrar_un_nodo_que_una_salida_cita_deja_el_borrador_sin_poder_guardarse() {
         let (_tmp, mut borrador) = borrador(LOCAL, "tool-risk-local.yaml");
@@ -719,7 +719,7 @@ outputs:
         assert!(borrador.validez.ok);
         assert!(borrador.aviso_validacion.is_none());
 
-        // Un daemon que dice que no, sobre un borrador que el parser local también rechaza.
+        // A daemon that says no, on a draft the local parser also rejects.
         borrador.campo("risks", &Campo::RouteWhen(1), "answers.risks.destructive >=").unwrap();
         borrador
             .con_daemon(Some(Cliente::nuevo(&servidor(r#"{"ok":false,"error":"lo dice el daemon"}"#), None).unwrap()));
@@ -741,7 +741,7 @@ outputs:
             borrador.aviso_validacion
         );
 
-        // Y con el daemon caído, un error del flujo se sigue viendo.
+        // And with the daemon down, a flow error is still shown.
         borrador.campo("risks", &Campo::RouteWhen(1), "answers.risks.destructive >=").unwrap();
         assert!(!borrador.validez.ok);
         assert_eq!(borrador.validez.nodo.as_deref(), Some("risks.route"));

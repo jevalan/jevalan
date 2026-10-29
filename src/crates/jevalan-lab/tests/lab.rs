@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 static SEQ: AtomicU32 = AtomicU32::new(0);
 
-/// Directorio temporal con `lab/`; `runs/` queda a su lado y se borra al soltarlo.
+/// Temporary directory with `lab/`; `runs/` sits beside it and is deleted when dropped.
 struct Tmp(PathBuf);
 
 impl Tmp {
@@ -79,7 +79,7 @@ expect:
     why: "Borrar la raíz nunca puede permitirse sin preguntar"
 "#;
 
-/// FNV-1a de 64 bits, escrito aparte para no depender del código que se prueba.
+/// 64-bit FNV-1a, written separately so as not to depend on the code under test.
 fn fnv(text: &str) -> String {
     let h = text.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
     format!("{h:016x}")
@@ -89,7 +89,7 @@ fn wake_input() -> serde_json::Value {
     serde_json::json!({ "waiting_for": "un correo", "skipped": 0, "event": "llegó" })
 }
 
-/// Cassette de `ev` (versión 1) con sus huellas al día.
+/// Cassette for `ev` (version 1) with its fingerprints up to date.
 fn cassette_of(replies: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
         "fixture_version": 1, "input_hash": fnv(&wake_input().to_string()), "target": "jev", "replies": replies,
@@ -178,7 +178,7 @@ async fn manual_replay_wins_over_cassette() {
     assert!(out.results[0].passed, "{}", out.report);
     assert_eq!(out.results[0].source, "replay");
 
-    // Sin replay manual, la cassette (que dice 0.05: dormir) manda y hace fallar la aserción.
+    // Without a manual replay, the cassette (which says 0.05: sleep) rules and makes the assertion fail.
     t.put("fixtures/agent.wakeup/ev.yaml", &WAKE.replace("replay:\n  worth: { answer: 0.8, confidence: 0.9 }\n", ""));
     let out = load_lab(&t).offline(&Filter::default()).await;
     let r = out.results.iter().find(|r| r.fixture == "ev").unwrap();
@@ -193,7 +193,7 @@ async fn stale_cassette_is_skipped() {
     t.put("fixtures/agent.wakeup/ev.yaml", &WAKE.replace(BARE_WAKE, ""));
     let path = "cassettes/agent.wakeup/ev/jev.json";
     let replies = serde_json::json!({ "worth": { "status": 200, "body": {} } });
-    // Otra versión.
+    // Another version.
     let mut c = cassette_of(replies.clone());
     c["fixture_version"] = 2.into();
     t.put(path, &c.to_string());
@@ -202,14 +202,14 @@ async fn stale_cassette_is_skipped() {
     assert_eq!(why, "cassette desactualizada (versión 2, actual 1)");
     assert!(!out.failed);
 
-    // Otra entrada con la misma versión.
+    // Another input with the same version.
     let mut c = cassette_of(replies.clone());
     c["input_hash"] = "0000000000000000".into();
     t.put(path, &c.to_string());
     let out = load_lab(&t).offline(&wake_only()).await;
     assert!(out.results[0].skipped.as_deref().is_some_and(|w| w.contains("desactualizada")), "{}", out.report);
 
-    // Cassette anterior, sin los campos nuevos.
+    // Older cassette, without the new fields.
     t.put(path, &serde_json::json!({ "target": "jev", "replies": replies }).to_string());
     let out = load_lab(&t).offline(&wake_only()).await;
     let why = out.results[0].skipped.clone().unwrap_or_default();
@@ -268,7 +268,7 @@ async fn runs_dir_has_manifest_results_and_report() {
     assert!(std::fs::read_to_string(dir.join("report.md")).unwrap().contains("## agent.wakeup"));
 }
 
-// ---- record y live contra los mocks de la demo ----
+// ---- record and live against the demo mocks ----
 
 const SECRET: &str = "sk-dummy-secret-0123456789";
 
@@ -292,7 +292,7 @@ expect:
     why: "El flujo siempre decide"
 "#;
 
-/// Config con `typesafe` (clave ficticia) y `ollama` apuntando a sendos mocks.
+/// Config with `typesafe` (dummy key) and `ollama` pointing to separate mocks.
 async fn live_cfg() -> Config {
     let mut cfg = cfg();
     for (name, api_key) in [("typesafe", Some(SECRET.to_string())), ("ollama", None), ("openrouter", None)] {
@@ -359,7 +359,7 @@ async fn budget_aborts_before_starting() {
 
 #[tokio::test]
 async fn budget_stops_midway() {
-    // Cada token cuesta un dólar: la primera ejecución ya agota los 1,00 USD.
+    // Each token costs a dollar: the first run already exhausts the 1.00 USD.
     let yaml = LIVE_YAML
         .replace("input_per_mtok: 1.0, output_per_mtok: 2.0", "input_per_mtok: 1000000.0, output_per_mtok: 1000000.0")
         .replace("max_cost_usd: 10.0", "max_cost_usd: 1.0")
@@ -370,7 +370,7 @@ async fn budget_stops_midway() {
     let out = lab.live(Mode::Live, &wake_only(), &opts, &mut no_prompt).await.unwrap();
     assert!(out.stopped);
     assert_eq!(out.results.len(), 1, "las demás no llegan a salir");
-    // Sin observaciones previas la primera pasa: el tope de coste se rebasa a lo sumo en esa ejecución.
+    // With no previous observations the first one passes: the cost cap is exceeded at most in that run.
     assert!(out.report.contains("Coste conocido: $"), "{}", out.report);
     assert!(manifest(&out.run_dir.clone().unwrap())["cost_usd"].as_f64().unwrap() > 1.0);
     assert!(out.report.contains("stopped: budget"), "{}", out.report);
@@ -402,7 +402,7 @@ async fn record_writes_cassettes_without_secrets() {
         assert!(!text.contains(SECRET), "la clave aparece en {}", file.display());
     }
 
-    // Lo grabado sirve de base al offline cuando el fixture no trae replay.
+    // What was recorded serves as the offline base when the fixture has no replay.
     let bare = LIVE_WAKE.replace("replay:\n  worth: { answer: 0.8, confidence: 0.9 }\n", "");
     t.put("fixtures/agent.wakeup/ev.yaml", &bare);
     let out = live_lab(&t, &live_cfg().await).await.offline(&wake_only()).await;
@@ -420,7 +420,7 @@ async fn live_report_has_one_row_per_target() {
     assert!(wake.iter().all(|r| r.source == "live"));
     assert!(out.report.contains("| jev |") && out.report.contains("| nimble |"), "{}", out.report);
     assert!(out.report.contains("$0 (local)"), "{}", out.report);
-    // `exec` sigue desactivado en la config de prueba: el fixture sale skipped y no cuenta.
+    // `exec` is still disabled in the test config: the fixture comes out skipped and does not count.
     let risk = out.results.iter().find(|r| r.capability == "tool.risk").unwrap();
     assert!(risk.skipped.as_deref().unwrap().contains("allow_exec"));
     let m = manifest(&out.run_dir.unwrap());
@@ -430,7 +430,7 @@ async fn live_report_has_one_row_per_target() {
     assert!(jev.cost_usd.is_some_and(|c| c > 0.0), "con precio y tokens el coste es conocido");
 }
 
-/// Especialista HTTP mínimo: contesta siempre el mismo veredicto.
+/// Minimal HTTP specialist: always answers the same verdict.
 fn http_specialist() -> String {
     use std::io::{Read, Write};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -485,7 +485,7 @@ async fn exec_capability_uses_its_provider_as_single_target() {
     assert!(cassette.contains("destructivo"));
 }
 
-/// Flujo de un solo nodo `batch`: el laboratorio debe pedir una respuesta por pregunta (D3).
+/// Flow with a single `batch` node: the laboratory must ask for one answer per question (D3).
 const BATCH_FLOW: &str = r#"
 defaults: { backend: typesafe, model: jev-latest }
 start: risks
@@ -519,8 +519,8 @@ provider: { id: jevalan-flow, flow: tool-risk-local }
 defaults: { deadline_ms: 5000 }
 "#;
 
-/// Fixture con una respuesta por pregunta: cuatro claves, ninguna llamada de red. El enrutado del flujo
-/// mira `destructive` y `secret_exposure`, así que 0.9 de exfiltración no basta para negar.
+/// Fixture with one answer per question: four keys, no network call. The flow's routing
+/// looks at `destructive` and `secret_exposure`, so 0.9 for exfiltration is not enough to deny.
 const BATCH_FIXTURE: &str = r#"
 id: env-curl
 version: 1
@@ -537,7 +537,7 @@ expect:
     why: "El objeto entero del nodo llega a la salida"
 "#;
 
-/// El mismo flujo con un riesgo por encima del umbral: la primera regla manda.
+/// The same flow with a risk above the threshold: the first rule rules.
 const BATCH_DENY: &str = r#"
 id: env-destructive
 version: 1
@@ -552,7 +552,7 @@ expect:
     why: "Un riesgo ≥ 0.85 niega"
 "#;
 
-/// Laboratorio con su propio flujo, su capacidad y su fixture: sin tocar los del repositorio.
+/// Laboratory with its own flow, capability and fixture: without touching the repository's.
 fn batch_lab() -> Tmp {
     let t = Tmp::new();
     t.put("lab.yaml", LAB_YAML);
@@ -588,15 +588,15 @@ async fn lab_maps_batch_questions_for_the_mock() {
     for r in &out.results {
         assert_eq!((r.status.as_str(), r.passed), ("ok", true), "{:?} / {:?}", r.skipped, r.error_message);
         assert_eq!(r.source, "replay");
-        // Igual que en un nodo suelto: la confianza es la probabilidad de la respuesta **dada**
-        // (`max(p, 1−p)` en noul), promediada sobre las preguntas del nodo.
+        // Same as in a standalone node: the confidence is the probability of the answer **given**
+        // (`max(p, 1−p)` in noul), averaged over the node's questions.
         let expected = if r.fixture == "env-destructive" { 0.9375 } else { 0.8375 };
         let confidence = r.confidence.unwrap_or_default();
         assert!((confidence - expected).abs() < 1e-9, "{}: {confidence}", r.fixture);
     }
 }
 
-/// Un replay que nombre una pregunta que no existe se denuncia, como cualquier clave desconocida.
+/// A replay that names a question that does not exist is reported, like any unknown key.
 #[tokio::test]
 async fn lab_rejects_a_replay_of_an_unknown_question() {
     let t = batch_lab();
@@ -622,9 +622,9 @@ async fn confirmation_is_required_without_yes() {
     assert!(ask("¿?", &mut &b"s\n"[..]) && !ask("¿?", &mut &b"n\n"[..]));
 }
 
-// ---- backends enlatados: el estado y el cuerpo de cada respuesta los decide el test ----
+// ---- canned backends: the status and body of each response are decided by the test ----
 
-/// Servidor HTTP mínimo: la respuesta número `n` (desde 0) la da `reply(n)`.
+/// Minimal HTTP server: response number `n` (from 0) is given by `reply(n)`.
 fn canned(reply: impl Fn(usize) -> (u16, String) + Send + 'static) -> String {
     use std::io::{Read, Write};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -687,7 +687,7 @@ prices:
 
 #[tokio::test]
 async fn budget_does_not_overshoot_after_first_observation() {
-    // Cada llamada cuesta 100 USD y el tope es 150: tras observar la primera, la segunda ya no sale.
+    // Each call costs 100 USD and the cap is 150: after observing the first, the second no longer goes out.
     let url = canned(|_| (200, worth(Some((100, 0)))));
     let t = live_base(ONE_PRICED);
     let lab = live_lab(&t, &cfg_at(&url).await).await;
@@ -777,13 +777,13 @@ async fn live_refuses_a_target_whose_backend_is_not_configured() {
     let err = lab.live(Mode::Live, &wake_only(), &opts, &mut no_prompt).await.err().unwrap();
     assert!(err.contains("or") && err.contains("backend no configurado"), "{err}");
 
-    // Sin `--target` se ejecutan solo los configurados.
+    // Without `--target` only the configured ones are run.
     let out = lab.live(Mode::Live, &wake_only(), &yes(), &mut no_prompt).await.unwrap();
     assert!(out.results.iter().all(|r| r.target != "or"), "{}", out.report);
     assert_eq!(out.results.len(), 4);
 }
 
-/// Servidor HTTP mínimo que responde siempre `body` a cualquier petición.
+/// Minimal HTTP server that always answers `body` to any request.
 async fn canned_backend(body: String) -> String {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -832,7 +832,7 @@ async fn canned_backend(body: String) -> String {
 #[tokio::test]
 async fn reported_cost_wins_over_the_price_table() {
     let with_cost = |usage: &str| format!(r#"{{"answers":{{"worth":{{"type":"noul","noul":0.8}}}},"usage":{usage}}}"#);
-    // Con `usage.cost` el coste es ese, no el de la tabla (1 y 2 USD por millón de tokens).
+    // With `usage.cost` the cost is that one, not the table's (1 and 2 USD per million tokens).
     let url = canned_backend(with_cost(r#"{"input_tokens":10,"output_tokens":5,"cost":0.0125}"#)).await;
     let mut cfg = live_cfg().await;
     cfg.backends.get_mut("typesafe").unwrap().url = url;
@@ -842,7 +842,7 @@ async fn reported_cost_wins_over_the_price_table() {
     let out = lab.live(Mode::Live, &wake_only(), &opts, &mut no_prompt).await.unwrap();
     assert_eq!(out.results[0].cost_usd, Some(0.0125), "{}", out.report);
 
-    // Sin `usage.cost` vuelve la tabla de precios: 10 × 1 + 5 × 2 por millón.
+    // Without `usage.cost` the price table is used: 10 × 1 + 5 × 2 per million.
     let url = canned_backend(with_cost(r#"{"input_tokens":10,"output_tokens":5}"#)).await;
     cfg.backends.get_mut("typesafe").unwrap().url = url;
     let lab = live_lab(&t, &cfg).await;

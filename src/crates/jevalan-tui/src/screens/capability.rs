@@ -1,4 +1,4 @@
-//! Ficha de una capacidad servida por un especialista `exec`/`http`: lo que se sabe de ella y sus últimas respuestas.
+//! Card for a capability served by an `exec`/`http` specialist: what is known about it and its latest responses.
 
 use crate::screen::{Ctx, KeyHint, Msg, Nav, Screen};
 use crate::screens::dashboard::footer;
@@ -20,7 +20,7 @@ impl CapabilityScreen {
     }
 }
 
-/// La hora de un `ts` RFC 3339, o guiones si no hay.
+/// The time of an RFC 3339 `ts`, or dashes if there is none.
 fn clock(ts: &str) -> String {
     ts.get(11..19).unwrap_or("--:--:--").to_string()
 }

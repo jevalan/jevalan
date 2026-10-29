@@ -1,4 +1,4 @@
-//! Configuración del daemon: fichero YAML, variables `JEVALAN_*` y valores por defecto.
+//! Daemon configuration: YAML file, `JEVALAN_*` variables and defaults.
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -16,14 +16,14 @@ pub struct Config {
     pub hub: Hub,
 }
 
-/// Ajustes del hub de decisiones; `exec` queda apagado salvo opt-in explícito del anfitrión.
+/// Decision hub settings; `exec` stays off unless the host explicitly opts in.
 #[derive(Clone)]
 pub struct Hub {
     pub capabilities_dir: PathBuf,
     pub allow_exec: bool,
-    /// Catálogo de señales con nombre (`config/signals/*.yaml`) que los flujos reutilizan.
+    /// Catalogue of named signals (`config/signals/*.yaml`) that flows reuse.
     pub signals_dir: PathBuf,
-    /// Variables del `.env` leído al arrancar; alimentan el `env` de los proveedores `exec` sin tocar el proceso.
+    /// Variables from the `.env` read at start-up; they feed the `env` of `exec` providers without touching the process.
     pub dotenv: BTreeMap<String, String>,
 }
 
@@ -38,7 +38,7 @@ impl Default for Hub {
     }
 }
 
-// Los valores del `.env` son secretos: solo se muestran los nombres.
+// The `.env` values are secrets: only the names are shown.
 impl std::fmt::Debug for Hub {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Hub")
@@ -59,7 +59,7 @@ pub struct Backend {
     pub timeout: Duration,
 }
 
-// La clave jamás debe salir por un `{:?}`.
+// The key must never leak through a `{:?}`.
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend")
@@ -107,13 +107,13 @@ struct RawBackend {
     timeout_ms: Option<u64>,
 }
 
-/// Dirección en la que escucha el daemon si nadie dice otra cosa. Es también la última a la que
-/// preguntan sus clientes cuando el anuncio de `daemon.json` no lleva a ninguna parte.
+/// Address the daemon listens on if nobody says otherwise. It is also the last one its clients
+/// ask when the `daemon.json` announcement leads nowhere.
 pub const DEFAULT_ADDR: &str = "127.0.0.1:8080";
 const DEFAULT_PATH: &str = "/v1/systemone";
 const DEFAULT_TIMEOUT_MS: u64 = 5000;
 
-/// Carga la configuración; `env` se inyecta para poder probarla sin tocar el entorno real.
+/// Loads the configuration; `env` is injected so it can be tested without touching the real environment.
 pub fn load(path: Option<&Path>, env: &dyn Fn(&str) -> Option<String>) -> Result<Config, String> {
     let path = path.map(Path::to_path_buf).or_else(|| env("JEVALAN_CONFIG").map(PathBuf::from));
     let raw = match path {
@@ -188,7 +188,7 @@ fn build(raw: RawConfig, env: &dyn Fn(&str) -> Option<String>) -> Result<Config,
     Ok(Config { addr, token, backends, default_backend, flows_dir, hub })
 }
 
-/// Lee líneas `CLAVE=valor`; ignora vacías, comentarios y el prefijo `export`.
+/// Reads `KEY=value` lines; ignores empty ones, comments and the `export` prefix.
 pub fn parse_dotenv(text: &str) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     for line in text.lines() {

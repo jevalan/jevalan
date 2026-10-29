@@ -1,4 +1,4 @@
-//! Pantalla principal: topología, métricas y feed de decisiones.
+//! Main screen: topology, metrics and decision feed.
 
 use crate::fx::FxState;
 use crate::screen::{Ctx, KeyHint, Msg, Nav, Screen, SourceStatus};
@@ -64,7 +64,7 @@ impl Default for Dashboard {
     }
 }
 
-/// Cabecera: fuente, ritmo, modo de efectos y avisos.
+/// Header: source, rhythm, effects mode and notices.
 pub fn header(ctx: &Ctx) -> Line<'static> {
     let link = match &ctx.source_status {
         None => String::new(),
@@ -96,7 +96,7 @@ pub fn header(ctx: &Ctx) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Pie: atajos de la pantalla y los globales imprescindibles.
+/// Footer: the screen's shortcuts and the indispensable global ones.
 pub fn footer(keys: &[KeyHint]) -> Line<'static> {
     let mut spans = Vec::new();
     for k in keys.iter().chain(&[KeyHint { key: "?", desc: "ayuda" }, KeyHint { key: "q", desc: "salir" }]) {
@@ -109,7 +109,7 @@ pub fn footer(keys: &[KeyHint]) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Reparto vertical: cabecera, topología, métricas, feed, pie.
+/// Vertical split: header, topology, metrics, feed, footer.
 pub fn areas(area: Rect) -> [Rect; 5] {
     Layout::vertical([
         Constraint::Length(1),
@@ -172,7 +172,7 @@ impl Screen for Dashboard {
                 if let Some(NodeId::Port(name)) = self.topo_view.selected()
                     && name != PASSTHROUGH
                 {
-                    // Una capacidad servida por un flujo abre el flujo; la de un especialista, su ficha.
+                    // A capability served by a flow opens the flow; one served by a specialist, its card.
                     let screen: Box<dyn Screen> = match ctx.topo.capability(name) {
                         Some(cap) => match (cap.kind.as_str(), &cap.flow) {
                             ("flow", Some(flow)) => Box::new(FlowScreen::new(flow.clone())),
@@ -277,7 +277,7 @@ mod tests {
     use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
     use std::time::Instant;
 
-    /// Dashboard sin la transición de arranque, para que las capturas no dependan del reloj.
+    /// Dashboard without the start-up transition, so that screenshots do not depend on the clock.
     fn settled() -> Dashboard {
         Dashboard { started: true, ..Dashboard::new() }
     }
@@ -366,8 +366,8 @@ mod tests {
         assert_eq!(d.feed_selected, 0);
     }
 
-    /// Contexto con los flujos y las capacidades de ejemplo cargados y algo de tráfico: doce decisiones por flujo
-    /// y una docena de peticiones al hub (para el flujo `agent-wakeup` y para el especialista `toolgate`).
+    /// Context with the example flows and capabilities loaded and some traffic: twelve decisions per flow
+    /// and a dozen requests to the hub (for the `agent-wakeup` flow and for the `toolgate` specialist).
     fn hub_ctx(now: Instant) -> Ctx {
         let mut ctx = Ctx::new(FxMode::Events, now);
         let (flows, wakeup) = (crate::fake::flows(), crate::fake::wakeup_flow());
@@ -419,11 +419,11 @@ mod tests {
         term.backend().to_string()
     }
 
-    /// Lleva la selección de la topología al puerto `name` con `n` y pulsa `enter`; devuelve lo que se ve después.
+    /// Moves the topology selection to port `name` with `n` and presses `enter`; returns what is seen afterwards.
     fn open_port(name: &str) -> String {
         let now = Instant::now();
         let mut app = crate::app::App::new(Box::new(settled()), FxMode::Events, now);
-        // Los eventos van por el camino de la aplicación, para que ella sepa de flujos y capacidades.
+        // Events go through the application's path, so that it knows about flows and capabilities.
         let (flows, wakeup) = (crate::fake::flows(), crate::fake::wakeup_flow());
         let announced = crate::fake::loaded_events(&flows)
             .into_iter()
@@ -443,7 +443,7 @@ mod tests {
         for _ in 0..24 {
             app.update(press(KeyCode::Char('n')));
             term.draw(|f| app.draw(f)).unwrap();
-            // El título del panel de métricas dice qué nodo está seleccionado.
+            // The metrics panel's title says which node is selected.
             if term.backend().to_string().contains(&format!("{name} ·")) {
                 break;
             }
@@ -487,7 +487,7 @@ mod tests {
         }
         let mut term = Terminal::new(TestBackend::new(100, 30)).unwrap();
         term.draw(|f| app.draw(f)).unwrap();
-        // `n` recorre los nodos de la topología; algún puerto de flujo acabará seleccionado.
+        // `n` walks the topology's nodes; some flow port will end up selected.
         for _ in 0..16 {
             app.update(press(KeyCode::Char('n')));
             app.update(press(KeyCode::Enter));
@@ -579,7 +579,7 @@ mod tests {
         (ctx, calls)
     }
 
-    /// Dibuja y recorre los nodos con `n` hasta tener un backend seleccionado.
+    /// Draws and walks the nodes with `n` until a backend is selected.
     fn select_backend(d: &mut Dashboard, ctx: &mut Ctx) -> String {
         let mut term = Terminal::new(TestBackend::new(100, 30)).unwrap();
         term.draw(|f| d.draw(ctx, f, f.area())).unwrap();

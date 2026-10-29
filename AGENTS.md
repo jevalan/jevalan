@@ -79,8 +79,9 @@ not conclude from a failing child process that the file is unwritable.
 
 ## 6. Language
 
-Code comments and CLI strings are Spanish; the development guides are English. Match the file
-you are editing rather than converting it.
+Code comments and the development guides are English; CLI strings and the error messages shown to
+users are Spanish. Write new comments in English, and translate a Spanish comment you come across
+only when you are already editing that code.
 
 ## 7. Editing a flow: `jevalan edit`, and never on the flow that serves
 

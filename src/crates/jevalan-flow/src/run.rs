@@ -4,7 +4,7 @@ use crate::{ERROR, LOW_CONFIDENCE};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-/// Respuesta de un backend a la pregunta de un nodo.
+/// A backend's response to a node's question.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Reply {
     pub answer: Value,
@@ -16,15 +16,15 @@ pub struct PathStep {
     pub node: String,
     pub backend: String,
     pub model: String,
-    /// `null` si el backend falló.
+    /// `null` if the backend failed.
     pub answer: Value,
     pub confidence: Option<f64>,
     pub port: String,
     pub duration_ms: u64,
-    /// Heurísticas evaluadas en este paso (`signals.<nombre>` → valor); vacío si no leyó ninguna.
+    /// Heuristics evaluated in this step (`signals.<name>` → value); empty if it read none.
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub signals: Map<String, Value>,
-    /// Solo `batch`: índice de la regla `route` que ganó; `None` si mandó `else` o hubo error.
+    /// `batch` only: index of the `route` rule that won; `None` if `else` ruled or there was an error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<usize>,
 }
@@ -37,24 +37,24 @@ pub enum Next<'f> {
         model: &'f str,
         question: Value,
     },
-    /// Un nodo `batch`: todas sus preguntas viajan juntas en una sola llamada.
+    /// A `batch` node: all its questions travel together in a single call.
     BatchAsk {
         node: &'f str,
         backend: &'f str,
         model: &'f str,
         questions: Value,
     },
-    /// Un nodo `rule` se evalúa sin preguntar a nadie: ya queda registrado en el camino.
+    /// A `rule` node is evaluated without asking anyone: it is already recorded in the path.
     Ruled(PathStep),
     Outcome {
         outcome: &'f str,
-        /// Con las referencias `$input`/`$answer` ya resueltas.
+        /// With the `$input`/`$answer` references already resolved.
         data: Option<Value>,
     },
     Failed {
         node: String,
         error: String,
-        /// Falló una regla (su error puede citar valores de la entrada), no un backend.
+        /// A rule failed (its error may quote values from the input), not a backend.
         rule: bool,
     },
 }
@@ -64,7 +64,7 @@ enum Pos {
     Failed(String, String, bool),
 }
 
-/// Una ejecución de un flujo. No hace I/O: quien la conduce pregunta al backend.
+/// A run of a flow. It does no I/O: whoever drives it asks the backend.
 pub struct Run<'f> {
     flow: &'f Flow,
     input: Value,
@@ -77,7 +77,7 @@ impl<'f> Run<'f> {
         Self { flow, input, pos: Pos::At(flow.start.clone()), path: Vec::new() }
     }
 
-    // El nombre `next` viene fijado por la interfaz de la tarea; no es un Iterator.
+    // The name `next` is fixed by the task's interface; it is not an Iterator.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Next<'f> {
         let flow = self.flow;
@@ -119,12 +119,12 @@ impl<'f> Run<'f> {
         }
     }
 
-    /// Registra la respuesta del nodo actual y avanza. `None` si no había pregunta pendiente.
+    /// Records the current node's answer and advances. `None` if there was no pending question.
     pub fn answer(&mut self, result: Result<Reply, String>, duration_ms: u64) -> Option<&PathStep> {
         let Pos::At(current) = &self.pos else { return None };
         let flow = self.flow;
         let (name, node) = flow.nodes.get_key_value(current.as_str())?;
-        // Un `batch` no se responde con una sola respuesta: eso es `answer_batch`.
+        // A `batch` is not answered with a single response: that is `answer_batch`.
         if matches!(node.ty, NodeType::Rule | NodeType::Batch) {
             return None;
         }
@@ -165,16 +165,16 @@ impl<'f> Run<'f> {
     }
 }
 
-/// Respuestas crudas del backend a cada pregunta del nodo `batch` —tal como vienen en `answers`—, o el
-/// fallo que impidió obtenerlas.
+/// Raw backend responses to each question of the `batch` node (as they come in `answers`), or the
+/// failure that prevented obtaining them.
 type Answers = Result<Map<String, Value>, String>;
 
 impl Run<'_> {
-    /// Registra de una vez la respuesta de un nodo `batch` y enruta según sus reglas.
+    /// Records at once the response of a `batch` node and routes according to its rules.
     ///
-    /// Cada entrada es el cuerpo de una pregunta (`{type, <tipo>, confidence?}`); su valor se extrae y se
-    /// valida con las mismas reglas que el de un nodo suelto. El nodo deja **un solo** `PathStep`: la
-    /// invariante «un nodo, un paso» sostiene las referencias, los eventos y la TUI (D2).
+    /// Each entry is the body of a question (`{type, <type>, confidence?}`); its value is extracted and
+    /// validated with the same rules as a standalone node's. The node leaves **a single** `PathStep`: the
+    /// invariant "one node, one step" underpins the references, the events and the TUI (D2).
     pub fn answer_batch(&mut self, replies: Answers, duration_ms: u64) -> Option<&PathStep> {
         let (name, node) = self.batch_node()?;
         let step = |answer: Value, confidence: Option<f64>, port: &str| PathStep {
@@ -188,15 +188,15 @@ impl Run<'_> {
             signals: Map::new(),
             rule: None,
         };
-        // `rule`: el fallo viene de una regla o heurística, cuyo error puede citar la entrada; el daemon
-        // publica entonces una frase genérica. Una respuesta que falta o no vale es fallo del backend.
+        // `rule`: the failure comes from a rule or heuristic, whose error may quote the input; the daemon
+        // then publishes a generic sentence. A missing or invalid response is a backend failure.
         let fail = |run: &mut Self, e: String, rule: bool| {
             run.pos = match node.out.get(ERROR) {
                 Some(target) => Pos::At(target.clone()),
                 None => Pos::Failed(name.clone(), e, rule),
             };
         };
-        // Falta una respuesta o viene inservible: jamás se decide con lo que llegue (D6).
+        // A response is missing or comes back unusable: no decision is ever made with what arrives (D6).
         let given = replies.and_then(|given| {
             let mut values = Map::new();
             let mut total = 0.0;
@@ -205,8 +205,8 @@ impl Run<'_> {
                 let Reply { answer, confidence } =
                     reply_from_response(question, body, &json!({ "answers": { question: entry } }))
                         .map_err(|e| format!("{question}: {e}"))?;
-                // El puerto que saldría no interesa —aquí enrutan las reglas—, pero sí su validación:
-                // un valor fuera de [0, 1], de la escala o de los criterios es un fallo, no una respuesta.
+                // The port that would come out does not matter (the rules do the routing here), but its validation does:
+                // a value outside [0, 1], the scale or the criteria is a failure, not an answer.
                 port_for(body, &Reply { answer: answer.clone(), confidence })?;
                 values.insert(question.clone(), answer);
                 total += confidence;
@@ -221,7 +221,7 @@ impl Run<'_> {
                 return self.path.last();
             }
         };
-        // La primera `when` verdadera gana; sin ninguna, manda `else`.
+        // The first true `when` wins; with none, `else` rules.
         let (target, rule, signals) = match route_for(self.flow, &node, &name, &self.input, &self.path, &values) {
             Ok((Some((i, target)), signals)) => (Some(target), Some(i), signals),
             Ok((None, signals)) => (node.else_branch.clone(), None, signals),
@@ -239,7 +239,7 @@ impl Run<'_> {
         self.path.last()
     }
 
-    /// El nodo `batch` en curso, si el camino está parado en uno: se copia para no retener el préstamo.
+    /// The current `batch` node, if the path is stopped at one: it is copied so as not to hold the borrow.
     fn batch_node(&self) -> Option<(String, Node)> {
         let Pos::At(current) = &self.pos else { return None };
         let (name, node) = self.flow.nodes.get_key_value(current.as_str())?;
@@ -249,8 +249,8 @@ impl Run<'_> {
 
 type Route = (Option<(usize, String)>, Map<String, Value>);
 
-/// Índice y destino de la primera regla de `route` que casa (o `None` si ninguna), con las heurísticas que se
-/// evaluaron por el camino. Una regla que no se llega a mirar no evalúa las suyas (D4).
+/// Index and destination of the first `route` rule that matches (or `None` if none does), with the heuristics that were
+/// evaluated along the way. A rule that is never looked at does not evaluate its own (D4).
 fn route_for(
     flow: &Flow,
     node: &Node,
@@ -259,8 +259,8 @@ fn route_for(
     path: &[PathStep],
     values: &Map<String, Value>,
 ) -> Result<Route, String> {
-    // `answers` acumula los pasos ya recorridos y, bajo el nombre de este nodo, las respuestas recién dadas:
-    // así `answers.<nodo>.<pregunta>` ve lo que el backend acaba de contestar.
+    // `answers` accumulates the steps already walked and, under this node's name, the answers just given:
+    // this way `answers.<node>.<question>` sees what the backend has just replied.
     let mut answers: Map<String, Value> = path.iter().map(|s| (s.node.clone(), s.answer.clone())).collect();
     answers.insert(name.into(), Value::Object(values.clone()));
     let mut seen = Map::new();
@@ -274,7 +274,7 @@ fn route_for(
     Ok((None, seen))
 }
 
-/// Evalúa un `when` con `input`, las respuestas (ya obtenidas y las de este mismo paso) y sus heurísticas.
+/// Evaluates a `when` with `input`, the answers (already obtained and those of this very step) and its heuristics.
 fn eval_when(
     when: &str,
     input: &Value,
@@ -293,7 +293,7 @@ fn eval_when(
     }
 }
 
-/// Puerto de respuesta para `r`, o un error si la respuesta no encaja con el nodo.
+/// Answer port for `r`, or an error if the answer does not fit the node.
 fn port_for(node: &Node, r: &Reply) -> Result<String, String> {
     if !(0.0..=1.0).contains(&r.confidence) {
         return Err(format!("confianza fuera de [0, 1]: {}", r.confidence));
@@ -318,12 +318,12 @@ fn port_for(node: &Node, r: &Reply) -> Result<String, String> {
             let s = r.answer.as_f64().ok_or("score debe ser un número")?;
             pick_range(&node.ranges, s).ok_or_else(|| format!("score fuera de escala: {s}"))
         }
-        // Un `batch` no tiene puerto propio: enrutan sus reglas `route`.
+        // A `batch` has no port of its own: its `route` rules do the routing.
         NodeType::Batch => Err("batch no recibe una sola respuesta".into()),
     }
 }
 
-/// Puerto del rango que contiene `v`: semiabierto, salvo el último, que también cierra.
+/// Port of the range that contains `v`: half-open, except the last one, which also closes.
 fn pick_range(ranges: &[(f64, f64, String)], v: f64) -> Option<String> {
     let last = ranges.len().saturating_sub(1);
     ranges
@@ -333,8 +333,8 @@ fn pick_range(ranges: &[(f64, f64, String)], v: f64) -> Option<String> {
         .map(|(_, (_, _, p))| p.clone())
 }
 
-/// Sustituye `"$input<pointer>"` y `"$answer/<nodo>"` (o `"$answer/<nodo>/<pregunta>"`) por lo apuntado;
-/// `null` si no existe.
+/// Replaces `"$input<pointer>"` and `"$answer/<node>"` (or `"$answer/<node>/<question>"`) with what they point to;
+/// `null` if it does not exist.
 pub fn resolve_refs(data: &Value, input: &Value, path: &[PathStep]) -> Value {
     match data {
         Value::String(s) => {
@@ -372,8 +372,8 @@ fn rule_step(node: &str, answer: Value, port: &str) -> PathStep {
     }
 }
 
-/// Valores de las heurísticas que `expr` nombra como `signals.<nombre>`, evaluadas sobre `input`.
-/// Solo las que nombra (D4); si una falla, falla la expresión entera (D5).
+/// Values of the heuristics that `expr` names as `signals.<name>`, evaluated over `input`.
+/// Only those it names (D4); if one fails, the whole expression fails (D5).
 fn signal_values(expr: &str, flow: &Flow, input: &Value) -> Result<Map<String, Value>, String> {
     let mut values = Map::new();
     for name in crate::signals::referenced(expr) {
@@ -392,8 +392,8 @@ fn signal_values(expr: &str, flow: &Flow, input: &Value) -> Result<Map<String, V
     Ok(values)
 }
 
-/// Evalúa una regla con `input` (el estado), `answers` (nodo → respuesta ya obtenida) y las heurísticas que
-/// nombra; devuelve también esas heurísticas, para el camino.
+/// Evaluates a rule with `input` (the state), `answers` (node → answer already obtained) and the heuristics it
+/// names; also returns those heuristics, for the path.
 fn eval_rule(when: &str, flow: &Flow, input: &Value, path: &[PathStep]) -> Result<(bool, Map<String, Value>), String> {
     let program = crate::program::compiled(when)?;
     let answers: Map<String, Value> = path.iter().map(|s| (s.node.clone(), s.answer.clone())).collect();
@@ -409,7 +409,7 @@ fn eval_rule(when: &str, flow: &Flow, input: &Value, path: &[PathStep]) -> Resul
     }
 }
 
-/// Pregunta System One de un nodo: `{type, instructions, criteria?}`.
+/// A node's System One question: `{type, instructions, criteria?}`.
 pub fn question(node: &Node) -> Value {
     let mut q = json!({ "type": node.ty.as_str(), "instructions": node.instructions });
     if let Some(c) = &node.criteria {
@@ -418,25 +418,25 @@ pub fn question(node: &Node) -> Value {
     q
 }
 
-/// Preguntas de un nodo `batch`, con la forma `{ "<pregunta>": {type, instructions, criteria?} }`.
+/// Questions of a `batch` node, shaped `{ "<question>": {type, instructions, criteria?} }`.
 pub fn questions(node: &Node) -> Value {
     Value::Object(node.questions.iter().map(|(q, n)| (q.clone(), question(n))).collect())
 }
 
-/// Cuerpo de `POST /v1/systemone` con una sola pregunta, llamada como el nodo.
+/// Body of `POST /v1/systemone` with a single question, named after the node.
 pub fn request_body(model: &str, state: &Value, node: &str, question: &Value) -> Value {
     let mut questions = Map::new();
     questions.insert(node.to_string(), question.clone());
     json!({ "model": model, "state": state, "questions": questions })
 }
 
-/// Cuerpo de `POST /v1/systemone` con varias preguntas ya nombradas; `request_body` no se toca.
+/// Body of `POST /v1/systemone` with several already-named questions; `request_body` is not touched.
 pub fn request_body_many(model: &str, state: &Value, questions: Map<String, Value>) -> Value {
     json!({ "model": model, "state": state, "questions": questions })
 }
 
-/// Extrae la respuesta de `name` de una respuesta System One completa. En un `batch`, `name` es
-/// `"<nodo>.<pregunta>"` y `node` el cuerpo de esa pregunta.
+/// Extracts the answer for `name` from a complete System One response. In a `batch`, `name` is
+/// `"<node>.<question>"` and `node` the body of that question.
 pub fn reply_from_response(name: &str, node: &Node, response: &Value) -> Result<Reply, String> {
     let ty = node.ty.as_str();
     let a = response
@@ -457,7 +457,7 @@ pub fn reply_from_response(name: &str, node: &Node, response: &Value) -> Result<
     Ok(Reply { answer, confidence })
 }
 
-/// `1 - H(p) / ln 2`: la misma concentración que System One da en choice y score.
+/// `1 - H(p) / ln 2`: the same concentration System One gives in choice and score.
 pub fn binary_confidence(p: f64) -> f64 {
     let h = |x: f64| if x <= 0.0 { 0.0 } else { -x * x.ln() };
     1.0 - (h(p) + h(1.0 - p)) / std::f64::consts::LN_2
@@ -479,7 +479,7 @@ mod tests {
         Ok(Reply { answer, confidence })
     }
 
-    /// Alimenta el flujo con `replies` en orden y devuelve el final y los puertos recorridos.
+    /// Feeds the flow `replies` in order and returns the outcome and the ports walked.
     fn drive(flow: &Flow, replies: Vec<Result<Reply, String>>) -> (String, Vec<String>) {
         let mut run = Run::new(flow, json!({}));
         for r in replies {
@@ -770,7 +770,7 @@ outputs:
         }
     }
 
-    /// Flujo de un solo nodo `batch` con cuatro preguntas, dos reglas y `else`: el caso real de `tool.risk`.
+    /// Flow with a single `batch` node of four questions, two rules and `else`: the real `tool.risk` case.
     const BATCH_RUN: &str = r#"
 defaults: { backend: ollama, model: nimble }
 start: risks
@@ -798,8 +798,8 @@ outputs:
         parse("tool-risk", BATCH_RUN, &BACKENDS, "ollama").unwrap()
     }
 
-    /// Respuestas del nodo `batch`: una probabilidad por pregunta, con la confianza dada, tal como las
-    /// devuelve System One.
+    /// Answers of the `batch` node: one probability per question, with the confidence given, just as
+    /// System One returns them.
     fn replies(p: [f64; 4], confidence: f64) -> Answers {
         let keys = ["destructive", "exfiltration", "privilege", "secret_exposure"];
         Ok(keys
@@ -818,7 +818,7 @@ outputs:
         assert_eq!(questions.as_object().unwrap().len(), 4);
         assert_eq!(questions["secret_exposure"]["type"], "noul");
         assert!(questions["secret_exposure"]["instructions"].is_string());
-        // Un `batch` no se responde con una respuesta suelta.
+        // A `batch` is not answered with a single response.
         assert!(run.answer(ok(json!(0.1), 0.9), 1).is_none());
         assert_eq!(run.path().len(), 0);
     }
@@ -836,7 +836,7 @@ outputs:
         );
         assert_eq!(step.confidence, Some(0.9));
         assert_eq!(step.duration_ms, 7);
-        // Un solo paso para todo el nodo (D2).
+        // A single step for the whole node (D2).
         assert_eq!(run.path().len(), 1);
         match run.next() {
             Next::Outcome { outcome, data } => {
@@ -869,7 +869,7 @@ outputs:
 
     #[test]
     fn batch_on_the_threshold_is_true() {
-        // La frontera del `noul` que el flujo reemplaza: 0.55 ya pide permiso, 0.85 ya niega.
+        // The `noul` boundary the flow replaces: 0.55 already asks for permission, 0.85 already denies.
         let route = |p: f64| {
             let flow = batch_flow();
             let mut run = Run::new(&flow, json!({}));
@@ -900,14 +900,14 @@ outputs:
         let flow = batch_flow();
         let mut run = Run::new(&flow, json!({}));
         run.next();
-        // Al backend le falta una de las cuatro: no se decide con lo que llegue.
+        // The backend is missing one of the four: no decision is made with what arrives.
         let partial: Answers = Ok([("destructive", json!({ "type": "noul", "noul": 0.1, "confidence": 0.9 }))]
             .into_iter()
             .map(|(k, v)| (k.to_string(), v))
             .collect());
         assert_eq!(run.answer_batch(partial, 1).unwrap().port, "error");
 
-        // Una probabilidad que no está en [0, 1] tampoco vale.
+        // A probability that is not in [0, 1] is not valid either.
         let flow = batch_flow();
         let mut run = Run::new(&flow, json!({}));
         run.next();
@@ -925,7 +925,7 @@ outputs:
             other => panic!("{other:?}"),
         }
 
-        // Y el objeto entero, como lo pide la salida de `tool.risk`.
+        // And the whole object, as `tool.risk`'s output asks for it.
         let flow = batch_flow();
         let mut run = Run::new(&flow, json!({}));
         run.next();

@@ -1,4 +1,4 @@
-//! Laboratorio: fixtures, configuración, aserciones y métricas. Lógica pura.
+//! Laboratory: fixtures, configuration, assertions and metrics. Pure logic.
 
 pub mod assert;
 pub mod config;

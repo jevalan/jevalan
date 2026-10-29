@@ -7,7 +7,7 @@ use std::fmt::Write;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Instante de arranque ya formateado.
+/// Start instant, already formatted.
 pub struct Stamp {
     pub run_id: String,
     pub utc: String,
@@ -25,7 +25,7 @@ impl Stamp {
     }
 }
 
-/// Fecha civil UTC (algoritmo de Hinnant) de unos segundos Unix.
+/// UTC civil date (Hinnant's algorithm) from some Unix seconds.
 fn civil(secs: u64) -> (u64, u64, u64, u64, u64, u64) {
     let (days, rem) = (secs / 86_400, secs % 86_400);
     let z = days + 719_468;
@@ -40,20 +40,20 @@ fn civil(secs: u64) -> (u64, u64, u64, u64, u64, u64) {
     (year, month, day, rem / 3600, rem % 3600 / 60, rem % 60)
 }
 
-/// FNV-1a de 64 bits en hexadecimal: basta para identificar un `lab.yaml`, sin dependencias.
+/// 64-bit FNV-1a in hexadecimal: enough to identify a `lab.yaml`, with no dependencies.
 pub fn fnv1a64(text: &str) -> String {
     let hash = text.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
     format!("{hash:016x}")
 }
 
-/// Commit actual leído de `.git` (sin lanzar procesos), buscando desde `from` hacia arriba; `unknown` si no hay.
+/// Current commit read from `.git` (without launching processes), searching from `from` upwards; `unknown` if there is none.
 fn git_commit(from: &std::path::Path) -> String {
     let start = std::path::absolute(from).unwrap_or_else(|_| from.to_path_buf());
     start.ancestors().find_map(|dir| head_of(&dir.join(".git"))).unwrap_or_else(|| "unknown".into())
 }
 
 fn head_of(dot_git: &std::path::Path) -> Option<String> {
-    // En un worktree `.git` es un fichero que apunta al directorio real.
+    // In a worktree `.git` is a file that points to the real directory.
     let git = if dot_git.is_file() {
         let text = std::fs::read_to_string(dot_git).ok()?;
         dot_git.parent()?.join(text.trim().strip_prefix("gitdir:")?.trim())
@@ -65,7 +65,7 @@ fn head_of(dot_git: &std::path::Path) -> Option<String> {
     let Some(name) = head.strip_prefix("ref:").map(str::trim) else {
         return is_sha(head).then(|| head.to_string());
     };
-    // Las referencias de un worktree viven en el directorio común.
+    // A worktree's references live in the common directory.
     let common = std::fs::read_to_string(git.join("commondir")).map_or_else(|_| git.clone(), |c| git.join(c.trim()));
     [&git, &common].into_iter().find_map(|dir| {
         let loose = std::fs::read_to_string(dir.join(name)).ok().map(|t| t.trim().to_string());
@@ -81,14 +81,14 @@ fn is_sha(s: &str) -> bool {
     s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-/// Lo que consumió una ejecución con llamadas reales.
+/// What a run with real calls consumed.
 #[derive(Default)]
 pub struct Consumed {
     pub calls: u64,
     pub cost_usd: f64,
     pub stopped: bool,
     pub repeat: u32,
-    /// Modelo que devolvió el backend (`body.model`), por target.
+    /// Model returned by the backend (`body.model`), per target.
     pub reported: BTreeMap<String, String>,
 }
 
@@ -141,7 +141,7 @@ pub fn write_run(
     Ok(dir)
 }
 
-/// Informe offline: por capacidad y target, pasa / skipped / falla, y el porqué de cada fallo.
+/// Offline report: per capability and target, pass / skipped / fail, and the why of each failure.
 pub fn offline_report(results: &[ResultLine]) -> String {
     let mut caps: BTreeMap<&str, Vec<&ResultLine>> = BTreeMap::new();
     for r in results {
@@ -212,7 +212,7 @@ mod tests {
     fn unknown_without_a_repository() {
         let dir = std::env::temp_dir().join(format!("jevalan-nogit-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        // El temporal podría colgar de un repositorio ajeno: basta con que no devuelva basura.
+        // The temp dir could hang from a foreign repository: it is enough that it does not return garbage.
         let got = git_commit(&dir);
         assert!(got == "unknown" || is_sha(&got));
         std::fs::remove_dir_all(dir).unwrap();

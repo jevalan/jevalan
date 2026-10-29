@@ -1,10 +1,10 @@
-//! Fichero de descubrimiento: cómo encuentran al daemon los clientes que no heredan su entorno (el hook de Claude Code).
+//! Discovery file: how clients that do not inherit its environment (the Claude Code hook) find the daemon.
 
 use serde_json::{Value, json};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
-/// Directorio de datos del usuario: `%LOCALAPPDATA%/jevalan` en Windows; en otro caso, `$HOME/.jevalan`.
+/// User data directory: `%LOCALAPPDATA%/jevalan` on Windows; otherwise `$HOME/.jevalan`.
 pub fn data_dir() -> Option<PathBuf> {
     let var = |key: &str| std::env::var_os(key).filter(|v| !v.is_empty()).map(PathBuf::from);
     if cfg!(windows) { var("LOCALAPPDATA").map(|d| d.join("jevalan")) } else { var("HOME").map(|d| d.join(".jevalan")) }
@@ -20,22 +20,22 @@ pub fn render(addr: SocketAddr, token: Option<&str>, pid: u32) -> Value {
     json!({ "addr": addr.to_string(), "token": token, "pid": pid })
 }
 
-/// Cabe señalar que el token viaja en claro porque el hook se ejecuta desde un directorio cualquiera, sin `.env`;
-/// el fichero reside en el perfil del usuario. Los fallos se ignoran: es un auxilio, no una obligación.
+/// Note that the token travels in the clear because the hook runs from an arbitrary directory, without `.env`;
+/// the file lives in the user's profile. Failures are ignored: it is an aid, not an obligation.
 pub fn write(addr: SocketAddr, token: Option<&str>) {
     let (Some(dir), Some(file)) = (data_dir(), path()) else { return };
     let _ = std::fs::create_dir_all(dir);
     let _ = std::fs::write(file, render(addr, token, std::process::id()).to_string());
 }
 
-/// Retira el fichero al apagarse; si ya no existe, nada ocurre.
+/// Removes the file on shutdown; if it no longer exists, nothing happens.
 pub fn remove() {
     if let Some(file) = path() {
         let _ = std::fs::remove_file(file);
     }
 }
 
-/// Dirección y token de `daemon.json`; `None` si falta o no se entiende.
+/// Address and token from `daemon.json`; `None` if it is missing or not understood.
 pub fn read() -> Option<(String, Option<String>)> {
     read_from(&path()?)
 }

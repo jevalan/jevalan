@@ -1,4 +1,4 @@
-//! Barra de métricas resumen y detalle según la selección.
+//! Summary metrics bar and detail according to the selection.
 
 use crate::screen::Ctx;
 use crate::theme;
@@ -8,7 +8,7 @@ use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Sparkline, Widget};
 
-/// Línea de métricas agregadas: `allow 70% · deny 10% · err 0 · typesafe 120ms · ollama 40ms`
+/// Line of aggregated metrics: `allow 70% · deny 10% · err 0 · typesafe 120ms · ollama 40ms`
 pub fn summary(ctx: &Ctx) -> Line<'static> {
     let mut top: Vec<(&String, &u64)> = ctx.store.outcomes().iter().collect();
     top.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
@@ -30,7 +30,7 @@ pub fn summary(ctx: &Ctx) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Línea de métricas para un nodo específico.
+/// Metrics line for a specific node.
 pub fn detail(ctx: &Ctx, id: &NodeId) -> Line<'static> {
     match id {
         NodeId::Client(name) => {
@@ -88,7 +88,7 @@ pub fn detail(ctx: &Ctx, id: &NodeId) -> Line<'static> {
     }
 }
 
-/// Dibuja el panel de métricas: sparkline a la izquierda, detail/summary a la derecha.
+/// Draws the metrics panel: sparkline on the left, detail/summary on the right.
 pub fn render(ctx: &Ctx, selected: Option<&NodeId>, area: Rect, buf: &mut Buffer) {
     if area.height == 0 || area.width == 0 {
         return;
@@ -98,7 +98,7 @@ pub fn render(ctx: &Ctx, selected: Option<&NodeId>, area: Rect, buf: &mut Buffer
     let sparkline_width = 30.min(area.width as usize);
     if sparkline_width > 0 {
         let data = ctx.store.sparkline(ctx.now);
-        // Tomar las últimas 30 (o las que quepan).
+        // Take the last 30 (or as many as fit).
         let start = data.len().saturating_sub(sparkline_width);
         let sparkline_data: Vec<u64> = data[start..].to_vec();
 

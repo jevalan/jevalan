@@ -35,12 +35,12 @@ async fn record(State(fake): State<Fake>, headers: HeaderMap, body: Bytes) -> im
     (status, [(header::CONTENT_TYPE, "application/json")], fake.body)
 }
 
-/// Backend de mentirijillas: guarda lo que recibe en `/v1/systemone` y responde lo indicado.
+/// Fake backend: stores what it receives on `/v1/systemone` and answers what it is told.
 pub async fn fake_backend(reply_status: u16, reply_body: &'static str) -> (String, Log) {
     fake_backend_at("/v1/systemone", reply_status, reply_body).await
 }
 
-/// Como `fake_backend`, pero escuchando en `path`.
+/// Like `fake_backend`, but listening on `path`.
 pub async fn fake_backend_at(path: &str, reply_status: u16, reply_body: &'static str) -> (String, Log) {
     let log = Log::default();
     let fake = Fake { status: reply_status, body: reply_body, log: log.clone() };
@@ -59,7 +59,7 @@ pub async fn start_daemon(cfg: Config) -> String {
     format!("http://{addr}")
 }
 
-/// El primer backend de la lista es el predeterminado.
+/// The first backend in the list is the default.
 pub fn cfg_with(backends: &[(&str, &str, Option<&str>)], token: Option<&str>) -> Config {
     let map: BTreeMap<String, Backend> = backends
         .iter()
@@ -86,7 +86,7 @@ pub fn cfg_with(backends: &[(&str, &str, Option<&str>)], token: Option<&str>) ->
 pub const GUARD: &str = include_str!("../../../../../config/flows/agent-guard.yaml");
 pub const ROUTE: &str = include_str!("../../../../../config/flows/model-route.yaml");
 
-/// Flujo de un solo nodo `batch` con cuatro preguntas: el caso de `tool.risk`, sin sus reglas fijas.
+/// Flow with a single `batch` node of four questions: the `tool.risk` case, without its fixed rules.
 pub const BATCH: &str = r#"
 defaults: { backend: ollama, model: nimble }
 start: risks
@@ -110,7 +110,7 @@ outputs:
   abstain: { outcome: abstain }
 "#;
 
-/// Respuesta System One con varios cuerpos de pregunta, nombrados `"<nodo>.<pregunta>"` (D3).
+/// System One response with several question bodies, named `"<node>.<question>"` (D3).
 pub fn answers(named: &[(&str, &str, serde_json::Value, f64)]) -> String {
     let mut map = serde_json::Map::new();
     for (key, ty, value, confidence) in named {
@@ -120,7 +120,7 @@ pub fn answers(named: &[(&str, &str, serde_json::Value, f64)]) -> String {
     serde_json::json!({ "answers": map }).to_string()
 }
 
-/// Directorio temporal que se borra al soltarse.
+/// Temporary directory that is deleted when dropped.
 pub struct TempDir(pub PathBuf);
 
 impl TempDir {
@@ -140,17 +140,17 @@ impl Drop for TempDir {
     }
 }
 
-/// Guion del backend: nodo (nombre de la única pregunta) -> (status, body). Lo no guionizado da 500.
+/// Backend script: node (name of the single question) -> (status, body). Anything not scripted gives 500.
 pub type Script = Arc<Mutex<HashMap<String, (u16, String)>>>;
 
-/// El guion y, además, lo que el backend recibió: hace falta para contar peticiones y ver sus claves.
+/// The script and, in addition, what the backend received: needed to count requests and see their keys.
 #[derive(Clone)]
 pub struct Scripted {
     pub script: Script,
     pub log: Log,
 }
 
-/// El nodo al que pertenece una clave de pregunta: `"risks.destructive"` → `"risks"`, `"worth"` → `"worth"`.
+/// The node a question key belongs to: `"risks.destructive"` → `"risks"`, `"worth"` → `"worth"`.
 fn node_of(key: &str) -> &str {
     key.split_once('.').map_or(key, |(node, _)| node)
 }
@@ -158,7 +158,7 @@ fn node_of(key: &str) -> &str {
 async fn scripted(State(scripted): State<Scripted>, body: Bytes) -> impl IntoResponse {
     scripted.log.lock().unwrap().push(Captured { headers: HeaderMap::new(), body: body.clone() });
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
-    // Un nodo `batch` manda varias preguntas: todas cuelgan del mismo nodo y comparten guion (D3).
+    // A `batch` node sends several questions: all hang from the same node and share a script (D3).
     let nodes: BTreeMap<String, usize> =
         json["questions"].as_object().into_iter().flatten().fold(BTreeMap::new(), |mut acc, (key, _)| {
             *acc.entry(node_of(key).to_string()).or_insert(0) += 1;
@@ -184,13 +184,13 @@ pub fn say(scripted: &Scripted, node: &str, status: u16, body: String) {
     scripted.script.lock().unwrap().insert(node.into(), (status, body));
 }
 
-/// Respuesta System One válida a la pregunta `node`.
+/// Valid System One response to the question `node`.
 pub fn answer(node: &str, ty: &str, value: serde_json::Value, confidence: f64) -> String {
     serde_json::json!({ "answers": { node: { "type": ty, ty: value, "confidence": confidence } } }).to_string()
 }
 
-/// Daemon con los flujos de `dir` cargados y vigilados, y el catálogo de backends que se le diga;
-/// todos apuntan a `backend`. El primero de `names` es el backend por defecto.
+/// Daemon with the flows in `dir` loaded and watched, and the backend catalogue it is given;
+/// all point to `backend`. The first of `names` is the default backend.
 pub async fn start_with_flows_and(backend: &str, names: &[&str], dir: &TempDir) -> String {
     let backends: Vec<(&str, &str, Option<&str>)> = names.iter().map(|n| (*n, backend, None)).collect();
     let mut cfg = cfg_with(&backends, None);
@@ -206,12 +206,12 @@ pub async fn start_with_flows_and(backend: &str, names: &[&str], dir: &TempDir) 
     format!("http://{addr}")
 }
 
-/// Daemon con los flujos de `dir` cargados y vigilados; los tres backends de los ejemplos apuntan a `backend`.
+/// Daemon with the flows in `dir` loaded and watched; the three backends of the examples point to `backend`.
 pub async fn start_with_flows(backend: &str, dir: &TempDir) -> String {
     start_with_flows_and(backend, &["ollama", "typesafe", "openrouter"], dir).await
 }
 
-/// Repite `check` cada 100 ms hasta 3 s; sin sleeps fijos.
+/// Repeats `check` every 100 ms for up to 3 s; no fixed sleeps.
 pub async fn eventually<F, Fut>(mut check: F) -> bool
 where
     F: FnMut() -> Fut,
@@ -226,14 +226,14 @@ where
     false
 }
 
-/// Conexión al bus de eventos del daemon de pruebas.
+/// Connection to the test daemon's event bus.
 pub async fn connect(
     daemon: &str,
 ) -> impl futures_util::StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin {
     connect_async(format!("ws://{}/events", daemon.trim_start_matches("http://"))).await.unwrap().0
 }
 
-/// El siguiente evento del bus, ya leído como JSON; falla si no llega en tres segundos.
+/// The next bus event, already read as JSON; fails if it does not arrive within three seconds.
 pub async fn next_json<S>(ws: &mut S) -> serde_json::Value
 where
     S: futures_util::StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,

@@ -1,4 +1,4 @@
-//! Editor visual de flujos: el documento, el parcheador, el grafo, el inspector y su pantalla.
+//! Visual flow editor: the document, the patcher, the graph, the inspector and its screen.
 
 pub mod app;
 pub mod daemon;

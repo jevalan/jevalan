@@ -1,4 +1,4 @@
-//! Tráfico de mentirijillas contra un daemon: decisiones y passthrough a un ritmo con vaivén.
+//! Fake traffic against a daemon: decisions and passthrough at a swaying pace.
 
 use crate::rng::Rng;
 use serde_json::{Value, json};
@@ -26,7 +26,7 @@ const REFRESH: Duration = Duration::from_secs(5);
 
 type FlowBackends = Vec<(String, Vec<String>)>;
 
-/// Lanza el simulador; se detiene al abortar el `JoinHandle` o al cerrarse el runtime.
+/// Launches the simulator; it stops when the `JoinHandle` is aborted or the runtime shuts down.
 pub fn spawn_simulator(base_url: String, token: Option<String>, rate: f64, seed: u64) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let sim = Sim { http: reqwest::Client::new(), base: base_url, token };
@@ -40,7 +40,7 @@ pub fn spawn_simulator(base_url: String, token: Option<String>, rate: f64, seed:
                 last_refresh = Some(Instant::now());
             }
             if let Some(job) = pick_job(&flows, &mut rng) {
-                // Cada petición va por su cuenta: la latencia del backend no frena el ritmo.
+                // Each request goes on its own: the backend's latency does not slow the pace.
                 tokio::spawn(sim.clone().send(job));
             }
             tokio::time::sleep(Duration::from_secs_f64(gap * rng.between(0.5, 1.5))).await;
@@ -56,7 +56,7 @@ struct Job {
 
 static REQUESTS: AtomicU64 = AtomicU64::new(0);
 
-/// Petición al hub: mitad `agent.wakeup` con entradas variadas, mitad `tool.risk` con comandos variados.
+/// Hub request: half `agent.wakeup` with varied inputs, half `tool.risk` with varied commands.
 fn hub_job(client: &'static str, rng: &mut Rng) -> Job {
     let (capability, input) = if rng.unit() < 0.5 {
         let input = match rng.next_u64() % 4 {
@@ -68,7 +68,7 @@ fn hub_job(client: &'static str, rng: &mut Rng) -> Job {
         ("agent.wakeup", input)
     } else {
         let tool = if rng.unit() < 0.7 { "Bash" } else { "Read" };
-        // El identificador al azar hace caer algún caso en el cupo de «sin opinión» del especialista de pega.
+        // The random identifier makes some cases fall into the "no opinion" quota of the stand-in specialist.
         let id = format!("toolu_{:016x}", rng.next_u64());
         ("tool.risk", json!({ "tool_name": tool, "tool_input": { "command": rng.pick(&COMMANDS) }, "tool_use_id": id }))
     };
@@ -108,7 +108,7 @@ struct Sim {
 }
 
 impl Sim {
-    /// Flujos cargados y los backends que usa cada uno; vacío si el daemon no contesta.
+    /// Loaded flows and the backends each one uses; empty if the daemon does not answer.
     async fn flows(&self) -> FlowBackends {
         let Ok(resp) = self.auth(self.http.get(format!("{}/v1/flows", self.base))).send().await else {
             return Vec::new();
@@ -131,7 +131,7 @@ impl Sim {
         }
     }
 
-    // Los errores no importan: la demostración sigue.
+    // Errors do not matter: the demonstration goes on.
     async fn send(self, job: Job) {
         let url = format!("{}{}", self.base, job.path);
         let req = self.http.post(url).header("X-Jevalan-Client", job.client).json(&job.body);

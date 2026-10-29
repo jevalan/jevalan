@@ -1,4 +1,4 @@
-//! Hub de decisiones `jev-hub/0.1`: envoltura, registro de capacidades y clasificación. Lógica pura.
+//! `jev-hub/0.1` decision hub: envelope, capability registry and classification. Pure logic.
 
 pub mod capability;
 pub mod classify;

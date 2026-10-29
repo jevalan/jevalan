@@ -1,4 +1,4 @@
-//! Cada expresión CEL se compila una sola vez: el analizador consume mucha pila y mucho tiempo.
+//! Each CEL expression is compiled only once: the parser uses a lot of stack and a lot of time.
 
 use cel::Program;
 use std::collections::BTreeMap;
@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 static CACHE: Mutex<BTreeMap<String, Arc<Program>>> = Mutex::new(BTreeMap::new());
 
-/// Programa compilado de `expr`; solo se recuerdan los que compilan.
+/// Compiled program of `expr`; only those that compile are remembered.
 pub fn compiled(expr: &str) -> Result<Arc<Program>, String> {
     if let Some(p) = CACHE.lock().unwrap_or_else(PoisonError::into_inner).get(expr) {
         return Ok(p.clone());

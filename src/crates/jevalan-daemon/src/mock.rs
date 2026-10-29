@@ -1,4 +1,4 @@
-//! Backend System One de mentirijillas: respuestas coherentes con cada tipo de pregunta, latencia y fallos a gusto.
+//! Fake System One backend: answers consistent with each kind of question, latency and failures as desired.
 
 use crate::config::{Backend, Config, Hub};
 use crate::rng::Rng;
@@ -23,20 +23,20 @@ struct Mock {
     down: Arc<AtomicBool>,
 }
 
-/// Mock en marcha: su URL base y el interruptor que lo "derriba" (responde 500 al instante).
+/// A running mock: its base URL and the switch that "takes it down" (it answers 500 immediately).
 pub struct MockHandle {
     pub url: String,
     pub down: Arc<AtomicBool>,
 }
 
-/// Interruptor de un proveedor de la demo: un mock que se «derriba» o un fichero cuya presencia hace fallar al especialista.
+/// Switch of a demo provider: a mock that is "taken down", or a file whose presence makes the specialist fail.
 pub enum Switch {
     Mock(Arc<AtomicBool>),
     Flag(PathBuf),
 }
 
 impl Switch {
-    /// Lo invierte y devuelve si el proveedor queda caído.
+    /// Flips it and returns whether the provider ends up down.
     pub fn toggle(&self) -> bool {
         match self {
             Switch::Mock(down) => !down.fetch_not(Ordering::Relaxed),
@@ -46,10 +46,10 @@ impl Switch {
     }
 }
 
-/// Interruptores de los proveedores de la demo, por nombre.
+/// Switches of the demo providers, by name.
 pub type Switches = BTreeMap<String, Switch>;
 
-/// Levanta el mock en `127.0.0.1:0`.
+/// Starts the mock on `127.0.0.1:0`.
 pub async fn spawn_mock(seed: u64, latency_ms: (u64, u64), fail_rate: f64) -> std::io::Result<MockHandle> {
     let down = Arc::new(AtomicBool::new(false));
     let mock = Arc::new(Mock { rng: Mutex::new(Rng::new(seed)), latency_ms, fail_rate, down: down.clone() });
@@ -60,9 +60,9 @@ pub async fn spawn_mock(seed: u64, latency_ms: (u64, u64), fail_rate: f64) -> st
     Ok(MockHandle { url, down })
 }
 
-/// Configuración de demostración: `typesafe` (con clave ficticia), `ollama` y `openrouter` (el de `agent-wakeup`)
-/// apuntan a sendos mocks, cada uno con su interruptor, y el hub
-/// registra `agent.wakeup` y `tool.risk` (este con `specialist` como comando `exec`) en un directorio temporal.
+/// Demo configuration: `typesafe` (with a dummy key), `ollama` and `openrouter` (the one for `agent-wakeup`)
+/// point to separate mocks, each with its own switch, and the hub
+/// registers `agent.wakeup` and `tool.risk` (the latter with `specialist` as the `exec` command) in a temporary directory.
 pub async fn demo_config(addr: SocketAddr, seed: u64, specialist: Vec<String>) -> std::io::Result<(Config, Switches)> {
     let mut backends = BTreeMap::new();
     let mut switches = Switches::new();
@@ -89,7 +89,7 @@ pub async fn demo_config(addr: SocketAddr, seed: u64, specialist: Vec<String>) -
     Ok((cfg, switches))
 }
 
-/// Escribe las dos capacidades de la demo y devuelve su directorio y el fichero que apaga al especialista.
+/// Writes the demo's two capabilities and returns their directory and the file that switches the specialist off.
 fn write_capabilities(seed: u64, mut specialist: Vec<String>) -> std::io::Result<(PathBuf, PathBuf)> {
     let dir = std::env::temp_dir().join(format!("jevalan-demo-{}-{seed:x}", std::process::id()));
     std::fs::create_dir_all(&dir)?;
@@ -101,7 +101,7 @@ fn write_capabilities(seed: u64, mut specialist: Vec<String>) -> std::io::Result
             "agent.wakeup",
             json!({
                 "manifest_version": "2",
-                // La sirve un flujo del propio hub: no es publicable, su publicador es local.
+                // It is served by a flow of the hub itself: it is not publishable, its publisher is local.
                 "namespace": "local.jev",
                 "version": "1",
                 "description": "¿Merece la pena despertar a un agente dormido?",
@@ -119,7 +119,7 @@ fn write_capabilities(seed: u64, mut specialist: Vec<String>) -> std::io::Result
                 "namespace": "local.jev",
                 "version": "1",
                 "description": "Riesgo de una llamada a herramienta (especialista simulado)",
-                // El especialista de pega es un binario, no el CLI de Toolgate con Node.
+                // The stand-in specialist is a binary, not Toolgate's CLI with Node.
                 "requires": { "runtime": "none", "platform": "any" },
                 "input_schema": schema(include_str!("../../../../config/capabilities/schemas/tool.risk.input.json")),
                 "decision_schema": schema(include_str!("../../../../config/capabilities/schemas/tool.risk.decision.json")),
@@ -144,7 +144,7 @@ async fn answer(State(mock): State<Arc<Mock>>, body: Bytes) -> Response {
     if mock.down.load(Ordering::Relaxed) {
         return reply_json(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "mock caído" }));
     }
-    // Todo lo aleatorio se decide antes del primer `await`: el cerrojo no cruza esperas.
+    // Everything random is decided before the first `await`: the lock does not cross awaits.
     let (delay, fail, reply) = {
         let mut rng = mock.rng.lock().unwrap_or_else(PoisonError::into_inner);
         let delay = rng.range(mock.latency_ms.0, mock.latency_ms.1);
@@ -180,7 +180,7 @@ fn build_reply(body: &[u8], rng: &mut Rng) -> Result<Value, String> {
 fn answer_to(name: &str, q: &Value, rng: &mut Rng) -> Result<Value, String> {
     match q["type"].as_str() {
         Some("noul") => {
-            // Casi siempre inocuo, de vez en cuando rotundo: así los flujos recorren todas sus ramas.
+            // Almost always harmless, now and then emphatic: this way the flows walk through all their branches.
             let p = if rng.unit() < 0.85 { rng.between(0.0, 0.4) } else { rng.between(0.85, 1.0) };
             Ok(json!({ "type": "noul", "noul": round(p), "confidence": confidence(rng) }))
         }

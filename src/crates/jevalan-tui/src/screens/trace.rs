@@ -1,4 +1,4 @@
-//! Pantalla de traza: el camino nodo a nodo (por defecto) o la línea temporal de eventos.
+//! Trace screen: the node-by-node path (by default) or the event timeline.
 
 use crate::fx::FxState;
 use crate::screen::{Ctx, KeyHint, Msg, Nav, Screen};
@@ -16,7 +16,7 @@ use std::time::Instant;
 pub struct TraceScreen {
     trace_id: String,
     scroll: usize,
-    /// `true` muestra la línea temporal de eventos en vez del camino por nodos.
+    /// `true` shows the event timeline instead of the node path.
     timeline: bool,
     fx: FxState,
     started: bool,
@@ -28,7 +28,7 @@ impl TraceScreen {
     }
 }
 
-/// Respuesta de un nodo en una palabra: número con dos decimales, texto, o «—» si el backend falló.
+/// A node's answer in one word: a number with two decimals, text, or "—" if the backend failed.
 pub fn answer_text(answer: &Value) -> String {
     match answer {
         Value::Null => "—".into(),
@@ -38,7 +38,7 @@ pub fn answer_text(answer: &Value) -> String {
     }
 }
 
-/// Lo que cuenta un `NODE_AUDIT`: las heurísticas evaluadas y la regla `route` que ganó (1 es la primera).
+/// What a `NODE_AUDIT` tells: the heuristics evaluated and the `route` rule that won (1 is the first).
 fn audit_text(signals: &serde_json::Map<String, Value>, rule: Option<u32>) -> String {
     let mut parts: Vec<String> = signals.iter().map(|(k, v)| format!("{k}={v}")).collect();
     if let Some(r) = rule {
@@ -89,7 +89,7 @@ pub fn detail(kind: &EventKind) -> String {
     }
 }
 
-/// Columna «nodo»: el nodo, backend o flujo al que se refiere el evento.
+/// "node" column: the node, backend or flow the event refers to.
 fn subject(kind: &EventKind) -> &str {
     match kind {
         EventKind::NodeStart { node, .. } | EventKind::NodeEnd { node, .. } | EventKind::NodeAudit { node, .. } => node,
@@ -110,14 +110,14 @@ fn subject(kind: &EventKind) -> &str {
     }
 }
 
-/// Un nodo del camino ya cerrado (o fallido) con lo que se sabe de él.
+/// A path node already closed (or failed) with what is known about it.
 struct PathNode<'a> {
     node: &'a str,
     ty: &'a str,
     backend: &'a str,
     model: &'a str,
     started: Instant,
-    /// Duración de la respuesta del backend, si llegó.
+    /// Duration of the backend's response, if it arrived.
     ms: Option<u64>,
     ok: bool,
 }
@@ -125,7 +125,7 @@ struct PathNode<'a> {
 fn node_line(n: &PathNode, end: Option<(&Value, f64, &str, Instant)>) -> (String, Style) {
     let (answer, conf, port, ms) = match end {
         Some((answer, conf, port, at)) => {
-            // Sin BACKEND_RESPONSE, el hueco entre NODE_START y NODE_END.
+            // Without BACKEND_RESPONSE, the gap between NODE_START and NODE_END.
             let ms = n.ms.unwrap_or_else(|| at.saturating_duration_since(n.started).as_millis() as u64);
             (answer_text(answer), format!("conf {conf:.2}"), format!("→ {port}"), format!("{ms} ms"))
         }
@@ -149,8 +149,8 @@ fn node_line(n: &PathNode, end: Option<(&Value, f64, &str, Instant)>) -> (String
     (line, style)
 }
 
-/// Una línea por nodo del camino (de `NODE_START`/`NODE_END`) y una final con el desenlace.
-/// Un passthrough no tiene nodos: queda solo su línea `passthrough · backend · modelo · status · ms`.
+/// One line per path node (from `NODE_START`/`NODE_END`) and a final one with the outcome.
+/// A passthrough has no nodes: only its `passthrough · backend · model · status · ms` line remains.
 fn path_lines(events: &[(Instant, Event)]) -> Vec<(String, Style)> {
     let mut lines = Vec::new();
     let mut open: Option<PathNode> = None;
@@ -289,7 +289,7 @@ impl Screen for TraceScreen {
             let para = Paragraph::new(lines).block(Block::bordered()).scroll((self.scroll as u16, 0));
             f.render_widget(para, table_rect);
         } else {
-            // Línea temporal: una fila por evento.
+            // Timeline: one row per event.
             let mut rows = Vec::new();
             let first_at = trace.events.first().map(|(at, _)| *at);
 

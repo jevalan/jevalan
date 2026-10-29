@@ -1,4 +1,4 @@
-//! Telemetría en vivo: el bus del daemon, para ver qué está decidiendo el flujo publicado.
+//! Live telemetry: the daemon's bus, to see what the published flow is deciding.
 
 use jevalan_events::{Event, EventKind};
 use jevalan_flow::Flow;
@@ -10,43 +10,43 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Instant;
 
-/// El sufijo con el que un borrador firma sus eventos (sección 5 de la spec).
+/// The suffix with which a draft signs its events (section 5 of the spec).
 pub const BORRADOR: &str = " (borrador)";
 
-/// ¿El evento lo firma un borrador y no el flujo publicado?
+/// Is the event signed by a draft and not by the published flow?
 pub fn es_borrador(flow: &str) -> bool {
     flow.ends_with(BORRADOR)
 }
 
-/// Estado de la conexión con el bus, tal como lo cuenta la banda inferior.
+/// State of the connection to the bus, as the bottom band reports it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Estado {
     Conectando,
     Conectado,
     Caido(String),
-    /// Sin bus: se pidió `--no-events`, o no hay daemon al que escuchar.
+    /// No bus: `--no-events` was requested, or there is no daemon to listen to.
     Apagado,
 }
 
-/// Lo que el editor sabe del daemon por el bus de eventos.
+/// What the editor knows about the daemon through the event bus.
 pub struct Telemetria {
     rx: Option<Receiver<Feed>>,
-    /// Nombre del flujo que se edita: solo sus decisiones van a la banda.
+    /// Name of the flow being edited: only its decisions go to the band.
     nombre: String,
-    /// Flujos vigentes por `FLOW_LOADED`: `FlowActivity` los necesita para reconocer sus nodos.
+    /// Current flows by `FLOW_LOADED`: `FlowActivity` needs them to recognise its nodes.
     flows: BTreeMap<String, Arc<Flow>>,
-    /// Recorridos de las aristas y paquetes en vuelo del flujo publicado.
+    /// Edge traversals and in-flight packets of the published flow.
     pub activity: FlowActivity,
     pub estado: Estado,
-    /// Resumen del último evento del flujo publicado, para la banda inferior.
+    /// Summary of the published flow's last event, for the bottom band.
     pub ultimo: Option<String>,
-    /// Catálogo de backends que el daemon declaró. Es el que usa la validación local cuando el daemon
-    /// no responde: el evento `BACKENDS` solo trae sus nombres.
+    /// Backend catalogue the daemon declared. It is the one local validation uses when the daemon
+    /// does not answer: the `BACKENDS` event only carries their names.
     pub backends: Vec<String>,
 }
 
 impl Telemetria {
-    /// Se conecta al bus del daemon, que reintenta con paciencia, como el dashboard.
+    /// Connects to the daemon's bus, which retries patiently, like the dashboard.
     pub fn conectar(url: &str, token: Option<&str>, nombre: &str) -> Self {
         let mut telemetria = Self::apagada(nombre);
         telemetria.rx = Some(live::spawn(url.to_string(), token.map(str::to_string)));
@@ -54,7 +54,7 @@ impl Telemetria {
         telemetria
     }
 
-    /// Sin bus: el editor funciona igual, solo que sin telemetría.
+    /// No bus: the editor works just the same, only without telemetry.
     pub fn apagada(nombre: &str) -> Self {
         Self {
             rx: None,
@@ -67,10 +67,10 @@ impl Telemetria {
         }
     }
 
-    /// Consume lo que haya llegado por el bus; devuelve `true` si algo cambió.
+    /// Consumes whatever has arrived over the bus; returns `true` if something changed.
     pub fn latir(&mut self, ahora: Instant) -> bool {
         let mut cambio = false;
-        // El receptor sale de `self` mientras se drena: anotar un evento necesita `&mut self`.
+        // The receiver leaves `self` while draining: noting an event needs `&mut self`.
         if let Some(rx) = self.rx.take() {
             loop {
                 match rx.try_recv() {
@@ -95,7 +95,7 @@ impl Telemetria {
             }
             self.rx = Some(rx);
         }
-        // Los paquetes de las aristas caducan solos: hay que retirarlos para que la pantalla siga.
+        // The edges' packets expire on their own: they have to be removed so the screen keeps going.
         if self.activity.has_packets() {
             self.activity.tick(ahora);
             cambio = true;
@@ -103,9 +103,9 @@ impl Telemetria {
         cambio
     }
 
-    /// Anota un evento: el catálogo de backends, los flujos vigentes y lo último que decidió el flujo
-    /// publicado. Un borrador no cuenta como decisión publicada, y `FlowActivity` lo ignora solo,
-    /// porque su nombre no está entre los flujos vigentes.
+    /// Notes an event: the backend catalogue, the current flows and the last thing the published
+    /// flow decided. A draft does not count as a published decision, and `FlowActivity` ignores it by itself,
+    /// because its name is not among the current flows.
     fn anotar(&mut self, e: &Event, ahora: Instant) {
         match &e.kind {
             EventKind::Backends { backends } => self.backends = backends.clone(),
@@ -160,7 +160,7 @@ mod tests {
         evento(EventKind::DecisionMade { flow: flow.into(), outcome: outcome.into(), path_len: 3, duration_ms })
     }
 
-    /// Una telemetría sin bus, ya conectada, para poder anotar eventos a mano.
+    /// Telemetry without a bus, already connected, so events can be noted by hand.
     fn sorda(nombre: &str) -> Telemetria {
         let mut telemetria = Telemetria::apagada(nombre);
         telemetria.estado = Estado::Conectado;
@@ -181,7 +181,7 @@ mod tests {
         let mut telemetria = sorda("tool-risk-local");
         telemetria.anotar(&decidido("tool-risk-local (borrador)", "deny", 9), Instant::now());
         assert_eq!(telemetria.ultimo, None, "la decisión de un borrador no es la del flujo publicado");
-        // Y los de otro flujo tampoco: la banda habla del que se edita.
+        // And those of another flow do not count either: the band talks about the one being edited.
         telemetria.anotar(&decidido("agent-guard", "deny", 9), Instant::now());
         assert_eq!(telemetria.ultimo, None);
         assert!(es_borrador("tool-risk-local (borrador)") && !es_borrador("tool-risk-local"));

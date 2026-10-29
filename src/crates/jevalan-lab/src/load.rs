@@ -1,4 +1,4 @@
-//! Lectura de `config/lab/`: configuración, fixtures y cassettes.
+//! Reading `config/lab/`: configuration, fixtures and cassettes.
 
 use crate::write::fnv1a64;
 use crate::{Case, Lab};
@@ -10,7 +10,7 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 impl Lab {
-    /// Carga flujos y capacidades como `serve`, pero sin servidor ni vigilantes.
+    /// Loads flows and capabilities like `serve`, but without a server or watchers.
     pub fn load(root: &Path, cfg: &Config) -> Result<Lab, Vec<String>> {
         let yaml = std::fs::read_to_string(root.join("lab.yaml"))
             .map_err(|e| vec![format!("{}: {e}", root.join("lab.yaml").display())])?;
@@ -48,7 +48,7 @@ impl Lab {
         Ok(Lab { state, root: root.to_path_buf(), runs_dir, yaml, config, order, cases })
     }
 
-    /// Cassette entera de un fixture para un target; `None` si no hay.
+    /// A fixture's whole cassette for a target; `None` if there is none.
     pub(crate) fn cassette(&self, cap: &str, fixture: &str, target: &str) -> Result<Option<Value>, String> {
         let path = self.root.join("cassettes").join(cap).join(fixture).join(format!("{target}.json"));
         if !path.is_file() {
@@ -60,8 +60,8 @@ impl Lab {
     }
 }
 
-/// Por qué una cassette ya no vale para el fixture (otra versión u otra entrada), si es el caso.
-/// Las cassettes sin estos campos son anteriores y se tratan como desactualizadas.
+/// Why a cassette no longer fits the fixture (another version or another input), if that is the case.
+/// Cassettes without these fields are older and are treated as outdated.
 pub(crate) fn stale(cassette: &Value, fx: &Fixture) -> Option<String> {
     let version = cassette["fixture_version"].as_u64();
     if version != Some(u64::from(fx.version)) {
@@ -72,12 +72,12 @@ pub(crate) fn stale(cassette: &Value, fx: &Fixture) -> Option<String> {
         .then(|| format!("cassette desactualizada (la entrada cambió sin subir la versión {})", fx.version))
 }
 
-/// Huella FNV-1a de la entrada del fixture.
+/// FNV-1a fingerprint of the fixture's input.
 pub(crate) fn input_hash(fx: &Fixture) -> String {
     fnv1a64(&fx.input.to_string())
 }
 
-/// Entradas de un directorio en orden alfabético; solo directorios o solo ficheros.
+/// Entries of a directory in alphabetical order; only directories or only files.
 fn sorted(dir: &Path, dirs: bool) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = std::fs::read_dir(dir)
         .into_iter()
@@ -90,7 +90,7 @@ fn sorted(dir: &Path, dirs: bool) -> Vec<PathBuf> {
     out
 }
 
-/// Los targets en el orden de `lab.yaml` (el mapa tipado los ordena por nombre).
+/// The targets in the order of `lab.yaml` (the typed map sorts them by name).
 fn target_order(yaml: &str) -> Vec<String> {
     let doc: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap_or(serde_yaml::Value::Null);
     doc.get("targets")

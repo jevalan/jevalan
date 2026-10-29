@@ -1,6 +1,6 @@
-//! Hook `PreToolUse` genérico: consulta `tool.risk` al daemon y, según el modo, calla o responde.
-//! El `--client` fija con qué nombre reconoce el daemon la sesión y el `--dialect` el formato de
-//! salida que entiende el harness. El hook solo puede endurecer los permisos, jamás relajarlos.
+//! Generic `PreToolUse` hook: asks the daemon for `tool.risk` and, depending on the mode, stays silent or answers.
+//! `--client` sets the name under which the daemon recognises the session, and `--dialect` the output format
+//! the harness understands. The hook can only tighten permissions, never relax them.
 
 use clap::ValueEnum;
 use jevalan_daemon::config::DEFAULT_ADDR;
@@ -26,20 +26,20 @@ impl Mode {
     }
 }
 
-/// Dialecto de salida que entiende el harness. Todo lo demás (leer stdin, consultar el hub,
-/// interpretar la respuesta, el registro sombra) es común a cualquier cliente.
+/// Output dialect the harness understands. Everything else (reading stdin, querying the hub,
+/// interpreting the answer, the shadow log) is common to every client.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, ValueEnum)]
 pub enum Dialect {
     /// Formato de Claude Code: `hookSpecificOutput.permissionDecision`.
     Claude,
-    /// Formato nativo de Crush: `{"decision": …, "reason": …}`. Crush no sabe `ask`.
+    /// Crush's native format: `{"decision": …, "reason": …}`. Crush does not know `ask`.
     Crush,
 }
 
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(6);
 
-/// Respuesta del hub reducida a lo que el hook necesita.
+/// The hub's answer, reduced to what the hook needs.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Decision {
     pub status: String,
@@ -56,7 +56,7 @@ impl Decision {
     }
 }
 
-/// Siempre `SUCCESS`: ni un fallo interno, ni un pánico, deben estorbar al harness.
+/// Always `SUCCESS`: neither an internal failure nor a panic may get in the harness's way.
 pub fn run(mode: Mode, client: &str, dialect: Dialect) -> ExitCode {
     let _ = std::panic::catch_unwind(|| {
         let mut raw = Vec::new();
@@ -70,7 +70,7 @@ pub fn run(mode: Mode, client: &str, dialect: Dialect) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Todo el trabajo; devuelve lo que ha de imprimirse, si algo.
+/// All the work; returns what must be printed, if anything.
 fn process(mode: Mode, client: &str, dialect: Dialect, stdin: &str, log: bool) -> Option<String> {
     let started = Instant::now();
     let hook: Option<Value> = serde_json::from_str(stdin).ok();
@@ -85,7 +85,7 @@ fn process(mode: Mode, client: &str, dialect: Dialect, stdin: &str, log: bool) -
     output(mode, dialect, &decision)
 }
 
-/// Campos que `tool.risk` admite; los ausentes se omiten. Exige `tool_name`.
+/// Fields `tool.risk` accepts; absent ones are omitted. Requires `tool_name`.
 pub fn extract_input(hook: &Value) -> Option<Value> {
     let tool_name = hook.get("tool_name")?.as_str()?;
     let mut input = Map::new();
@@ -101,15 +101,15 @@ pub fn extract_input(hook: &Value) -> Option<Value> {
 
 type Query<'a> = dyn Fn(&str, Option<&str>) -> Result<Decision, String> + 'a;
 
-/// A quién se le pregunta: al daemon que anuncia `daemon.json` y, si ese no contesta —o no hay
-/// anuncio—, al de por defecto. Un daemon que muere sin retirar su anuncio deja el fichero caduco,
-/// y entonces la dirección anunciada no lleva a ninguna parte: preguntarle solo a ella dejaba al
-/// hook sin daemon para siempre.
+/// Whom to ask: the daemon announced by `daemon.json` and, if that one does not answer (or there is
+/// no announcement), the default one. A daemon that dies without withdrawing its announcement leaves a stale file,
+/// and then the announced address leads nowhere: asking only it used to leave the
+/// hook without a daemon forever.
 fn ask(discovered: Option<(String, Option<String>)>, query: &Query<'_>) -> Decision {
     match discovered {
         Some((addr, token)) if addr != DEFAULT_ADDR => match query(&addr, token.as_deref()) {
             Ok(d) => d,
-            // Se conserva el motivo del anuncio: es el que dice qué dirección falló y por qué.
+            // The announcement's reason is kept: it is the one that says which address failed and why.
             Err(why) => query(DEFAULT_ADDR, token.as_deref()).unwrap_or_else(|_| Decision::failure(why)),
         },
         Some((addr, token)) => query(&addr, token.as_deref()).unwrap_or_else(Decision::failure),
@@ -148,9 +148,9 @@ fn query(addr: &str, token: Option<&str>, client: &str, input: &Value) -> Result
     })
 }
 
-/// Nombre con que el daemon (y la TUI) reconocen al cliente: `<cliente>/<proyecto>:<sesión>`,
-/// siendo el proyecto la última carpeta de `cwd` y la sesión los cuatro primeros caracteres de su id.
-/// Viaja en una cabecera HTTP, que solo admite ASCII visible: todo lo demás se torna `_`.
+/// Name under which the daemon (and the TUI) recognise the client: `<client>/<project>:<session>`,
+/// where the project is the last folder of `cwd` and the session the first four characters of its id.
+/// It travels in an HTTP header, which only admits visible ASCII: everything else becomes `_`.
 pub fn client_name(base: &str, input: &Value) -> String {
     let field = |k: &str| input.get(k).and_then(Value::as_str).unwrap_or("");
     let ascii = |s: &str| s.chars().map(|c| if c.is_ascii_graphic() { c } else { '_' }).collect::<String>();
@@ -181,7 +181,7 @@ pub fn interpret(reply: &Value) -> Decision {
     d
 }
 
-/// Traducción a la salida del dialecto pedido. Jamás emite `allow`: solo endurece.
+/// Translation into the output of the requested dialect. It never emits `allow`: it only tightens.
 pub fn output(mode: Mode, dialect: Dialect, d: &Decision) -> Option<String> {
     if mode == Mode::Shadow {
         return None;
@@ -192,7 +192,7 @@ pub fn output(mode: Mode, dialect: Dialect, d: &Decision) -> Option<String> {
     }
 }
 
-/// Dialecto de Claude Code. Ante una indecisión pide confirmación (`ask`).
+/// Claude Code dialect. When undecided it asks for confirmation (`ask`).
 fn claude_output(d: &Decision) -> Option<String> {
     let reason = d.reason.as_deref().unwrap_or("sin motivo");
     match (d.status.as_str(), d.verdict.as_deref()) {
@@ -206,8 +206,8 @@ fn claude_output(d: &Decision) -> Option<String> {
     }
 }
 
-/// Dialecto de Crush. Solo distingue `allow` de `deny` y no sabe pedir confirmación desde un
-/// hook, así que `ask` y las indecisiones se callan y dejan decidir a sus permisos.
+/// Crush dialect. It only tells `allow` from `deny` and cannot ask for confirmation from a
+/// hook, so `ask` and undecided results are silenced and left to its permissions.
 fn crush_output(d: &Decision) -> Option<String> {
     match (d.status.as_str(), d.verdict.as_deref()) {
         ("ok", Some("deny")) => {
@@ -218,7 +218,7 @@ fn crush_output(d: &Decision) -> Option<String> {
     }
 }
 
-/// Salida del hook en el dialecto de Claude Code (`hookSpecificOutput`).
+/// Hook output in the Claude Code dialect (`hookSpecificOutput`).
 fn permission(decision: &str, reason: &str) -> String {
     json!({ "hookSpecificOutput": {
         "hookEventName": "PreToolUse", "permissionDecision": decision, "permissionDecisionReason": reason,
@@ -226,8 +226,8 @@ fn permission(decision: &str, reason: &str) -> String {
     .to_string()
 }
 
-/// Salida del hook en la envoltura nativa de Crush: `{"decision": "deny", "reason": "…"}`.
-/// Crush solo entiende `allow` y `deny`, y aquí jamás se emite `allow`.
+/// Hook output in Crush's native envelope: `{"decision": "deny", "reason": "…"}`.
+/// Crush only understands `allow` and `deny`, and `allow` is never emitted here.
 fn crush_verdict(decision: &str, reason: &str) -> String {
     json!({ "decision": decision, "reason": reason }).to_string()
 }
@@ -247,7 +247,7 @@ fn secret_patterns() -> &'static [(Regex, &'static str)] {
     })
 }
 
-/// Tacha, en todas las cadenas, los secretos de forma conocida.
+/// Redacts, in every string, secrets of a known shape.
 pub fn redact(value: &Value) -> Value {
     match value {
         Value::String(s) => {
@@ -287,7 +287,7 @@ fn iso_now() -> String {
 
 fn iso(secs: i64, millis: u32) -> String {
     let (days, rem) = (secs.div_euclid(86400), secs.rem_euclid(86400));
-    // Días desde 1970 a fecha civil (algoritmo de Howard Hinnant).
+    // Days since 1970 to a civil date (Howard Hinnant's algorithm).
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);
@@ -399,7 +399,7 @@ mod tests {
         let deny: Value = serde_json::from_str(&output(Mode::Enforce, Dialect::Crush, &ok("deny")).unwrap()).unwrap();
         assert_eq!(deny["decision"], "deny");
         assert_eq!(deny["reason"], "jevalan/tool.risk: porque sí");
-        // Crush no sabe pedir confirmación desde un hook: `ask` y las indecisiones se callan.
+        // Crush cannot ask for confirmation from a hook: `ask` and undecided results are silenced.
         assert_eq!(output(Mode::Enforce, Dialect::Crush, &ok("ask")), None);
         assert_eq!(output(Mode::Enforce, Dialect::Crush, &ok("allow")), None);
         assert_eq!(output(Mode::Enforce, Dialect::Crush, &ok("passthrough")), None);
@@ -414,14 +414,14 @@ mod tests {
 
     #[test]
     fn bad_stdin_never_panics() {
-        // Sin `tool_name` no se llega a consultar al daemon, cualquiera que sea el entorno.
+        // Without `tool_name` the daemon is never queried, whatever the environment.
         assert_eq!(process(Mode::Shadow, "claude-code", Dialect::Claude, "no es json", false), None);
         let out = process(Mode::Enforce, "claude-code", Dialect::Claude, "no es json", false).unwrap();
         assert!(out.contains("\"ask\""));
         assert_eq!(process(Mode::Enforce, "crush", Dialect::Crush, "no es json", false), None);
     }
 
-    /// Doble de `query`: solo contesta desde las direcciones que se le digan, y apunta a quién preguntó.
+    /// Stand-in for `query`: it only answers from the addresses it is given, and records whom it was asked.
     type Calls = Rc<RefCell<Vec<String>>>;
 
     fn doubler(vivas: &[&'static str]) -> (impl Fn(&str, Option<&str>) -> Result<Decision, String>, Calls) {

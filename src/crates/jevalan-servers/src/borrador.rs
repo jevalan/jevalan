@@ -1,38 +1,38 @@
-//! El borrador de la config del daemon: se edita el **texto**, no se reserializa.
+//! The daemon config draft: the **text** is edited, it is not reserialised.
 //!
-//! `serde_yaml` no conserva comentarios y `config/lab/config.local.yaml` está comentado, así que la pantalla
-//! parchea el texto por líneas. La validación, en cambio, es la del daemon: `config::load`.
+//! `serde_yaml` does not preserve comments and `config/lab/config.local.yaml` is commented, so the screen
+//! patches the text line by line. Validation, in contrast, is the daemon's: `config::load`.
 
 use jevalan_daemon::config::{Config, load};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// Cuántos temporales ha pedido este proceso. Es lo que hace **único** el directorio de cada
-/// validación, y no es un adorno: la pantalla valida mientras se teclea, y dos validaciones a la vez
-/// —dos hilos de la TUI, o dos pruebas del propio crate, que corren en paralelo— compartirían
-/// `config.yaml` y una borraría el directorio de la otra a mitad de lectura. Eso se manifiesta como
-/// un «no se puede leer» sobre un texto que sí era bueno.
+/// How many temporaries this process has requested. It is what makes each validation's directory
+/// **unique**, and it is not decoration: the screen validates while typing, and two validations at once
+/// (two TUI threads, or two of the crate's own tests, which run in parallel) would share
+/// `config.yaml` and one would delete the other's directory halfway through reading. That shows up as
+/// a "cannot be read" on a text that was in fact good.
 static TEMPORALES: AtomicU64 = AtomicU64::new(0);
 
-// El temporal que acaba de usar **esta hebra**, para que una prueba pueda afirmar sobre el suyo y no
-// sobre el de al lado. El contador de arriba es del proceso entero, así que con él solo no se puede
-// distinguir «mi directorio» de «el de otra prueba que está corriendo a la vez»: esto sí.
+// The temporary this **thread** has just used, so that a test can assert on its own and not
+// on the one next door. The counter above is process-wide, so with it alone one cannot
+// tell "my directory" from "that of another test running at the same time": this can.
 //
-// Va bajo `cfg(test)` porque en producción no hay nada que mirar aquí, y es una pila —y no un solo
-// hueco— para que anidar validaciones no se pise a sí mismo.
+// It is under `cfg(test)` because in production there is nothing to look at here, and it is a stack (not a single
+// slot) so that nested validations do not trample themselves.
 #[cfg(test)]
 thread_local! {
     static ULTIMO_TEMPORAL: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// El nombre del directorio temporal de la siguiente validación: el pid, para no pisar a otro
-/// proceso, y un contador, para no pisarse a sí mismo.
+/// The name of the next validation's temporary directory: the pid, so as not to clobber another
+/// process, and a counter, so as not to clobber itself.
 fn nombre_temporal() -> String {
     format!("jevalan-borrador-{}-{}", std::process::id(), TEMPORALES.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Un valor a reescribir dentro del bloque `backends:`. Solo valores: nunca se añaden ni se quitan
-/// backends desde la pantalla, porque eso cambia el conjunto y no un valor.
+/// A value to rewrite inside the `backends:` block. Values only: backends are never added or removed
+/// from the screen, because that changes the set and not a value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cambio {
     pub backend: String,
@@ -40,13 +40,13 @@ pub struct Cambio {
     pub valor: String,
 }
 
-/// Un directorio temporal que se retira al salir de su ámbito, también si algo falla por el camino.
+/// A temporary directory removed on leaving its scope, also if something fails along the way.
 ///
-/// Sin él, un `load` que devolviera pronto dejaría el directorio en `%TEMP%` a cada validación, y
-/// volver a la función para añadir el borrado en cada rama de salida es justo lo que se olvida. Que
-/// el borrado sea «lo mejor que se pueda» —y no un error que propagar— es a propósito: no hay nada
-/// que el llamante pueda hacer con un `%TEMP%` que no se deja limpiar, y fallar la validación por eso
-/// sería convertir un problema de limpieza en uno de corrección.
+/// Without it, a `load` that returned early would leave the directory in `%TEMP%` on every validation, and
+/// going back to the function to add the deletion on every exit branch is exactly what gets forgotten. That
+/// the deletion is "best effort" (and not an error to propagate) is deliberate: there is nothing
+/// the caller can do about a `%TEMP%` that will not be cleaned, and failing validation for that
+/// would turn a cleanup problem into a correctness one.
 struct Temporal(PathBuf);
 
 impl Drop for Temporal {
@@ -55,15 +55,15 @@ impl Drop for Temporal {
     }
 }
 
-/// Valida un texto de config con **las reglas del daemon**, sin tocar el fichero del usuario.
+/// Validates a config text with **the daemon's rules**, without touching the user's file.
 ///
-/// `config::load` toma una ruta, así que el texto se deja en un fichero temporal y se lee de ahí: es
-/// la única forma de que la autoridad sea el propio daemon y no una copia de sus reglas. Lo que no se
-/// toca es el fichero de config **del usuario**: no se abre, ni se escribe, ni se mueve.
+/// `config::load` takes a path, so the text is left in a temporary file and read from there: it is
+/// the only way for the authority to be the daemon itself and not a copy of its rules. What is not
+/// touched is the **user's** config file: it is not opened, written or moved.
 ///
-/// El temporal es **uno por llamada** —el nombre lleva el pid y un contador— y se retira antes de
-/// volver, con la guarda que también cubre la vuelta temprana del `?`, de modo que validar el borrador
-/// mientras se teclea no deja rastro en disco ni estorba a la validación de al lado.
+/// The temporary is **one per call** (the name carries the pid and a counter) and is removed before
+/// returning, with the guard that also covers the early return of `?`, so that validating the draft
+/// while typing leaves no trace on disk and does not get in the way of the validation next door.
 pub fn validar(texto: &str, env: &dyn Fn(&str) -> Option<String>) -> Result<Config, String> {
     let dir = std::env::temp_dir().join(nombre_temporal());
     std::fs::create_dir_all(&dir).map_err(|e| format!("no se puede crear {}: {e}", dir.display()))?;
@@ -75,25 +75,25 @@ pub fn validar(texto: &str, env: &dyn Fn(&str) -> Option<String>) -> Result<Conf
     load(Some(&ruta), env)
 }
 
-/// Reescribe los valores pedidos dentro del bloque `backends:`, conservando comentarios y orden.
+/// Rewrites the requested values inside the `backends:` block, preserving comments and order.
 ///
-/// Se reconocen las entradas **en línea** (`kev: { url: …, timeout_ms: … }`), que es como están hoy
-/// en `config/lab/config.local.yaml`. Todo lo demás se **niega** con un mensaje explícito, en vez de
-/// reescribir el fichero perdiendo algo: un mapa en bloque, un **ancla en línea** (`kev: &base { … }`,
-/// cuyo ancla desaparecería dejando a sus alias sin destino), una **clave de fusión** (`<<:`) o
-/// cualquier resto que no se entienda. La regla es simple y conservadora: **entre `backend:` y su `{`
-/// solo puede haber espacios**, y tras el `}` de cierre, o nada, o espacios y un comentario.
+/// **Inline** entries are recognised (`kev: { url: …, timeout_ms: … }`), which is how they are today
+/// in `config/lab/config.local.yaml`. Everything else is **refused** with an explicit message, instead of
+/// rewriting the file and losing something: a block map, an **inline anchor** (`kev: &base { … }`,
+/// whose anchor would vanish leaving its aliases without a target), a **merge key** (`<<:`) or
+/// any remainder that is not understood. The rule is simple and conservative: **between `backend:` and its `{`
+/// there can only be spaces**, and after the closing `}`, either nothing, or spaces and a comment.
 ///
-/// Cada cambio se aplica sobre el resultado del anterior, así que dos cambios sobre el mismo backend
-/// —la url y el plazo, por ejemplo— salen los dos en la misma línea.
+/// Each change is applied on the result of the previous one, so two changes to the same backend
+/// (the url and the timeout, say) both come out on the same line.
 ///
-/// **Los finales de línea.** El fichero entero se reescribe con **un solo** estilo: CRLF si el
-/// original tenía alguno, y LF si no tenía ninguno. Un fichero **mezclado** —una línea CRLF entre
-/// líneas LF, que es lo que deja un editor que se equivoca una vez— sale por tanto unificado al estilo
-/// que ya predominaba, no conservado línea a línea. Se elige así porque todas las líneas se vuelven a
-/// unir con el mismo separador de todos modos, y porque lo que de verdad importa es que el fichero no
-/// quede con dos estilos a la vez: eso es lo que hace que el control de versiones lo enseñe entero como
-/// cambiado. Está probado en las dos direcciones (CRLF se queda CRLF, y el mezclado se unifica).
+/// **Line endings.** The whole file is rewritten with **a single** style: CRLF if the
+/// original had any, and LF if it had none. A **mixed** file (a CRLF line among
+/// LF lines, which is what an editor that errs once leaves behind) therefore comes out unified to the style
+/// that already predominated, not preserved line by line. It is chosen this way because all the lines are joined
+/// back with the same separator anyway, and because what really matters is that the file does not
+/// end up with two styles at once: that is what makes version control show it as entirely
+/// changed. It is tested in both directions (CRLF stays CRLF, and the mixed one is unified).
 pub fn parchear(texto: &str, cambios: &[Cambio]) -> Result<String, String> {
     let mut lineas: Vec<String> = texto.lines().map(str::to_string).collect();
     let (inicio, fin) = bloque_backends(&lineas)?;
@@ -113,10 +113,10 @@ pub fn parchear(texto: &str, cambios: &[Cambio]) -> Result<String, String> {
             ));
         }
     }
-    // Se conserva el final de línea del fichero original: el dominante, si los hubiera mezclados.
-    // Como todas las líneas se vuelven a unir con **el mismo** separador, un fichero mezclado sale ya
-    // unificado al estilo dominante, sin necesidad de ninguna pasada de normalización detrás: `lines()`
-    // se lleva los `\r` de cada línea consigo, y el `join` pone el suyo.
+    // The original file's line ending is preserved: the dominant one, if they were mixed.
+    // Since all the lines are joined back with **the same** separator, a mixed file already comes out
+    // unified to the dominant style, with no normalisation pass needed afterwards: `lines()`
+    // takes each line's `\r` with it, and the `join` puts its own.
     let cr = if texto.contains("\r\n") { "\r\n" } else { "\n" };
     let mut salida = lineas.join(cr);
     if texto.ends_with('\n') {
@@ -125,7 +125,7 @@ pub fn parchear(texto: &str, cambios: &[Cambio]) -> Result<String, String> {
     Ok(salida)
 }
 
-/// Los límites del bloque `backends:`: desde su línea hasta la primera que no esté indentada más.
+/// The bounds of the `backends:` block: from its line to the first one that is not indented further.
 fn bloque_backends(lineas: &[String]) -> Result<(usize, usize), String> {
     let Some(cabeza) = lineas.iter().position(|l| l.trim_end() == "backends:" || l.starts_with("backends: {")) else {
         return Err("la config no declara un bloque `backends:`".into());
@@ -140,35 +140,35 @@ fn bloque_backends(lineas: &[String]) -> Result<(usize, usize), String> {
     Ok((cabeza + 1, fin))
 }
 
-/// Si `linea` declara `cambio.backend` en línea, devuelve la línea con su `clave` reescrita.
+/// If `linea` declares `cambio.backend` inline, returns the line with its `clave` rewritten.
 ///
-/// Los tres «no» que devuelve son distintos a propósito: `Ok(None)` es «esta línea no es de ese
-/// backend, sigue mirando»; `Err` —entrada en bloque, ancla, clave de fusión, cola que no se entiende,
-/// o clave que el backend no declara— es «esta sí es, y no se puede parchear»; y `Ok(Some(…))` es el
-/// cambio hecho.
+/// The three "no"s it returns are distinct on purpose: `Ok(None)` is "this line is not for that
+/// backend, keep looking"; `Err` (block entry, anchor, merge key, a tail that is not understood,
+/// or a key the backend does not declare) is "this one is it, and it cannot be patched"; and `Ok(Some(…))` is the
+/// change made.
 ///
-/// Lo que se exige, y por qué:
+/// What is required, and why:
 ///
-/// - **Entre `backend:` y su `{` no puede haber nada más que espacios.** Un ancla (`kev: &base { … }`)
-///   vive justo ahí, y al reconstruir la línea se perdería: sus alias (`laya: *base`) quedarían
-///   apuntando a un ancla que ya no existe. Delante del mapa, una clave de fusión (`kev: <<: { … }`)
-///   se niega por el mismo motivo. **Dentro** del mapa, en cambio, un `<<:` u otra clave se conserva
-///   tal cual: es un valor más, se copia sin tocarlo, y negarse por él sería inventarse un problema.
-/// - **El `}` que cierra el mapa es el primero que hay tras el `{`, y no cuenta el que esté dentro de
-///   comillas**, ni el de un comentario de cola —y este proyecto comenta con ejemplos de mapas en
-///   línea—: con la última llave de la línea, el comentario desaparecería, y como el resultado seguiría
-///   validando se escribiría en disco sin que nadie se enterase. Con la primera de fuera de comillas,
-///   el comentario y los valores con llaves quedan donde estaban.
-/// - **Tras el `}` de cierre, o nada, o espacios y un comentario.** Es lo que cierra la puerta a
-///   cualquier resto que no se entienda.
+/// - **Between `backend:` and its `{` there can be nothing but spaces.** An anchor (`kev: &base { … }`)
+///   lives right there, and rebuilding the line would lose it: its aliases (`laya: *base`) would be left
+///   pointing at an anchor that no longer exists. In front of the map, a merge key (`kev: <<: { … }`)
+///   is refused for the same reason. **Inside** the map, however, a `<<:` or another key is kept
+///   as is: it is just another value, copied without touching it, and refusing because of it would be inventing a problem.
+/// - **The `}` that closes the map is the first one after the `{`, and one inside
+///   quotes does not count**, nor does one in a trailing comment (and this project comments with inline-map
+///   examples): with the last brace of the line, the comment would disappear, and since the result would still
+///   validate it would be written to disk without anyone noticing. With the first one outside quotes,
+///   the comment and the values containing braces stay where they were.
+/// - **After the closing `}`, either nothing, or spaces and a comment.** That is what shuts the door on
+///   any remainder that is not understood.
 fn reescribir(linea: &str, cambio: &Cambio) -> Result<Option<String>, String> {
     let recortada = linea.trim_start();
     let Some(resto) = recortada.strip_prefix(&format!("{}:", cambio.backend)) else {
         return Ok(None);
     };
-    // Ha de ser una entrada con su mapa en línea; si no hay llaves, no hay mapa que reescribir: puede
-    // ser un mapa en bloque, un alias (`laya: *base`) o algo que no se reconoce. Se niega sin decir
-    // cuál —el texto no basta para distinguirlos sin un parser de YAML— y se enseña lo que hay.
+    // It must be an entry with its inline map; if there are no braces, there is no map to rewrite: it could
+    // be a block map, an alias (`laya: *base`) or something unrecognised. It is refused without saying
+    // which (the text is not enough to tell them apart without a YAML parser) and what is there is shown.
     let (Some(abre), Some(cierra)) = llaves_del_mapa(resto) else {
         return Err(format!(
             "la entrada del backend «{}» no declara su mapa en línea (¿un bloque, un alias?): «{}» no se parchea, para no perder lo que hubiera",
@@ -178,9 +178,9 @@ fn reescribir(linea: &str, cambio: &Cambio) -> Result<Option<String>, String> {
     };
     let delante = resto[..abre].trim();
     if !delante.is_empty() {
-        // Lo que va delante del mapa es un ancla (`&base`) o una clave de fusión (`<<`); en los dos
-        // casos, reconstruir la línea lo borraría: el ancla dejaría huérfanos a sus alias, y la fusión
-        // perdería lo que aporta. Se nombra el caso para que el mensaje sirva de algo.
+        // What precedes the map is an anchor (`&base`) or a merge key (`<<`); in both
+        // cases, rebuilding the line would erase it: the anchor would orphan its aliases, and the merge
+        // would lose what it contributes. The case is named so the message is of some use.
         let caso = if delante.starts_with('&') { "un ancla" } else { "una clave de fusión" };
         return Err(format!(
             "la entrada del backend «{}» lleva {caso} («{delante}») delante de su mapa: no se parchea para no dejarlo huérfano",
@@ -188,7 +188,7 @@ fn reescribir(linea: &str, cambio: &Cambio) -> Result<Option<String>, String> {
         ));
     }
     let cola = &resto[cierra + 1..];
-    // La cola ha de ser nada, o espacios y un comentario. Si no, es algo que no se entiende.
+    // The tail must be nothing, or spaces and a comment. Otherwise it is something that is not understood.
     let cola_limpia = cola.trim_start();
     if !(cola_limpia.is_empty() || cola_limpia.starts_with('#')) {
         return Err(format!(
@@ -197,9 +197,9 @@ fn reescribir(linea: &str, cambio: &Cambio) -> Result<Option<String>, String> {
         ));
     }
     let dentro = &resto[abre + 1..cierra];
-    // Si dentro del mapa hay un `{` fuera de comillas, lo que se ha tomado por cierre no lo es: sería
-    // una entrada anidada, que este parcheo por líneas no sabe reescribir. Se niega en vez de escribir
-    // una línea a medias.
+    // If inside the map there is a `{` outside quotes, what was taken for the closing one is not: it would be
+    // a nested entry, which this line-by-line patching does not know how to rewrite. It is refused instead of writing
+    // a half-done line.
     if dentro.contains('{') {
         return Err(format!(
             "el mapa del backend «{}» lleva otro mapa dentro: no se parchea, que este borrador solo reconoce valores sueltos",
@@ -222,21 +222,21 @@ fn reescribir(linea: &str, cambio: &Cambio) -> Result<Option<String>, String> {
         return Err(format!("el backend «{}» no declara la clave «{}»", cambio.backend, cambio.clave));
     }
     let sangria = &linea[..linea.len() - recortada.len()];
-    // El comentario que hubiera tras la llave se conserva tal cual.
+    // Any comment after the brace is kept as is.
     Ok(Some(format!("{sangria}{}: {{ {} }}{cola}", cambio.backend, partes.join(", "))))
 }
 
-/// Las llaves del mapa en línea de `resto`: la **primera** `{` y la **primera** `}` que la cierra.
+/// The braces of the inline map in `resto`: the **first** `{` and the **first** `}` that closes it.
 ///
-/// La de cierre no puede ser la última de la línea: una llave dentro del comentario de cola —y este
-/// proyecto comenta con ejemplos de mapas en línea— haría que «la última» se llevara el comentario por
-/// delante. Con la primera que cierra el mapa, el comentario queda donde estaba.
+/// The closing one cannot be the last on the line: a brace inside the trailing comment (and this
+/// project comments with inline-map examples) would make "the last one" take the comment with it.
+/// With the first one that closes the map, the comment stays where it was.
 ///
-/// No cuentan ni la llave que esté **dentro de unas comillas** —`{ url: '…/a}b' }` es un valor con una
-/// llave, no el final del mapa— ni nada de lo que haya **tras un `#`**, que ya es comentario: un
-/// comentario que diga «cierra con }» no cierra nada, y si la única llave estuviera ahí el mapa se
-/// queda sin cierre y `parchear` se niega, que es lo correcto. Se sigue el entrecomillado a mano, que
-/// es lo que basta para un mapa en una línea.
+/// Neither the brace **inside quotes** counts (`{ url: '…/a}b' }` is a value with a
+/// brace, not the end of the map) nor anything **after a `#`**, which is already a comment: a
+/// comment saying "closes with }" closes nothing, and if the only brace were there the map is
+/// left unclosed and `parchear` refuses, which is correct. The quoting is followed by hand, which
+/// is enough for a map on one line.
 fn llaves_del_mapa(resto: &str) -> (Option<usize>, Option<usize>) {
     let Some(abre) = resto.find('{') else {
         return (None, None);
@@ -264,7 +264,7 @@ fn llaves_del_mapa(resto: &str) -> (Option<usize>, Option<usize>) {
 mod tests {
     use super::*;
 
-    /// Un trozo de `config/lab/config.local.yaml`, con sus comentarios y sus mapas en línea.
+    /// A piece of `config/lab/config.local.yaml`, with its comments and its inline maps.
     const CONFIG: &str = r#"# Configuración local de jevalan: Kev y Laya.
 server:
   addr: 127.0.0.1:8080
@@ -281,10 +281,10 @@ flows_dir: ./config/flows
         None
     }
 
-    /// Un backend llamado como la clave de fuera del bloque, para comprobar dos cosas de una vez: que
-    /// el parcheo **solo** mira dentro del bloque `backends:` —si mirara en todo el fichero, tocaría el
-    /// `server:` de arriba, que es lo que el rango impide— y que una línea de fuera que empiece por el
-    /// nombre de un backend no se confunde con su entrada.
+    /// A backend named like the key outside the block, to check two things at once: that
+    /// the patching looks **only** inside the `backends:` block (if it looked in the whole file, it would touch the
+    /// `server:` above, which is what the range prevents) and that a line outside that starts with the
+    /// name of a backend is not mistaken for its entry.
     fn con_senuelo() -> String {
         let mut lineas: Vec<String> = CONFIG.lines().map(str::to_string).collect();
         lineas.insert(1, "server: ./no-soy-un-backend".to_string());
@@ -293,57 +293,57 @@ flows_dir: ./config/flows
         lineas.join("\n") + "\n"
     }
 
-    /// Una validación y **su** directorio, que se lee de [`ULTIMO_TEMPORAL`] —el de esta hebra— y no del
-    /// contador del proceso. Ese contador no distingue «mi directorio» de «el de otra prueba que corre a
-    /// la vez»: con él, una prueba lee restos que no son suyos y falla por una razón que no es la suya.
+    /// A validation and **its** directory, read from [`ULTIMO_TEMPORAL`] (this thread's) and not from the
+    /// process counter. That counter cannot tell "my directory" from "that of another test running at
+    /// the same time": with it, a test reads leftovers that are not its own and fails for a reason that is not its own.
     fn validar_y_su_dir(texto: &str) -> (Result<Config, String>, PathBuf) {
         let resultado = validar(texto, &env_de);
         (resultado, ultimo_temporal())
     }
 
-    /// El directorio que acaba de usar esta hebra.
+    /// The directory this thread has just used.
     fn ultimo_temporal() -> PathBuf {
         ULTIMO_TEMPORAL.with(|pila| pila.borrow_mut().pop()).expect("validar ha de dejar su temporal anotado")
     }
 
-    /// Que `ruta` ya no está en el disco.
+    /// That `ruta` is no longer on disk.
     fn ha_desaparecido(ruta: &std::path::Path) {
         assert!(!ruta.exists(), "el temporal de la validación ha de desaparecer: {}", ruta.display());
     }
 
-    /// `validar` escribe en su temporal y **lo retira**: el directorio de cada llamada desaparece antes
-    /// de que la llamada vuelva —en el primer viaje, en el segundo, y también cuando la config es mala y
-    /// se sale por el camino de error—. Un `?` que dejara el temporal atrás se vería aquí.
+    /// `validar` writes to its temporary and **removes it**: each call's directory disappears before
+    /// the call returns (on the first trip, on the second, and also when the config is bad and
+    /// it exits through the error path). A `?` that left the temporary behind would be seen here.
     #[test]
     fn validar_no_deja_restos_en_el_temporal() {
         let (resultado, dir) = validar_y_su_dir(CONFIG);
         assert!(resultado.is_ok(), "esta config es buena");
         ha_desaparecido(&dir);
-        // Un segundo viaje, para que no sea la primera llamada la que limpia por casualidad.
+        // A second trip, so it is not the first call that cleans up by chance.
         let (resultado, dir) = validar_y_su_dir(CONFIG);
         assert!(resultado.is_ok());
         ha_desaparecido(&dir);
-        // Y una config que el daemon rechaza: el temporal se va igual.
+        // And a config the daemon rejects: the temporary goes away just the same.
         let (resultado, dir) = validar_y_su_dir("no es: [una config");
         assert!(resultado.is_err(), "este YAML no ha de validar");
         ha_desaparecido(&dir);
     }
 
-    /// La guarda hace **las dos mitades de su contrato**, y se comprueban por separado a propósito:
-    /// anotar el directorio —sin lo que las demás pruebas no podrían afirmar sobre «el suyo»— y
-    /// retirarlo, que es lo que deja el `%TEMP%` limpio aunque la validación se salga por un `?`.
+    /// The guard does **both halves of its contract**, and they are checked separately on purpose:
+    /// noting the directory (without which the other tests could not assert about "their own") and
+    /// removing it, which is what leaves `%TEMP%` clean even if validation exits through a `?`.
     ///
-    /// El «mientras vive» se mira **desde dentro de la validación**: el `env` solo se llama en el
-    /// `load`, cuando el directorio y su `config.yaml` ya están escritos y la guarda aún no ha caído.
-    /// Retirar el directorio **al construirla** —el mutante que no guarda el suyo— hace que este
-    /// «existe» falle, que es justo lo que hay que cazar: un `Drop` que no borra no se ve de otra forma,
-    /// porque la validación siguiente reutiliza el nombre y limpia el rastro de la anterior.
+    /// The "while it lives" is checked **from inside the validation**: `env` is only called in
+    /// `load`, when the directory and its `config.yaml` are already written and the guard has not yet dropped.
+    /// Removing the directory **on construction** (the mutant that does not keep its own) makes this
+    /// "exists" fail, which is exactly what must be caught: a `Drop` that does not delete cannot be seen any other way,
+    /// because the next validation reuses the name and cleans up the previous one's trace.
     #[test]
     fn la_guarda_del_temporal_anota_el_suyo_y_lo_retira() {
         let existe_config = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let testigo = std::sync::Arc::clone(&existe_config);
         let mirando = move |_: &str| {
-            // La pila se lee **ahora**, no al construir el cierre: entonces todavía no había nada.
+            // The stack is read **now**, not when the closure is built: back then there was nothing yet.
             let vivo = ULTIMO_TEMPORAL.with(|pila| {
                 pila.borrow().last().is_some_and(|ruta| ruta.exists() && ruta.join("config.yaml").exists())
             });
@@ -359,13 +359,13 @@ flows_dir: ./config/flows
         ha_desaparecido(&ultimo_temporal());
     }
 
-    /// Dos validaciones **a la vez**, cada una con su directorio, y ninguna deja el suyo ni le estorba
-    /// a la otra: las dos han de leer su config entera y decir que sí. Se comprueba con una config
-    /// buena, que es la que obliga a leer el fichero de verdad.
+    /// Two validations **at the same time**, each with its directory, and neither leaves its own nor gets in
+    /// the other's way: both must read their whole config and say yes. It is checked with a good
+    /// config, which is the one that forces actually reading the file.
     ///
-    /// La barrera es lo que las hace coincidir —sin ella, una podría terminar antes de que la otra
-    /// empezara y la prueba no mediría ninguna carrera—, y cada hilo devuelve **el suyo**, así que la
-    /// afirmación no depende de lo que estén haciendo las demás pruebas del crate.
+    /// The barrier is what makes them coincide (without it, one could finish before the other
+    /// started and the test would measure no race), and each thread returns **its own**, so the
+    /// assertion does not depend on what the crate's other tests are doing.
     #[test]
     fn validar_a_la_vez_no_se_pisan_ni_dejan_restos() {
         let barrera = std::sync::Arc::new(std::sync::Barrier::new(3));
@@ -390,11 +390,11 @@ flows_dir: ./config/flows
     #[test]
     fn validar_usa_las_reglas_del_daemon_y_no_una_copia() {
         assert!(validar(CONFIG, &env_de).is_ok(), "esta config es buena");
-        // Un campo que el daemon no conoce: `deny_unknown_fields` ha de rechazarlo.
+        // A field the daemon does not know: `deny_unknown_fields` must reject it.
         let sobra = CONFIG.replace("default_backend: kev", "default_backend: kev\ninventado: 1");
         let error = validar(&sobra, &env_de).unwrap_err();
         assert!(error.contains("inventado"), "el mensaje ha de nombrar el campo: {error}");
-        // Un default_backend que no está entre los backends.
+        // A default_backend that is not among the backends.
         let mal_default = CONFIG.replace("default_backend: kev", "default_backend: nadie");
         assert!(validar(&mal_default, &env_de).unwrap_err().contains("nadie"));
     }
@@ -407,7 +407,7 @@ flows_dir: ./config/flows
         assert!(nuevo.contains("# el clasificador de casa"), "el comentario de la línea sobrevive: {nuevo}");
         assert!(nuevo.contains("# un comentario suelto que ha de sobrevivir"), "y el suelto también: {nuevo}");
         assert!(nuevo.contains("laya: { url: 'http://127.0.0.1:8021', timeout_ms: 120000 }"), "y laya no se toca");
-        // Y lo parcheado ha de seguir validando.
+        // And what was patched must still validate.
         assert!(validar(&nuevo, &env_de).is_ok());
     }
 
@@ -420,7 +420,7 @@ flows_dir: ./config/flows
 
     #[test]
     fn parchear_se_niega_antes_que_perder_comentarios() {
-        // Un backend en bloque, no en línea: no se reconoce, y se ha de negar en vez de reescribirlo.
+        // A block backend, not an inline one: it is not recognised, and must be refused instead of rewritten.
         let en_bloque = r#"backends:
   kev:
     url: 'http://127.0.0.1:8009'   # en bloque, no en línea
@@ -430,36 +430,36 @@ default_backend: kev
         let cambios = [Cambio { backend: "kev".into(), clave: "timeout_ms".into(), valor: "60000".into() }];
         let error = parchear(en_bloque, &cambios).unwrap_err();
         assert!(error.contains("kev"), "ha de decir qué entrada no reconoce: {error}");
-        // Y ha de ser **este** motivo, y no el genérico de «no se reconoce la entrada» de más abajo: el
-        // plan admitía también «reconoce», pero esa palabra está en el otro mensaje, así que un
-        // `parchear` que se saltara la entrada en bloque y siguiera buscaría pasaría por bueno.
+        // And it must be **this** reason, and not the generic "entry not recognised" one further below: the
+        // plan also admitted "recognise", but that word is in the other message, so a
+        // `parchear` that skipped the block entry and kept searching would pass as good.
         assert!(error.contains("bloque"), "ha de decir que está en bloque: {error}");
         assert!(!error.contains("no se reconoce la entrada"), "y no el mensaje de «no la encuentro»: {error}");
     }
 
-    /// Un **ancla en línea** no se toca: entre `backend:` y su `{` no puede haber nada más que
-    /// espacios, y `&base` vive justo ahí. Al reconstruir la línea el ancla desaparecería, y sus alias
-    /// (`laya: *base`) quedarían apuntando a un ancla que ya no existe —un fichero roto, y encima sin
-    /// que nadie se entere—. Se ha de **negar** (spec §5.4), que es lo que el doc-comment promete.
+    /// An **inline anchor** is not touched: between `backend:` and its `{` there can be nothing but
+    /// spaces, and `&base` lives right there. Rebuilding the line would make the anchor disappear, and its aliases
+    /// (`laya: *base`) would be left pointing at an anchor that no longer exists (a broken file, and with
+    /// no one the wiser). It must be **refused** (spec §5.4), which is what the doc-comment promises.
     #[test]
     fn parchear_se_niega_con_una_entrada_con_ancla_en_linea() {
         let con_ancla = "backends:\n  kev: &base { url: 'http://127.0.0.1:8009', timeout_ms: 120000 }\n  laya: *base\n";
         let cambios = [Cambio { backend: "kev".into(), clave: "timeout_ms".into(), valor: "60000".into() }];
         let error = parchear(con_ancla, &cambios).unwrap_err();
         assert!(error.contains("kev") && error.contains("ancla"), "ha de nombrar el caso: {error}");
-        // Y no hay texto de vuelta: el `*base` sigue teniendo su ancla en el original, que es lo que
-        // se salvaría si el parcheo hubiera pasado de largo.
+        // And there is no text returned: the `*base` still has its anchor in the original, which is what
+        // would be saved if the patching had gone past.
         assert!(con_ancla.contains("&base"), "el original no se toca");
     }
 
-    /// Un `}` dentro del **comentario de cola** no puede llevarse el comentario por delante. El cierre
-    /// del mapa es el primero que hay tras el `{`, no el último de la línea: con el último, el
-    /// comentario desaparece y —lo que es peor— el resultado **sigue validando**, así que se escribiría
-    /// en disco sin que nadie lo note. No es un caso raro: este proyecto comenta con mapas en línea.
+    /// A `}` inside the **trailing comment** must not take the comment with it. The map's
+    /// closing is the first one after the `{`, not the last on the line: with the last, the
+    /// comment disappears and, what is worse, the result **still validates**, so it would be written
+    /// to disk without anyone noticing. It is not a rare case: this project comments with inline maps.
     ///
-    /// Se parchea **la línea que lleva el comentario con la llave** (la de `laya`): es la única donde
-    /// las dos formas de buscar el cierre se distinguen. Con el cierre mal elegido y un backend una
-    /// línea más abajo no se vería, y una prueba así sería vacua.
+    /// **The line carrying the comment with the brace** (`laya`'s) is patched: it is the only one where
+    /// the two ways of finding the closing differ. With the closing chosen wrongly and a backend one
+    /// line further down it would not show, and a test like that would be vacuous.
     #[test]
     fn parchear_conserva_el_comentario_aunque_lleve_una_llave() {
         let con_llave = CONFIG.replace(
@@ -478,8 +478,8 @@ default_backend: kev
         assert!(validar(&nuevo, &env_de).is_ok(), "y el resultado ha de validar: {nuevo}");
     }
 
-    /// Tras el `}` de cierre, o nada, o espacios y un comentario. Cualquier otro resto se rechaza en vez
-    /// de arrastrarlo: es la puerta que cierra el `<<:` de fusión y todo lo que no se entienda.
+    /// After the closing `}`, either nothing, or spaces and a comment. Any other remainder is rejected instead
+    /// of being dragged along: it is the door shut by the merge `<<:` and everything that is not understood.
     #[test]
     fn parchear_se_niega_con_un_resto_que_no_entiende_tras_el_mapa() {
         let con_resto = CONFIG.replace(
@@ -489,14 +489,14 @@ default_backend: kev
         let cambios = [Cambio { backend: "kev".into(), clave: "timeout_ms".into(), valor: "60000".into() }];
         let error = parchear(&con_resto, &cambios).unwrap_err();
         assert!(error.contains("kev"), "{error}");
-        // Y no se ha perdido nada: el original sigue con su fusión.
+        // And nothing was lost: the original still has its merge.
         assert!(con_resto.contains("<<: *comun"), "el original no se toca");
     }
 
-    /// La url es un cambio más, y **el backend que se pide es el que se toca**: se prueba con los dos
-    /// que hay en la config, porque el `backend` del `Cambio` es un parámetro y una sola llamada lo
-    /// dejaría sin ejercitar. Con solo `laya`, un `parchear` que ignorase el nombre y escribiera
-    /// siempre en la primera línea de `kev:` pasaría la prueba sin que nadie se enterara.
+    /// The url is one more change, and **the backend asked for is the one touched**: it is tested with the two
+    /// in the config, because the `Cambio`'s `backend` is a parameter and a single call would
+    /// leave it unexercised. With `laya` alone, a `parchear` that ignored the name and always wrote
+    /// on `kev:`'s first line would pass the test without anyone noticing.
     #[test]
     fn parchear_la_url_es_un_cambio_mas() {
         for (backend, url_vieja, url_nueva) in [("laya", "8021", "9000"), ("kev", "8009", "9100")] {
@@ -513,28 +513,28 @@ default_backend: kev
                 "la url vieja de «{backend}» ha de haber desaparecido: {nuevo}"
             );
         }
-        // Y el espacio de más que separa `kev:` de su mapa sigue siendo suyo, porque `kev` no se tocó.
+        // And the extra space separating `kev:` from its map is still its own, because `kev` was not touched.
         let cambios = [Cambio { backend: "laya".into(), clave: "url".into(), valor: "http://127.0.0.1:9000".into() }];
         let nuevo = parchear(CONFIG, &cambios).unwrap();
         assert!(nuevo.contains("kev:  { url: 'http://127.0.0.1:8009'"), "kev sigue igual: {nuevo}");
         assert_eq!(nuevo.matches("8009").count(), 1, "la url de kev aparece una sola vez: {nuevo}");
     }
 
-    // --- Pruebas añadidas: lo que el plan pide por escrito pero no afirma con un test. ---
+    // --- Added tests: what the plan asks for in writing but does not assert with a test. ---
 
-    /// El `env` de la validación **llega al daemon**: una variable que el daemon mira ha de cambiar el
-    /// veredicto. Sin esto, un `validar` que ignorara `env` pasaría los tres casos del plan, porque
-    /// los tres se deciden sin entorno.
+    /// The validation's `env` **reaches the daemon**: a variable the daemon looks at must change the
+    /// verdict. Without this, a `validar` that ignored `env` would pass the plan's three cases, because
+    /// all three are decided without an environment.
     #[test]
     fn validar_pasa_el_entorno_al_daemon() {
         let con_env = |clave: &str| (clave == "JEVALAN_ADDR").then(|| "no-es-una-dirección".to_string());
         let error = validar(CONFIG, &con_env).unwrap_err();
         assert!(error.contains("JEVALAN_ADDR") || error.contains("dirección inválida"), "{error}");
-        // Y con el entorno de siempre, la misma config sí vale: el rechazo es del entorno, no del texto.
+        // And with the usual environment, the same config is valid: the rejection is the environment's, not the text's.
         assert!(validar_y_su_dir(CONFIG).0.is_ok());
     }
 
-    /// Dos cambios sobre el mismo backend salen juntos, y ninguno pisa al otro.
+    /// Two changes to the same backend come out together, and neither tramples the other.
     #[test]
     fn parchear_dos_cambios_del_mismo_backend_a_la_vez() {
         let cambios = [
@@ -550,8 +550,8 @@ default_backend: kev
         assert!(validar(&nuevo, &env_de).is_ok());
     }
 
-    /// Una clave que el backend no declara se rechaza **nombrando la clave**: callar y devolver el
-    /// texto sin tocar haría creer a la pantalla que el cambio se escribió.
+    /// A key the backend does not declare is rejected **naming the key**: staying quiet and returning the
+    /// text untouched would make the screen believe the change was written.
     #[test]
     fn parchear_se_niega_con_una_clave_que_el_backend_no_declara() {
         let cambios = [Cambio { backend: "kev".into(), clave: "path".into(), valor: "/v1".into() }];
@@ -559,32 +559,32 @@ default_backend: kev
         assert!(error.contains("kev") && error.contains("path"), "{error}");
     }
 
-    /// El parcheo mira **solo dentro del bloque `backends:`**, y esa es toda la gracia del rango: aquí
-    /// hay un backend llamado `server` y, fuera del bloque, una línea `server:` (y otra
-    /// `default_backend:`) que empiezan igual. Si el rango se ignorara y se buscara en todo el fichero,
-    /// el cambio iría a parar a la línea de fuera —que no es del backend— y la de dentro se quedaría
-    /// sin tocar; con el rango, se toca la de dentro y las de fuera quedan intactas.
+    /// The patching looks **only inside the `backends:` block**, and that is the whole point of the range: here
+    /// there is a backend called `server` and, outside the block, a `server:` line (and another
+    /// `default_backend:`) that start the same. If the range were ignored and the whole file searched,
+    /// the change would end up on the outside line (which is not the backend's) and the one inside would be left
+    /// untouched; with the range, the inside one is touched and the outside ones stay intact.
     ///
-    /// El texto **no** lo valida el daemon (mezcla a propósito un `default_backend` que no existe): lo
-    /// que se fija es el parcheo del texto, que no ha de necesitar una config válida para no tocar lo
-    /// que no entiende.
+    /// The text is **not** validated by the daemon (it deliberately mixes in a `default_backend` that does not exist): what
+    /// is fixed is the text patching, which must not need a valid config in order not to touch what
+    /// it does not understand.
     #[test]
     fn parchear_solo_mira_dentro_del_bloque_y_no_en_todo_el_fichero() {
         let compuesto = con_senuelo();
         assert!(compuesto.starts_with("# Configuración"), "los señuelos han de quedar fuera: {compuesto}");
         let cambios = [Cambio { backend: "server".into(), clave: "timeout_ms".into(), valor: "7".into() }];
         let nuevo = parchear(&compuesto, &cambios).unwrap();
-        // La de dentro del bloque, cambiada.
+        // The one inside the block, changed.
         assert!(nuevo.contains("  server: { puerto: 1, timeout_ms: 7 }"), "el del bloque ha de cambiar: {nuevo}");
-        // Y las de fuera, intactas.
+        // And those outside, intact.
         assert!(nuevo.contains("server: ./no-soy-un-backend"), "el `server:` de fuera no se toca: {nuevo}");
         assert!(nuevo.contains("default_backend: nadie"), "ni el default_backend: {nuevo}");
         assert_eq!(nuevo.matches("timeout_ms: 2").count(), 0, "el viejo ya no está: {nuevo}");
     }
 
-    /// El borrador **no convierte** los finales de línea del fichero: un `config.yaml` en CRLF —que es
-    /// lo que hay en Windows— ha de seguir en CRLF, o cada guardado dejaría el fichero entero como
-    /// cambiado para el control de versiones.
+    /// The draft **does not convert** the file's line endings: a CRLF `config.yaml` (which is
+    /// what there is on Windows) must stay CRLF, or each save would leave the whole file looking
+    /// changed to version control.
     #[test]
     fn parchear_conserva_los_finales_de_linea_crlf() {
         let crlf = CONFIG.replace('\n', "\r\n");
@@ -596,8 +596,8 @@ default_backend: kev
         assert!(nuevo.ends_with("\r\n"), "y ha de acabar donde acababa: {nuevo:?}");
     }
 
-    /// Y un fichero que **no** acaba en salto de línea no lo gana: el borrador no añade nada que el
-    /// original no tuviera.
+    /// And a file that does **not** end in a newline does not gain one: the draft adds nothing the
+    /// original did not have.
     #[test]
     fn parchear_no_anade_un_salto_de_linea_final_que_no_estaba() {
         let sin_final = CONFIG.trim_end_matches('\n');
@@ -607,13 +607,13 @@ default_backend: kev
         assert!(nuevo.contains("timeout_ms: 60000"), "{nuevo}");
     }
 
-    /// El bloque `backends:` se reconoce por **su línea**, no por parecerse a ella: una línea que solo
-    /// empiece por `backends` —aquí `backends_dir`, y bien podría ser un comentario— no puede tomarse
-    /// por el bloque, o el rango quedaría vacío y el backend pedido se leería como si no existiera.
+    /// The `backends:` block is recognised by **its line**, not by resembling it: a line that merely
+    /// starts with `backends` (here `backends_dir`, and it could well be a comment) cannot be taken
+    /// for the block, or the range would be empty and the requested backend would be read as if it did not exist.
     ///
-    /// El texto de esta prueba **no** lo valida el daemon (le sobra un campo): lo que se fija aquí es el
-    /// parcheo del texto, que no ha de necesitar que la config sea válida para no tocar lo que no
-    /// entiende.
+    /// This test's text is **not** validated by the daemon (it has an extra field): what is fixed here is the
+    /// text patching, which must not need the config to be valid in order not to touch what it does not
+    /// understand.
     #[test]
     fn parchear_no_confunde_una_linea_que_empieza_por_backends_con_el_bloque() {
         let con_dir = CONFIG.replace("server:", "backends_dir: ./backends\nserver:");
@@ -623,13 +623,13 @@ default_backend: kev
         assert!(nuevo.contains("backends_dir: ./backends"), "y el señuelo ha de quedar intacto: {nuevo}");
     }
 
-    /// Ruta del `config/lab/config.local.yaml` de verdad, o `None` si no está.
+    /// Path of the real `config/lab/config.local.yaml`, or `None` if it is not there.
     ///
-    /// Se resuelve desde `CARGO_MANIFEST_DIR` y **se lee en tiempo de ejecución**, no con `include_str!`:
-    /// ese fichero está en `.gitignore` y **no viaja con el repositorio**, así que un `include_str!`
-    /// haría que un clon limpio **no compilara** —ni las pruebas ni `clippy --all-targets`—. Aquí, si
-    /// falta, la prueba lo dice y se salta: en una máquina con el fichero muerde el artefacto real, y en
-    /// un clon limpio las demás puertas siguen en pie.
+    /// It is resolved from `CARGO_MANIFEST_DIR` and **read at run time**, not with `include_str!`:
+    /// that file is in `.gitignore` and **does not travel with the repository**, so an `include_str!`
+    /// would make a clean clone **fail to compile** (neither the tests nor `clippy --all-targets`). Here, if
+    /// it is missing, the test says so and is skipped: on a machine with the file the real artefact bites, and in
+    /// a clean clone the other gates stay standing.
     fn config_local_de_verdad() -> Option<String> {
         let ruta = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../config/lab/config.local.yaml");
         match std::fs::read_to_string(&ruta) {
@@ -644,19 +644,19 @@ default_backend: kev
         }
     }
 
-    /// **El caso real**: `config/lab/config.local.yaml`, que es el fichero que la pantalla abre de verdad.
-    /// Se lee el artefacto y no una copia —si alguien lo cambia a mapas en bloque, o le quita los
-    /// comentarios, esto lo dice—, se parchea, se comprueban los comentarios y **se valida con el
-    /// daemon**, que es el viaje entero. Si el fichero no está (clon limpio: está ignorado por git), la
-    /// prueba se salta diciéndolo, en vez de impedir que el crate compile.
+    /// **The real case**: `config/lab/config.local.yaml`, which is the file the screen actually opens.
+    /// The artefact is read and not a copy (if someone changes it to block maps, or strips its
+    /// comments, this says so), patched, the comments are checked and **it is validated with the
+    /// daemon**, which is the whole trip. If the file is not there (clean clone: it is ignored by git), the
+    /// test is skipped saying so, instead of preventing the crate from compiling.
     #[test]
     fn parchear_el_config_local_de_verdad_conserva_sus_comentarios_y_valida() {
         let Some(real) = config_local_de_verdad() else { return };
         assert!(real.contains("# Fully local daemon"), "el fichero real ha de traer sus comentarios");
         let cambios = [Cambio { backend: "kev".into(), clave: "timeout_ms".into(), valor: "9000".into() }];
         let nuevo = parchear(&real, &cambios).expect("el config.local.yaml de verdad ha de poder parchearse");
-        // Ojo al espacio: el fichero trae `kev:  ` con dos, y la línea parcheada sale con uno, porque se
-        // reconstruye. Es de la línea que se toca; las que no se tocan conservan el suyo (laya, abajo).
+        // Mind the space: the file has `kev:  ` with two, and the patched line comes out with one, because it is
+        // rebuilt. That is for the line that is touched; those not touched keep theirs (laya, below).
         assert!(nuevo.contains("kev: { url: \"http://127.0.0.1:8009\", timeout_ms: 9000 }"), "{nuevo}");
         assert!(nuevo.contains("# Fully local daemon"), "el comentario de cabecera sobrevive: {nuevo}");
         assert!(nuevo.contains("# Needs Kev on :8009"), "y el segundo también: {nuevo}");
@@ -664,8 +664,8 @@ default_backend: kev
         assert!(validar(&nuevo, &env_de).is_ok(), "y el resultado ha de validar con el daemon: {nuevo}");
     }
 
-    /// La validación es **la del daemon**: una `url` que no sea http(s) la rechaza él, y aquí se
-    /// comprueba que `validar` lo dice, en vez de darla por buena porque el YAML esté bien formado.
+    /// Validation is **the daemon's**: a `url` that is not http(s) is rejected by it, and here it is
+    /// checked that `validar` says so, instead of accepting it because the YAML is well formed.
     #[test]
     fn validar_rechaza_una_url_que_no_es_http() {
         let mala = CONFIG.replace("'http://127.0.0.1:8009'", "no-es-http");
@@ -674,17 +674,17 @@ default_backend: kev
         assert!(validar(CONFIG, &env_de).is_ok(), "y la buena sigue valiendo");
     }
 
-    /// Un fichero con los finales **mezclados** sale unificado al estilo que ya predominaba: no queda
-    /// con dos estilos a la vez, que es lo que hace que el control de versiones lo enseñe entero como
-    /// cambiado. Es la decisión que declara el doc-comment de `parchear`, y aquí queda fijada.
+    /// A file with **mixed** endings comes out unified to the style that already predominated: it does not
+    /// end up with two styles at once, which is what makes version control show it as entirely
+    /// changed. It is the decision `parchear`'s doc-comment declares, and here it is pinned down.
     ///
-    /// Se mira **cada `\r`, uno a uno**: «hay algún CRLF» no basta, porque un `\r` suelto —el que deja
-    /// una línea CRLF entre líneas LF— pasaría ese filtro y el fichero seguiría mezclado. Esa es la
-    /// aserción que muerde: sin ella, la prueba daba verde con un `\r` suelto dentro.
+    /// **Each `\r` is checked, one by one**: "there is some CRLF" is not enough, because a stray `\r` (the one a
+    /// CRLF line leaves among LF lines) would pass that filter and the file would still be mixed. That is the
+    /// assertion that bites: without it, the test went green with a stray `\r` inside.
     #[test]
     fn parchear_normaliza_un_fichero_con_finales_mezclados() {
-        // Una sola línea CRLF entre líneas LF: el estilo elegido es CRLF, y no ha de quedar ni un LF
-        // ni un CR sueltos.
+        // A single CRLF line among LF lines: the chosen style is CRLF, and not a single stray LF
+        // or CR must remain.
         let mezclado = CONFIG.replacen("server:\n", "server:\r\n", 1);
         let cambios = [Cambio { backend: "kev".into(), clave: "timeout_ms".into(), valor: "60000".into() }];
         let nuevo = parchear(&mezclado, &cambios).unwrap();
@@ -697,12 +697,12 @@ default_backend: kev
         assert!(nuevo.contains("\r\n"), "y el estilo elegido ha de ser el que ya tenía: {nuevo:?}");
     }
 
-    // --- Ronda de arreglo 2 ---
+    // --- Fix round 2 ---
 
-    /// Una `}` **dentro de un valor entrecomillado** no es el final del mapa. Tomarla por el cierre hace
-    /// que el resto del valor se lea como «algo que no se entiende» y que una entrada perfectamente en
-    /// línea se rechace: una negativa falsa, que impide guardar algo bueno. Se prueba el valor, y una
-    /// llave justo al final del valor, que es el borde.
+    /// A `}` **inside a quoted value** is not the end of the map. Taking it for the closing makes
+    /// the rest of the value read as "something not understood" and a perfectly inline entry
+    /// be rejected: a false refusal, which prevents saving something good. The value is tested, and a
+    /// brace right at the end of the value, which is the edge.
     #[test]
     fn parchear_acepta_una_llave_dentro_de_un_valor_entrecomillado() {
         let con_llave_en_valor = CONFIG.replace("'http://127.0.0.1:8009'", "'http://127.0.0.1:8009/a}b'");
@@ -711,38 +711,38 @@ default_backend: kev
         assert!(nuevo.contains("timeout_ms: 60000"), "el cambio ha de hacerse: {nuevo}");
         assert!(nuevo.contains("'http://127.0.0.1:8009/a}b'"), "y el valor con su llave ha de quedar igual: {nuevo}");
         assert!(nuevo.contains("# el clasificador de casa"), "y el comentario sobrevivir: {nuevo}");
-        // La llave al final del valor: la primera `}` de fuera de comillas sigue siendo la del mapa.
+        // The brace at the end of the value: the first `}` outside quotes is still the map's.
         let al_final = CONFIG.replace("'http://127.0.0.1:8009'", "'http://127.0.0.1:8009/a}'");
         let nuevo = parchear(&al_final, &cambios).unwrap();
         assert!(nuevo.contains("timeout_ms: 60000"), "{nuevo}");
         assert!(nuevo.contains("'http://127.0.0.1:8009/a}'"), "{nuevo}");
     }
 
-    /// La ayuda que decide dónde acaba el mapa, con sus cuatro casos: una llave en un valor, una llave
-    /// en el comentario de cola (que no ha de contar como cierre), y las comillas de los dos estilos.
+    /// The helper that decides where the map ends, with its four cases: a brace in a value, a brace
+    /// in the trailing comment (which must not count as the closing), and the quotes of both styles.
     #[test]
     fn las_llaves_del_mapa_no_cuentan_las_que_van_dentro_de_comillas() {
-        // Sin llaves de más: el cierre es el de verdad, y la cola empieza donde debe.
+        // With no extra braces: the closing is the real one, and the tail starts where it should.
         let simple = "{ url: 'x', timeout_ms: 1 }   # fin";
         let (abre, cierra) = llaves_del_mapa(simple);
         assert_eq!((abre, cierra), (Some(0), Some(simple.find('}').unwrap())));
-        // Una llave en el valor entrecomillado: el cierre sigue siendo el de fuera.
+        // A brace in the quoted value: the closing is still the outside one.
         let en_valor = "{ url: 'a}b', timeout_ms: 1 }   # fin";
         let (_, cierra) = llaves_del_mapa(en_valor);
         let cierre_esperado = en_valor.rfind('}').unwrap();
         assert_eq!(cierra, Some(cierre_esperado), "el de fuera, no el de dentro de las comillas");
         assert!(en_valor[cierre_esperado + 1..].trim_start().starts_with('#'), "y la cola es el comentario");
-        // Comillas dobles, el otro estilo que aparece en el fichero real.
+        // Double quotes, the other style that appears in the real file.
         let dobles = "{ url: \"a}b\", timeout_ms: 1 }";
         assert_eq!(llaves_del_mapa(dobles).1, Some(dobles.rfind('}').unwrap()));
-        // Y el comentario no aporta cierre: si la llave estuviera solo en el comentario, el mapa se
-        // queda sin cerrar y esto ha de decirlo —así `parchear` se niega en vez de comerse el comentario,
-        // y no se lía con el apóstrofo del propio comentario—.
+        // And the comment contributes no closing: if the brace were only in the comment, the map is
+        // left unclosed and this must say so, so `parchear` refuses instead of swallowing the comment,
+        // and does not get tangled up with the comment's own apostrophe.
         assert_eq!(llaves_del_mapa("{ url: 'x'   # cierra con }").1, None);
     }
 
-    /// Un mapa **dentro** del mapa no se sabe reescribir: se niega, en vez de escribir una línea a
-    /// medias con lo que se creyera el cierre.
+    /// A map **inside** the map cannot be rewritten: it is refused, instead of writing a half-done
+    /// line with what was taken to be the closing.
     #[test]
     fn parchear_se_niega_con_un_mapa_anidado_dentro_del_mapa() {
         let anidado = CONFIG.replace("'http://127.0.0.1:8009'", "{ interno: 1 }");
@@ -752,8 +752,8 @@ default_backend: kev
         assert!(anidado.contains("{ interno: 1 }"), "y el original no se toca");
     }
 
-    /// Un **alias** (`laya: *base`) no declara un mapa en línea y no se parchea, pero el motivo ha de
-    /// nombrar lo que hay: decir «está en bloque» de un alias manda a mirar donde no es.
+    /// An **alias** (`laya: *base`) declares no inline map and is not patched, but the reason must
+    /// name what is there: saying "it is in block form" about an alias sends one to look in the wrong place.
     #[test]
     fn parchear_se_niega_con_un_alias_y_lo_dice() {
         let con_alias = CONFIG.replace("laya: { url: 'http://127.0.0.1:8021', timeout_ms: 120000 }", "laya: *base");
@@ -764,9 +764,9 @@ default_backend: kev
         assert!(error.contains("alias"), "nombrando el caso, no «en bloque»: {error}");
     }
 
-    /// Una **clave de fusión delante** del mapa sí se niega —reconstruir la línea la borraría—, mientras
-    /// que **dentro** del mapa se conserva tal cual, porque es un valor más. Las dos mitades, para que
-    /// el doc-comment no diga más de lo que el código hace.
+    /// A **merge key in front of** the map is refused (rebuilding the line would erase it), whereas
+    /// **inside** the map it is kept as is, because it is just another value. Both halves, so that
+    /// the doc-comment does not say more than the code does.
     #[test]
     fn parchear_distingue_una_fusion_delante_del_mapa_de_una_dentro() {
         let delante = CONFIG.replace(

@@ -1,7 +1,7 @@
-//! Sesión MCP de punta a punta: el binario `jevalan mcp` contra un daemon real y propio.
+//! End-to-end MCP session: the `jevalan mcp` binary against a real daemon of its own.
 //!
-//! No toca el `daemon.json` ni el `shadow.jsonl` del usuario: el daemon se arranca en proceso, sin
-//! escribir el fichero de descubrimiento, y el hijo recibe la dirección por `--addr`.
+//! It does not touch the user's `daemon.json` or `shadow.jsonl`: the daemon is started in-process, without
+//! writing the discovery file, and the child receives the address through `--addr`.
 
 use jevalan_daemon::config::{Backend, Config, Hub};
 use serde_json::{Value, json};

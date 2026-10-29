@@ -1,4 +1,4 @@
-//! Invocación de los tres tipos de proveedor bajo el plazo efectivo.
+//! Invocation of the three provider kinds under the effective deadline.
 
 use crate::AppState;
 use crate::bus::Tracer;
@@ -18,7 +18,7 @@ const MAX_HTTP_BODY: usize = 1024 * 1024;
 
 pub struct Invoked {
     pub status: Status,
-    /// Solo los proveedores `flow` dejan camino.
+    /// Only `flow` providers leave a path.
     pub path: Option<Vec<PathStep>>,
 }
 
@@ -104,7 +104,7 @@ fn finish(result: Result<Value, Status>, cap: &Capability) -> Status {
     }
 }
 
-/// `POST` del `input` a la URL configurada; solo viaja `Content-Type`. Devuelve el estado HTTP (0 si no hubo).
+/// `POST` of the `input` to the configured URL; only `Content-Type` travels. Returns the HTTP status (0 if there was none).
 async fn post(state: &AppState, url: &str, input: &Value) -> (u16, Result<Value, Status>) {
     let fail = |m: String| Status::error(ErrorCode::ProviderFailed, m);
     let mut resp = match state.hub_http.post(url).json(input).send().await {

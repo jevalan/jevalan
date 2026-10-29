@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
-/// Daemon con los dos flujos de ejemplo contra dos mocks fiables; `typesafe` lleva clave.
+/// Daemon with the two example flows against two reliable mocks; `typesafe` carries a key.
 async fn demo_daemon() -> (String, TempDir, Arc<AtomicBool>) {
     let dir = TempDir::with(&[("agent-guard.yaml", GUARD), ("model-route.yaml", ROUTE)]);
     let typesafe = spawn_mock(1, (0, 5), 0.0).await.unwrap().url;
@@ -88,7 +88,7 @@ async fn a_downed_backend_sends_the_flow_through_error() {
     assert!(ports.contains(&"error"), "{reply}");
 }
 
-/// Daemon de demo con el binario `fake-specialist` en lugar de `jevalan mock-specialist`.
+/// Demo daemon with the `fake-specialist` binary instead of `jevalan mock-specialist`.
 async fn demo_hub_daemon() -> String {
     let specialist = vec![env!("CARGO_BIN_EXE_fake-specialist").to_string()];
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -124,7 +124,7 @@ async fn demo_serves_both_capabilities() {
     }
 }
 
-/// Sin `from_user`, `agent.wakeup` pregunta al backend `openrouter` de la demo (su mock) y decide, no falla.
+/// Without `from_user`, `agent.wakeup` asks the demo's `openrouter` backend (its mock) and decides, it does not fail.
 #[tokio::test]
 async fn demo_wakeup_asks_its_openrouter_mock() {
     let daemon = demo_hub_daemon().await;

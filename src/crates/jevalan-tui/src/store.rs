@@ -1,4 +1,4 @@
-//! Estado derivado de los eventos: trazas completas y métricas. Lógica pura.
+//! State derived from the events: complete traces and metrics. Pure logic.
 
 use jevalan_events::{Event, EventKind};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
@@ -7,14 +7,14 @@ use std::time::{Duration, Instant};
 pub const MAX_TRACES: usize = 500;
 pub const MAX_DECISIONS: usize = 200;
 pub const MAX_CLIENTS: usize = 200;
-/// Respuestas del hub que se recuerdan por capacidad, y capacidades distintas que se llevan al día.
+/// Hub responses remembered per capability, and distinct capabilities kept up to date.
 pub const MAX_HUB_RESULTS: usize = 20;
 pub const MAX_HUB_CAPABILITIES: usize = 100;
 pub const RATE_WINDOW: Duration = Duration::from_secs(60);
-/// Segundos de crónica de latencia por backend: un cubo por segundo.
+/// Seconds of latency history per backend: one bucket per second.
 pub const LATENCY_BUCKETS: usize = 60;
 
-/// Respuesta de un backend: instante de llegada, duración y si salió bien.
+/// A backend's response: arrival instant, duration and whether it went well.
 #[derive(Debug, Clone, Copy)]
 struct Sample {
     at: Instant,
@@ -26,7 +26,7 @@ struct Sample {
 pub struct TraceRecord {
     pub trace_id: String,
     pub client: Option<String>,
-    /// Eventos ordenados por `seq`, con el instante de llegada.
+    /// Events sorted by `seq`, with the arrival instant.
     pub events: Vec<(Instant, Event)>,
 }
 
@@ -38,13 +38,13 @@ pub struct Decision {
     pub outcome: String,
     pub client: String,
     pub flow: String,
-    /// Confianza del último `NODE_END` de la traza; 0 si no hubo.
+    /// Confidence of the trace's last `NODE_END`; 0 if there was none.
     pub confidence: f64,
-    /// Solo las respuestas del hub: `outcome` es el `status`, `flow` la capacidad, y esto su duración.
+    /// Hub responses only: `outcome` is the `status`, `flow` the capability, and this its duration.
     pub hub_ms: Option<u64>,
 }
 
-/// Una respuesta del hub, tal como la lista la ficha de una capacidad.
+/// A hub response, as a capability's card lists it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HubResult {
     pub ts: String,
@@ -86,9 +86,9 @@ pub struct Store {
     backends: BTreeMap<String, BackendStats>,
     latencies: BTreeMap<String, VecDeque<Sample>>,
     clients: BTreeMap<String, ClientStats>,
-    /// Capacidad → últimas respuestas, de la más nueva a la más antigua.
+    /// Capability → latest responses, from newest to oldest.
     hub_results: BTreeMap<String, VecDeque<HubResult>>,
-    /// Capacidades anunciadas por `CAPABILITY_LOADED`: solo de ellas se llevan cuentas.
+    /// Capabilities announced by `CAPABILITY_LOADED`: only they are counted.
     known_caps: BTreeSet<String>,
     errors: u64,
     lagged: u64,
@@ -100,7 +100,7 @@ impl Store {
         Self::default()
     }
 
-    /// Guarda el evento en su traza. Devuelve `false` si (`trace_id`, `seq`) ya se había visto.
+    /// Stores the event in its trace. Returns `false` if (`trace_id`, `seq`) had already been seen.
     pub fn ingest(&mut self, e: Event, now: Instant) -> bool {
         if !self.traces.contains_key(&e.trace_id) {
             if self.order.len() == MAX_TRACES
@@ -128,7 +128,7 @@ impl Store {
                 stats.requests += 1;
                 stats.last_seen = now;
                 if self.clients.len() > MAX_CLIENTS {
-                    // ponytail: búsqueda lineal del más antiguo, O(n) por cliente nuevo; sobra con 200
+                    // ponytail: linear search for the oldest, O(n) per new client; plenty for 200
                     let oldest = self.clients.iter().min_by_key(|(_, s)| s.last_seen).map(|(n, _)| n.clone());
                     if let Some(oldest) = oldest {
                         self.clients.remove(&oldest);
@@ -153,7 +153,7 @@ impl Store {
                     samples.pop_front();
                 }
             }
-            // Una traza del hub se cuenta por su respuesta, no por el desenlace de su flujo.
+            // A hub trace is counted by its response, not by its flow's outcome.
             EventKind::DecisionMade { .. }
                 if trace.events.iter().any(|(_, ev)| matches!(ev.kind, EventKind::HubRequest { .. })) => {}
             EventKind::HubResponse { capability, status, code, elapsed_ms, .. } => {
@@ -240,7 +240,7 @@ impl Store {
         true
     }
 
-    /// Cuenta un evento que no se pudo deserializar.
+    /// Counts an event that could not be deserialised.
     pub fn note_dropped(&mut self) {
         self.dropped += 1;
     }
@@ -265,12 +265,12 @@ impl Store {
         self.traces.len()
     }
 
-    /// Decisiones recientes, de la más nueva a la más antigua.
+    /// Recent decisions, from newest to oldest.
     pub fn decisions(&self) -> impl Iterator<Item = &Decision> {
         self.decisions.iter()
     }
 
-    /// Decisiones por outcome, de todos los flujos.
+    /// Decisions by outcome, across all flows.
     pub fn outcomes(&self) -> &BTreeMap<String, u64> {
         &self.outcomes
     }
@@ -279,18 +279,18 @@ impl Store {
         self.outcomes.values().sum()
     }
 
-    /// Porcentaje entero (0-100) de un outcome; 0 si no hay datos.
+    /// Whole-number percentage (0-100) of an outcome; 0 if there is no data.
     pub fn outcome_pct(&self, outcome: &str) -> u64 {
         let total = self.outcome_total();
         if total == 0 { 0 } else { (self.outcomes.get(outcome).copied().unwrap_or(0) * 100 + total / 2) / total }
     }
 
-    /// Decisiones por outcome de un flujo.
+    /// Decisions by outcome for one flow.
     pub fn flow(&self, name: &str) -> Option<&BTreeMap<String, u64>> {
         self.flows.get(name)
     }
 
-    /// Últimas respuestas del hub para una capacidad, de la más nueva a la más antigua.
+    /// Latest hub responses for a capability, from newest to oldest.
     pub fn hub_results(&self, capability: &str) -> impl Iterator<Item = &HubResult> {
         self.hub_results.get(capability).into_iter().flatten()
     }
@@ -303,8 +303,8 @@ impl Store {
         self.clients.get(name)
     }
 
-    /// Latencia de las respuestas buenas de un backend en los últimos 60 s, de la más antigua a la más reciente.
-    /// Un cubo por segundo con la media de sus muestras; `None` si no hubo respuesta buena en ese segundo.
+    /// Latency of a backend's good responses over the last 60 s, from oldest to most recent.
+    /// One bucket per second with the mean of its samples; `None` if there was no good response in that second.
     pub fn latency_series(&self, backend: &str, now: Instant) -> Vec<Option<u64>> {
         let mut sums = vec![(0u64, 0u64); LATENCY_BUCKETS];
         for s in self.window(backend, now).filter(|s| s.ok) {
@@ -314,7 +314,7 @@ impl Store {
         sums.into_iter().map(|(sum, n)| (n > 0).then(|| sum / n)).collect()
     }
 
-    /// Cubos (como en `latency_series`) donde al menos una respuesta falló.
+    /// Buckets (as in `latency_series`) where at least one response failed.
     pub fn latency_failures(&self, backend: &str, now: Instant) -> Vec<bool> {
         let mut out = vec![false; LATENCY_BUCKETS];
         for s in self.window(backend, now).filter(|s| !s.ok) {
@@ -323,7 +323,7 @@ impl Store {
         out
     }
 
-    /// Latencia de la última respuesta del backend.
+    /// Latency of the backend's last response.
     pub fn last_latency(&self, backend: &str) -> Option<u64> {
         self.latencies.get(backend)?.back().map(|s| s.ms)
     }
@@ -333,13 +333,13 @@ impl Store {
         self.latencies.get(backend).into_iter().flatten().filter(in_window)
     }
 
-    /// Peticiones por segundo, media de los últimos 5 s.
+    /// Requests per second, mean of the last 5 s.
     pub fn rate(&self, now: Instant) -> f64 {
         let n = self.requests.iter().filter(|t| now.duration_since(**t) < Duration::from_secs(5)).count();
         n as f64 / 5.0
     }
 
-    /// Peticiones por segundo de los últimos 60 s, de la más antigua a la más reciente.
+    /// Requests per second over the last 60 s, from oldest to most recent.
     pub fn sparkline(&self, now: Instant) -> Vec<u64> {
         let mut buckets = vec![0u64; 60];
         for t in &self.requests {

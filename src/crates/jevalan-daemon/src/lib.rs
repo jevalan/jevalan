@@ -1,4 +1,4 @@
-//! Daemon de jevalan: proxy transparente de System One, bus de eventos y WebSocket.
+//! jevalan daemon: transparent System One proxy, event bus and WebSocket.
 
 pub mod auth;
 pub mod bus;
@@ -35,11 +35,11 @@ pub struct AppState {
     pub cfg: Arc<Config>,
     pub bus: Bus,
     pub http: reqwest::Client,
-    /// Cliente de los proveedores `http` del hub: jamás sigue redirecciones.
+    /// Client for the hub's `http` providers: it never follows redirects.
     pub hub_http: reqwest::Client,
     pub flows: Arc<Registry>,
     pub capabilities: Arc<hub::CapRegistry>,
-    /// Identifica este arranque del proceso en el `trace_id` de `BACKENDS`.
+    /// Identifies this start of the process in the `trace_id` of `BACKENDS`.
     pub boot: Arc<str>,
 }
 
@@ -54,14 +54,14 @@ impl AppState {
         Self { cfg, bus, http: reqwest::Client::new(), hub_http, flows, capabilities, boot: bus::new_trace_id().into() }
     }
 
-    /// Carga `capabilities_dir` y vigila los cambios mientras viva el vigilante devuelto.
+    /// Loads `capabilities_dir` and watches for changes while the returned watcher lives.
     pub fn load_capabilities(&self) -> notify::Result<notify::RecommendedWatcher> {
         let dir = self.cfg.hub.capabilities_dir.clone();
         self.capabilities.load_dir(&dir, &self.flows, &self.cfg.hub, &self.bus);
         self.capabilities.clone().watch(dir, self.flows.clone(), self.cfg.hub.clone(), self.bus.clone())
     }
 
-    /// Carga `flows_dir` y vigila los cambios mientras viva el vigilante devuelto.
+    /// Loads `flows_dir` and watches for changes while the returned watcher lives.
     pub fn load_flows(&self) -> notify::Result<notify::RecommendedWatcher> {
         self.flows.load_dir(&self.cfg.flows_dir, &self.cfg, &self.bus);
         self.flows.clone().watch(self.cfg.clone(), self.bus.clone())
@@ -94,7 +94,7 @@ pub async fn serve(cfg: Config) -> std::io::Result<()> {
     result
 }
 
-/// Como `serve`, pero sin escribir en stdout ni stderr (no estropea una TUI) y con parada a voluntad.
+/// Like `serve`, but without writing to stdout or stderr (it does not mess up a TUI) and with stop on demand.
 pub async fn serve_quiet(cfg: Config, shutdown: impl Future<Output = ()> + Send + 'static) -> std::io::Result<()> {
     run(cfg, true, shutdown).await
 }
@@ -118,7 +118,7 @@ async fn run(cfg: Config, quiet: bool, shutdown: impl Future<Output = ()> + Send
     axum::serve(listener, router(state)).with_graceful_shutdown(shutdown).await
 }
 
-/// Una línea por flujo cargado o inválido, y aviso si falta el directorio. Nunca claves ni tokens.
+/// One line per loaded or invalid flow, and a warning if the directory is missing. Never keys or tokens.
 fn report_flows(state: &AppState) {
     let dir = &state.cfg.flows_dir;
     if !dir.is_dir() {
@@ -134,7 +134,7 @@ fn report_flows(state: &AppState) {
     }
 }
 
-/// Una línea por capacidad cargada o inválida, y avisos de directorio ausente y de `exec` apagado.
+/// One line per loaded or invalid capability, and warnings for a missing directory and for `exec` being off.
 fn report_capabilities(state: &AppState) {
     let dir = &state.cfg.hub.capabilities_dir;
     if !dir.is_dir() {

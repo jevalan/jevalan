@@ -1,4 +1,4 @@
-//! Documento: el texto tal cual, el `FlowDef` en curso y la huella del fichero que se abrió.
+//! Document: the text as is, the `FlowDef` in progress and the fingerprint of the file that was opened.
 
 use crate::patch::{self, Parche};
 use jevalan_flow::FlowDef;
@@ -6,19 +6,19 @@ use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// Lo que hay que reescribir al guardar: el diff entre el `FlowDef` que se leyó y el que está en curso.
+/// What has to be rewritten on save: the diff between the `FlowDef` that was read and the one in progress.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Cambios {
-    /// Nodos cuyo cuerpo cambió.
+    /// Nodes whose body changed.
     pub sustituidos: Vec<String>,
-    /// Nodos que no estaban.
+    /// Nodes that were not there.
     pub nuevos: Vec<String>,
-    /// Nodos que se borraron.
+    /// Nodes that were deleted.
     pub borrados: Vec<String>,
 }
 
 impl Cambios {
-    /// Cuántos nodos hay que reescribir en total.
+    /// How many nodes have to be rewritten in total.
     pub fn total(&self) -> usize {
         self.sustituidos.len() + self.nuevos.len() + self.borrados.len()
     }
@@ -28,31 +28,31 @@ impl Cambios {
     }
 }
 
-/// FNV-1a de 64 bits en hexadecimal: identifica el texto leído sin pretender ser criptográfico. Es
-/// el mismo cálculo que `jevalan_lab::write::fnv1a64`, copiado para no depender del laboratorio.
+/// 64-bit FNV-1a in hexadecimal: identifies the text that was read without claiming to be cryptographic. It is
+/// the same computation as `jevalan_lab::write::fnv1a64`, copied so as not to depend on the laboratory.
 pub fn huella(texto: &str) -> String {
     let hash = texto.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
     format!("{hash:016x}")
 }
 
-/// Lo que el editor tiene abierto. Única fuente de verdad de la edición.
+/// What the editor has open. The single source of truth for editing.
 pub struct Documento {
     ruta: PathBuf,
-    /// El texto que hay en el disco, con sus comentarios y su orden.
+    /// The text on disk, with its comments and its order.
     original: String,
-    /// El `FlowDef` que se leyó, para saber qué se ha tocado.
+    /// The `FlowDef` that was read, to know what has been touched.
     leido: FlowDef,
-    /// El `FlowDef` en curso.
+    /// The `FlowDef` in progress.
     def: FlowDef,
-    /// Huella del texto vigente, para detectar que el fichero cambió por debajo.
+    /// Fingerprint of the current text, to detect that the file changed underneath.
     huella: String,
-    /// Motivo por el que el YAML no se pudo leer; con él, el documento es de solo lectura.
+    /// Reason the YAML could not be read; with it, the document is read-only.
     solo_lectura: Option<String>,
 }
 
 impl Documento {
-    /// Abre `ruta`. Un YAML que no se entiende entra en **solo lectura**, con su motivo: se puede
-    /// ver, pero no editar hasta que el fichero sea válido.
+    /// Opens `ruta`. A YAML that is not understood enters **read-only**, with its reason: it can be
+    /// seen, but not edited until the file is valid.
     pub fn abrir(ruta: impl Into<PathBuf>) -> Result<Self, String> {
         let ruta = ruta.into();
         let original =
@@ -64,7 +64,7 @@ impl Documento {
         Ok(Self { huella: huella(&original), leido: def.clone(), def, original, ruta, solo_lectura })
     }
 
-    /// El nombre del flujo: el tallo del fichero, que es como lo conoce el daemon.
+    /// The flow's name: the file stem, which is how the daemon knows it.
     pub fn nombre(&self) -> String {
         self.ruta.file_stem().and_then(|n| n.to_str()).unwrap_or_default().to_string()
     }
@@ -81,23 +81,23 @@ impl Documento {
         &mut self.def
     }
 
-    /// El texto vigente: el que se leyó o el que se escribió por última vez.
+    /// The current text: the one that was read or the one last written.
     pub fn original(&self) -> &str {
         &self.original
     }
 
-    /// El borrador entero como fichero de flujo, con la misma forma que un `config/flows/*.yaml`. Es lo que
-    /// se envía al daemon para que lo juzgue con el parser real.
+    /// The whole draft as a flow file, with the same shape as a `config/flows/*.yaml`. It is what
+    /// is sent to the daemon so that it judges it with the real parser.
     pub fn yaml(&self) -> String {
         serde_yaml::to_string(&self.def).unwrap_or_default()
     }
 
-    /// El motivo por el que el documento es de solo lectura, si lo es.
+    /// The reason the document is read-only, if it is.
     pub fn solo_lectura(&self) -> Option<&str> {
         self.solo_lectura.as_deref()
     }
 
-    /// El diff entre lo leído y lo que está en curso.
+    /// The diff between what was read and what is in progress.
     pub fn cambios(&self) -> Cambios {
         let mut cambios = Cambios::default();
         for (nombre, def) in &self.def.nodes {
@@ -115,15 +115,15 @@ impl Documento {
         cambios
     }
 
-    /// ¿El fichero cambió en el disco desde que se abrió, o desde el último guardado?
+    /// Did the file change on disk since it was opened, or since the last save?
     pub fn cambio_por_debajo(&self) -> Result<bool, String> {
         let texto = std::fs::read_to_string(&self.ruta)
             .map_err(|e| format!("no se puede leer {}: {e}", self.ruta.display()))?;
         Ok(huella(&texto) != self.huella)
     }
 
-    /// Guarda por parches: sustituye los tramos tocados, borra los eliminados e inserta los nuevos.
-    /// Se niega a escribir si algún tramo no se reconoce o si el texto no vuelve a leerse igual.
+    /// Saves by patches: replaces the touched spans, deletes the removed ones and inserts the new ones.
+    /// Refuses to write if any span is not recognised or if the text does not read back the same.
     pub fn guardar(&mut self) -> Result<usize, String> {
         if let Some(razon) = &self.solo_lectura {
             return Err(format!("el YAML no se pudo leer: {razon}"));
@@ -137,19 +137,19 @@ impl Documento {
         Ok(cuantos)
     }
 
-    /// Guarda el borrador en **otro** fichero, sin tocar el original: la salida cuando el fichero
-    /// cambió por debajo y no se quiere pisar la mano ajena.
+    /// Saves the draft to **another** file, without touching the original: the way out when the file
+    /// changed underneath and someone else's hand is not to be trampled.
     pub fn guardar_como(&self, ruta: &Path) -> Result<(), String> {
         escribir_atomico(ruta, &self.texto_listo()?).map_err(|e| e.to_string())
     }
 
-    /// Relee el fichero del disco y descarta el borrador.
+    /// Re-reads the file from disk and discards the draft.
     pub fn recargar(&mut self) -> Result<(), String> {
         *self = Self::abrir(self.ruta.clone())?;
         Ok(())
     }
 
-    /// El texto del borrador, ya parcheado y comprobado; error si así no se puede escribir.
+    /// The draft text, already patched and checked; an error if it cannot be written that way.
     fn texto_listo(&self) -> Result<String, String> {
         let cambios = self.cambios();
         let mut parches = Vec::new();
@@ -172,8 +172,8 @@ impl Documento {
         if !perdidos.is_empty() {
             return Err(format!("sin tramo que parchear: {}", perdidos.join(", ")));
         }
-        // Última red: lo que se va a escribir tiene que volver a leerse como el mismo `FlowDef`. Si
-        // el emisor de YAML hiciera algo raro con las comillas, no llega al disco.
+        // Last safety net: what is about to be written has to read back as the same `FlowDef`. If
+        // the YAML emitter did something odd with the quotes, it does not reach the disk.
         match serde_yaml::from_str::<FlowDef>(&texto) {
             Ok(leido) if leido == self.def => Ok(texto),
             Ok(_) => Err("el texto parcheado no vuelve a leerse igual: no se escribe".into()),
@@ -182,7 +182,7 @@ impl Documento {
     }
 }
 
-/// Un `FlowDef` sin nada: el documento de un YAML que no se pudo leer.
+/// An empty `FlowDef`: the document of a YAML that could not be read.
 fn vacio() -> FlowDef {
     FlowDef {
         description: String::new(),
@@ -193,8 +193,8 @@ fn vacio() -> FlowDef {
     }
 }
 
-/// Escritura atómica: temporal en el mismo directorio, `sync_all` y renombrado sobre el destino.
-/// Deja `<fichero>.bak` con la versión anterior si no existía ya. Sin dependencias nuevas.
+/// Atomic write: temporary file in the same directory, `sync_all` and rename over the destination.
+/// Leaves `<file>.bak` with the previous version if one did not already exist. No new dependencies.
 fn escribir_atomico(ruta: &Path, texto: &str) -> Result<(), String> {
     let carpeta = ruta.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
     let nombre = ruta.file_name().and_then(|n| n.to_str()).ok_or("la ruta no nombra un fichero")?;
@@ -219,7 +219,7 @@ fn escribir_atomico(ruta: &Path, texto: &str) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    /// Directorio temporal que se borra al soltarse.
+    /// Temporary directory that is deleted when dropped.
     struct Tmp(PathBuf);
 
     impl Tmp {

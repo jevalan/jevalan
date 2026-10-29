@@ -1,4 +1,4 @@
-//! Borradores del editor: validar y ejecutar un flujo que no entra en el registro.
+//! Editor drafts: validate and run a flow that does not enter the registry.
 
 use crate::AppState;
 use crate::bus::{Tracer, new_trace_id};
@@ -18,20 +18,20 @@ use std::sync::{Arc, Mutex, PoisonError};
 /// Cuerpo de `POST /v1/flows/validate`.
 #[derive(Deserialize)]
 struct Validate {
-    /// Nombre del flujo, tal como lo da el nombre del fichero (`tool-risk-local`).
+    /// Flow name, as given by the file name (`tool-risk-local`).
     flow: String,
-    /// El texto del YAML, tal cual está en el disco.
+    /// The YAML text, exactly as it is on disk.
     yaml: String,
 }
 
-/// El flujo que el cuerpo trae, juzgado con el parser real y el catálogo de backends del daemon.
+/// The flow the body carries, judged with the real parser and the daemon's backend catalogue.
 fn leer(state: &AppState, flow: &str, yaml: &str) -> Result<Flow, String> {
     let backends: Vec<&str> = state.cfg.backends.keys().map(String::as_str).collect();
     let (signals, _) = crate::signals::load_dir(&state.cfg.hub.signals_dir);
     parse_with(flow, yaml, &signals, &backends, &state.cfg.default_backend).map_err(|e| e.to_string())
 }
 
-/// `POST /v1/flows/validate`: el veredicto del parser sobre el borrador, sin publicarlo.
+/// `POST /v1/flows/validate`: the parser's verdict on the draft, without publishing it.
 pub async fn validate(State(state): State<AppState>, body: Bytes) -> Response {
     let req: Validate = match serde_json::from_slice(&body) {
         Ok(req) => req,
@@ -39,8 +39,8 @@ pub async fn validate(State(state): State<AppState>, body: Bytes) -> Response {
     };
     match leer(&state, &req.flow, &req.yaml) {
         Ok(flow) => Json(json!({ "ok": true, "flow": flow })).into_response(),
-        // Un flujo inválido no es un error de la petición: el veredicto viaja en `ok`, con el
-        // mensaje del `FlowError` real, que ya viene en español.
+        // An invalid flow is not a request error: the verdict travels in `ok`, with the
+        // real `FlowError` message, which already comes in Spanish.
         Err(reason) => Json(json!({ "ok": false, "error": reason })).into_response(),
     }
 }
@@ -48,24 +48,24 @@ pub async fn validate(State(state): State<AppState>, body: Bytes) -> Response {
 /// Cuerpo de `POST /v1/flows/draft/run`.
 #[derive(Deserialize)]
 struct Draft {
-    /// Nombre del flujo, que solo firma los eventos; el registro no lo ve.
+    /// Flow name, which only signs the events; the registry does not see it.
     flow: String,
     yaml: String,
-    /// La entrada del flujo, con la misma forma que la de `POST /v1/hub` para `tool.risk`.
+    /// The flow's input, shaped like the one in `POST /v1/hub` for `tool.risk`.
     input: Value,
     /// `live`, `replay` o `record`.
     transport: String,
-    /// Grabaciones para `replay` (clave: el nodo, o `"<nodo>.<pregunta>"` en un `batch`).
+    /// Recordings for `replay` (key: the node, or `"<node>.<question>"` in a `batch`).
     #[serde(default)]
     cassette: Option<Recordings>,
 }
 
-/// El nombre con el que un borrador firma sus eventos: así la TUI no cree que el flujo cambió.
+/// The name under which a draft signs its events: this way the TUI does not think the flow changed.
 fn borrador(flow: &str) -> String {
     format!("{flow} (borrador)")
 }
 
-/// `POST /v1/flows/draft/run`: ejecuta el borrador una vez, sin publicarlo.
+/// `POST /v1/flows/draft/run`: runs the draft once, without publishing it.
 pub async fn draft_run(State(state): State<AppState>, body: Bytes) -> Response {
     let req: Draft = match serde_json::from_slice(&body) {
         Ok(req) => req,
@@ -78,7 +78,7 @@ pub async fn draft_run(State(state): State<AppState>, body: Bytes) -> Response {
                 .into_response();
         }
     };
-    // El transporte se elige antes de gastar nada: un nombre desconocido no llega al motor.
+    // The transport is chosen before anything is spent: an unknown name never reaches the engine.
     let grabado = Arc::new(Mutex::new(Recordings::new()));
     let transport = match req.transport.as_str() {
         "live" => Transport::Live,
@@ -104,7 +104,7 @@ pub async fn draft_run(State(state): State<AppState>, body: Bytes) -> Response {
             (StatusCode::BAD_GATEWAY, respuesta)
         }
     };
-    // La confianza del borrador es la del último nodo que respondió; `null` si ninguno lo hizo.
+    // The draft's confidence is that of the last node that answered; `null` if none did.
     respuesta["confidence"] = json!(io.measured().2);
     if req.transport == "record" {
         respuesta["cassette"] = json!(grabado.lock().unwrap_or_else(PoisonError::into_inner).clone());

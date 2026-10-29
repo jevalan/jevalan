@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-/// Fichero de flujo tal como se escribe en YAML.
+/// Flow file as written in YAML.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FlowDef {
@@ -33,12 +33,12 @@ pub enum NodeType {
     Score,
     Noul,
     Rule,
-    /// Un puñado de preguntas en una sola llamada al backend; no pregunta nada por sí mismo.
+    /// A handful of questions in a single call to the backend; it asks nothing by itself.
     Batch,
 }
 
 impl NodeType {
-    /// Nombre del tipo y, a la vez, del campo de la respuesta System One.
+    /// Name of the type and, at the same time, of the System One response field.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Choice => "choice",
@@ -50,7 +50,7 @@ impl NodeType {
     }
 }
 
-/// Una regla de enrutado de un nodo `batch`: `when` sobre la entrada y las respuestas, `to` su destino.
+/// A routing rule of a `batch` node: `when` over the input and the answers, `to` its destination.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RouteDef {
@@ -58,8 +58,8 @@ pub struct RouteDef {
     pub to: String,
 }
 
-/// `criteria` tal cual se envía a System One: lista de niveles (score) u opciones (choice, noul).
-// ponytail: BTreeMap ordena las opciones; System One solo usa el orden para desempatar
+/// `criteria` exactly as sent to System One: list of levels (score) or options (choice, noul).
+// ponytail: BTreeMap sorts the options; System One only uses the order to break ties
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Criteria {
@@ -74,7 +74,7 @@ pub struct NodeDef {
     pub ty: NodeType,
     #[serde(default)]
     pub instructions: String,
-    /// Solo `rule`: expresión CEL que devuelve un booleano.
+    /// `rule` only: a CEL expression that returns a boolean.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -87,20 +87,20 @@ pub struct NodeDef {
     pub model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_confidence: Option<f64>,
-    /// Solo `batch`: preguntas en una sola llamada, cada una con el cuerpo de un nodo suelto.
+    /// `batch` only: questions in a single call, each with the body of a standalone node.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub questions: BTreeMap<String, NodeDef>,
-    /// Solo `batch`: reglas de enrutado, en orden; gana la primera `when` verdadera.
+    /// `batch` only: routing rules, in order; the first true `when` wins.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub route: Vec<RouteDef>,
-    /// Solo `batch`: destino si ninguna `when` casa. En YAML se escribe `else`, que en Rust es palabra reservada.
+    /// `batch` only: destination if no `when` matches. In YAML it is written `else`, which in Rust is a reserved word.
     #[serde(default, rename = "else", skip_serializing_if = "Option::is_none")]
     pub else_branch: Option<String>,
-    /// Solo `batch`: señales aprendidas del catálogo, que se preguntan como preguntas con su mismo nombre.
+    /// `batch` only: signals learned from the catalogue, which are asked as questions with the same name.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub signals: Vec<String>,
-    /// Puerto → destino (nodo o salida). Ausente vale vacío: una pregunta de `batch` no cablea puertos y un
-    /// nodo suelto sin ellos lo denuncia `validate` con `MissingPort`, que es donde toca.
+    /// Port → destination (node or output). Absent means empty: a `batch` question wires no ports and a
+    /// standalone node without them is reported by `validate` with `MissingPort`, which is where it belongs.
     #[serde(default)]
     pub out: BTreeMap<String, String>,
 }

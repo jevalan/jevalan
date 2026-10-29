@@ -1,4 +1,4 @@
-//! El nodo `batch`: varias preguntas System One en una sola llamada al backend.
+//! The `batch` node: several System One questions in a single call to the backend.
 
 mod common;
 
@@ -20,7 +20,7 @@ async fn decide(daemon: &str, body: Value) -> (u16, Value) {
     (resp.status().as_u16(), resp.json().await.unwrap())
 }
 
-/// La petición que recibió el backend del doble de pruebas, o `None` si no llegó ninguna.
+/// The request the backend of the test double received, or `None` if none arrived.
 fn first_request(script: &Scripted) -> Option<Value> {
     let captured = script.log.lock().unwrap();
     captured.first().map(|c| serde_json::from_slice(&c.body).unwrap())
@@ -44,7 +44,7 @@ async fn batch_makes_one_backend_call() {
     let (status, reply) = decide(&daemon, json!({ "state": "x" })).await;
 
     assert_eq!(status, 200, "{reply}");
-    // Un solo paso para el nodo, con la respuesta entera como objeto (D2).
+    // A single step for the node, with the whole response as an object (D2).
     assert_eq!(reply["outcome"], "deny");
     let path = reply["path"].as_array().unwrap();
     assert_eq!(path.len(), 1, "{reply}");
@@ -80,7 +80,7 @@ async fn batch_sends_every_question_in_one_request() {
 #[tokio::test]
 async fn batch_response_missing_a_question_is_an_error() {
     let (daemon, script, _dir) = batch_daemon().await;
-    // Solo una de las cuatro: no se decide con lo que llegue.
+    // Only one of the four: no decision is made with what arrives.
     say(&script, "risks", 200, answers(&[("risks.destructive", "noul", json!(0.99), 0.9)]));
 
     let (status, reply) = decide(&daemon, json!({ "state": "x" })).await;
@@ -131,7 +131,7 @@ async fn batch_events_keep_one_request_and_one_node_end() {
 #[tokio::test]
 async fn batch_events_never_carry_the_questions() {
     let (daemon, script, _dir) = batch_daemon().await;
-    // Todas las respuestas: si faltara una, la traza sería la del puerto de error.
+    // All the responses: if one were missing, the trace would be that of the error port.
     say(
         &script,
         "risks",
@@ -159,7 +159,7 @@ async fn batch_events_never_carry_the_questions() {
     }
     for line in lines {
         assert!(!line.contains("MARCADOR-SECRETO"), "la entrada no viaja: {line}");
-        // El evento de carga lleva la forma del nodo, jamás sus instrucciones (que son el prompt).
+        // The load event carries the node's shape, never its instructions (which are the prompt).
         assert!(!line.contains("instructions"), "ni el prompt de las preguntas: {line}");
         assert!(!line.contains("¿Rompe algo?"), "ni las preguntas: {line}");
     }
@@ -169,7 +169,7 @@ async fn batch_events_never_carry_the_questions() {
 async fn batch_backend_failure_takes_the_error_port() {
     let (daemon, _script, _dir) = batch_daemon().await;
 
-    // Nada guionizado: el backend de mentirijillas responde 500.
+    // Nothing scripted: the fake backend answers 500.
     let (status, reply) = decide(&daemon, json!({ "state": "x" })).await;
 
     assert_eq!((status, reply["outcome"].as_str()), (200, Some("abstain")));

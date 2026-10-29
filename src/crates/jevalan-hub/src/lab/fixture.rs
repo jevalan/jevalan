@@ -12,11 +12,11 @@ pub struct Fixture {
     #[serde(default)]
     pub description: String,
     pub input: Value,
-    /// Nodo del flujo o id del especialista → respuesta grabada a mano.
+    /// Node of the flow or specialist id → hand-recorded response.
     #[serde(default)]
     pub replay: BTreeMap<String, Value>,
     pub expect: Vec<Expect>,
-    /// Dónde corre el fixture; por defecto, en ambos.
+    /// Where the fixture runs; by default, in both.
     #[serde(default = "both_modes")]
     pub modes: Vec<FixtureMode>,
 }
@@ -101,7 +101,7 @@ pub fn parse_fixture(file_stem: &str, yaml: &str) -> Result<Fixture, FixtureErro
     Ok(f)
 }
 
-/// Problemas que solo se ven junto a la capacidad: entrada fuera de esquema y claves de `replay` desconocidas.
+/// Problems only visible alongside the capability: input outside the schema and unknown `replay` keys.
 pub fn check_fixture(f: &Fixture, cap: &Capability, replay_key_ok: &dyn Fn(&str) -> bool) -> Vec<String> {
     let mut problems = Vec::new();
     if let Err(e) = cap.check_input(&f.input) {

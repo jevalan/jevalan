@@ -1,4 +1,4 @@
-//! Contrato de eventos de jevalan: la versión vigente es la v2.
+//! jevalan event contract: the current version is v2.
 
 pub mod v2;
 

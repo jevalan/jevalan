@@ -1,14 +1,14 @@
 use crate::model::{Criteria, FlowDef, NodeDef, NodeType, OutputDef};
 use crate::{DEFAULT_MIN_CONFIDENCE, DEFAULT_THRESHOLD, ERROR, LOW_CONFIDENCE};
 
-/// Nombre reservado: el TUI lo usa como puerto fijo del tráfico sin flujo.
+/// Reserved name: the TUI uses it as the fixed port for traffic without a flow.
 const PASSTHROUGH: &str = "passthrough";
 use crate::signals::Signals;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
 
-/// Flujo validado, con los valores por defecto ya aplicados.
+/// Validated flow, with the defaults already applied.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Flow {
     pub name: String,
@@ -16,7 +16,7 @@ pub struct Flow {
     pub start: String,
     pub nodes: BTreeMap<String, Node>,
     pub outputs: BTreeMap<String, OutputDef>,
-    /// Heurísticas que el flujo lee como `signals.<nombre>`: nombre → `when`, ya validado al cargar.
+    /// Heuristics the flow reads as `signals.<name>`: name → `when`, already validated on load.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub signals: BTreeMap<String, String>,
 }
@@ -27,7 +27,7 @@ pub struct Node {
     pub ty: NodeType,
     #[serde(default)]
     pub instructions: String,
-    /// Solo `rule`: expresión CEL ya compilada como texto.
+    /// `rule` only: CEL expression already compiled as text.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<String>,
     pub criteria: Option<Criteria>,
@@ -37,13 +37,13 @@ pub struct Node {
     pub min_confidence: f64,
     /// Puerto → destino (nodo o salida).
     pub out: BTreeMap<String, String>,
-    /// Solo `score`: rangos ordenados `(desde, hasta, puerto)`.
+    /// `score` only: ordered ranges `(from, to, port)`.
     pub ranges: Vec<(f64, f64, String)>,
-    /// Solo `batch`: preguntas validadas con las mismas reglas que un nodo suelto.
+    /// `batch` only: questions validated with the same rules as a standalone node.
     pub questions: BTreeMap<String, Node>,
-    /// Solo `batch`: reglas de enrutado `(when, destino)`; el `when` ya compiló al validar.
+    /// `batch` only: routing rules `(when, destination)`; the `when` already compiled on validation.
     pub route: Vec<(String, String)>,
-    /// Solo `batch`: destino si ninguna regla casa.
+    /// `batch` only: destination if no rule matches.
     pub else_branch: Option<String>,
 }
 
@@ -100,7 +100,7 @@ pub fn parse(name: &str, yaml: &str, backends: &[&str], default_backend: &str) -
     parse_with(name, yaml, &Signals::new(), backends, default_backend)
 }
 
-/// `parse` con el catálogo de señales: lo que usan de verdad el daemon y el editor.
+/// `parse` with the signal catalogue: what the daemon and the editor actually use.
 pub fn parse_with(
     name: &str,
     yaml: &str,
@@ -116,7 +116,7 @@ pub fn validate(name: &str, def: FlowDef, backends: &[&str], default_backend: &s
     validate_with(name, def, &Signals::new(), backends, default_backend)
 }
 
-/// Expande las señales con el catálogo y valida el resultado con las reglas de siempre.
+/// Expands the signals with the catalogue and validates the result with the usual rules.
 pub fn validate_with(
     name: &str,
     def: FlowDef,
@@ -129,7 +129,7 @@ pub fn validate_with(
 }
 
 fn validate_resolved(name: &str, def: FlowDef, backends: &[&str], default_backend: &str) -> Result<Flow, FlowError> {
-    // `passthrough` es el puerto fijo del TUI; ningún flujo puede reclamarlo.
+    // `passthrough` is the TUI's fixed port; no flow may claim it.
     if !valid_name(name) || name == PASSTHROUGH {
         return Err(FlowError::BadName(name.into()));
     }
@@ -218,7 +218,7 @@ fn node(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_backe
 
     let mut ranges = Vec::new();
     let answer_ports: Vec<String> = match (d.ty, &d.criteria) {
-        // Los criterios `true`/`false` conviven con salidas por rangos: solo viajan a System One.
+        // The `true`/`false` criteria coexist with range outputs: they only travel to System One.
         (NodeType::Noul, c)
             if c.as_ref()
                 .is_none_or(|c| matches!(c, Criteria::Options(m) if m.keys().all(|k| k == "true" || k == "false")))
@@ -268,10 +268,10 @@ fn node(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_backe
     })
 }
 
-/// Nodo `batch`: varias preguntas en una sola llamada, enrutado por reglas CEL y sin umbrales propios.
+/// `batch` node: several questions in a single call, routed by CEL rules and with no thresholds of its own.
 fn batch(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_backend: &str) -> Result<Node, FlowError> {
     let bad = |reason: &str| FlowError::BadCriteria { node: name.into(), reason: reason.into() };
-    // D4: el enrutado lo hacen las reglas `route`, que ven las respuestas crudas; aquí no hay umbral que valga.
+    // D4: routing is done by the `route` rules, which see the raw answers; no threshold applies here.
     if d.threshold.is_some() || d.min_confidence.is_some() || d.out.contains_key(LOW_CONFIDENCE) {
         return Err(bad("batch no admite threshold, min_confidence ni low-confidence"));
     }
@@ -298,10 +298,10 @@ fn batch(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_back
                 reason: "una pregunta no cablea puertos: el destino lo pone route".into(),
             });
         }
-        // Cada pregunta pasa por las mismas reglas que un nodo suelto, con el nombre compuesto para el error.
-        // Un nodo suelto exige cablear sus puertos de respuesta, así que la pregunta se valida con los suyos
-        // —los que su tipo admite— apuntando a un destino de mentira que siempre existe; después se devuelve
-        // sin puertos, porque el destino real lo ponen las reglas `route`.
+        // Each question goes through the same rules as a standalone node, with the compound name for the error.
+        // A standalone node requires its answer ports to be wired, so the question is validated with its own
+        // (those its type admits) pointing at a fake destination that always exists; afterwards it is returned
+        // without ports, because the real destination is set by the `route` rules.
         let wired: BTreeMap<String, String> = answer_ports(qd).into_iter().map(|p| (p, name.to_string())).collect();
         let wired = NodeDef { out: wired, ..qd.clone() };
         let question = node(&format!("{name}.{q}"), &wired, def, backends, default_backend)?;
@@ -312,7 +312,7 @@ fn batch(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_back
     }
     let mut route = Vec::new();
     for r in &d.route {
-        // El `when` se compila al cargar: una errata en la ruta no sustituye al flujo que ya funciona.
+        // The `when` is compiled on load: a typo in the route does not replace the flow that already works.
         crate::program::compiled(&r.when)
             .map_err(|e| FlowError::BadExpression { node: format!("{name}.route"), reason: e.to_string() })?;
         if !exists(&r.to, def) {
@@ -325,7 +325,7 @@ fn batch(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_back
             return Err(FlowError::UnknownTarget { node: name.into(), port: "else".into(), target: e.clone() });
         }
         Some(e) => Some(e.clone()),
-        // Sin `else`, la única salida posible es el puerto de error: sin él, el flujo no sabría a dónde ir.
+        // Without `else`, the only possible exit is the error port: without it, the flow would not know where to go.
         None if !d.out.contains_key(ERROR) => {
             return Err(FlowError::MissingPort { node: name.into(), port: "else".into() });
         }
@@ -363,30 +363,30 @@ fn batch(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_back
     })
 }
 
-/// ¿`name` es un identificador CEL, tal como lo exige una pregunta de `batch`?
+/// Is `name` a CEL identifier, as a `batch` question requires?
 pub(crate) fn cel_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next().is_some_and(|c| c.is_ascii_lowercase() || c == '_')
         && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
-/// ¿`target` nombra un nodo o una salida del flujo?
+/// Does `target` name a node or an output of the flow?
 fn exists(target: &str, def: &FlowDef) -> bool {
     def.nodes.contains_key(target) || def.outputs.contains_key(target)
 }
 
-/// Puertos de respuesta que un nodo de esta forma admite: los que `validate` exige cablear, sin
-/// contar `error` ni `low-confidence`, que son comunes. Un `batch` no cablea puertos de respuesta:
-/// enrutan sus reglas `route`. El editor los ofrece para poder cablearlos (D6: una sola autoridad).
+/// Answer ports a node of this shape admits: those `validate` requires to be wired, not
+/// counting `error` and `low-confidence`, which are common. A `batch` wires no answer ports:
+/// its `route` rules do the routing. The editor offers them so they can be wired (D6: a single authority).
 pub fn answer_ports(d: &NodeDef) -> Vec<String> {
     match d.ty {
-        // Los mismos que un `noul` suelto: `true` y `false`, con criterios o sin ellos.
+        // The same as a standalone `noul`: `true` and `false`, with or without criteria.
         NodeType::Noul | NodeType::Rule => vec!["true".into(), "false".into()],
         NodeType::Choice => match &d.criteria {
             Some(Criteria::Options(m)) => m.keys().cloned().collect(),
             _ => Vec::new(),
         },
-        // Un nivel por tramo `i..i+1`, como los rangos que saca un `score` de sus niveles.
+        // One level per span `i..i+1`, like the ranges a `score` derives from its levels.
         NodeType::Score => match &d.criteria {
             Some(Criteria::Levels(l)) => (0..l.len().saturating_sub(1)).map(|i| format!("{i}..{}", i + 1)).collect(),
             _ => Vec::new(),
@@ -395,7 +395,7 @@ pub fn answer_ports(d: &NodeDef) -> Vec<String> {
     }
 }
 
-/// Puertos de `d`: solo los de respuesta, `error` y `low-confidence` (si `allow_low_confidence`), y cada destino existe.
+/// Ports of `d`: only the answer ones, `error` and `low-confidence` (if `allow_low_confidence`), and each destination exists.
 fn check_ports(
     name: &str,
     d: &NodeDef,
@@ -418,7 +418,7 @@ fn check_ports(
     Ok(())
 }
 
-/// Rangos `a..b` de un score o un noul: semiabiertos, ordenados, contiguos y cubriendo `[0, top]`.
+/// Ranges `a..b` of a score or a noul: half-open, ordered, contiguous and covering `[0, top]`.
 fn ranges_for(name: &str, out: &BTreeMap<String, String>, top: f64) -> Result<Vec<(f64, f64, String)>, FlowError> {
     let bad = |reason: String| FlowError::BadRanges { node: name.into(), reason };
     let mut ranges = Vec::new();
@@ -447,11 +447,11 @@ fn ranges_for(name: &str, out: &BTreeMap<String, String>, top: f64) -> Result<Ve
     Ok(ranges)
 }
 
-/// Las referencias `$answer/<nodo>` (y `$answer/<nodo>/<pregunta>` en un `batch`) deben existir.
+/// The `$answer/<node>` references (and `$answer/<node>/<question>` in a `batch`) must exist.
 fn check_refs(output: &str, v: &serde_json::Value, nodes: &BTreeMap<String, Node>) -> Result<(), FlowError> {
     match v {
         serde_json::Value::String(s) => match s.strip_prefix("$answer/") {
-            // La referencia nombra el nodo entero, o una pregunta suya si el nodo es un `batch`.
+            // The reference names the whole node, or one of its questions if the node is a `batch`.
             Some(rest) => {
                 let (node, question) = rest.split_once('/').map_or((rest, None), |(n, q)| (n, Some(q)));
                 let known = nodes.get(node).is_some_and(|n| question.is_none_or(|q| n.questions.contains_key(q)));
@@ -468,7 +468,7 @@ fn check_refs(output: &str, v: &serde_json::Value, nodes: &BTreeMap<String, Node
     }
 }
 
-/// Sin ciclos y con todos los nodos alcanzables desde `start`.
+/// No cycles, and every node reachable from `start`.
 fn check_graph(start: &str, nodes: &BTreeMap<String, Node>) -> Result<(), FlowError> {
     #[derive(Clone, Copy, PartialEq)]
     enum Mark {
@@ -505,21 +505,21 @@ fn check_graph(start: &str, nodes: &BTreeMap<String, Node>) -> Result<(), FlowEr
 mod tests {
     use super::*;
 
-    /// Los puertos que el editor ofrece para cablear son los mismos que la validación exige.
+    /// The ports the editor offers to wire are the same ones validation requires.
     #[test]
     fn answer_ports_ofrece_los_puertos_que_la_validacion_exige() {
         let def = |yaml: &str| serde_yaml::from_str::<NodeDef>(yaml).unwrap();
-        // Un `rule` y un `noul` sin criterios: `true` y `false`.
+        // A `rule` and a `noul` without criteria: `true` and `false`.
         assert_eq!(answer_ports(&def("type: rule\nwhen: \"true\"\nout: {}")), ["true", "false"]);
         assert_eq!(answer_ports(&def("type: noul\nout: {}")), ["true", "false"]);
-        // Un `choice`: sus opciones, en el orden del mapa.
+        // A `choice`: its options, in map order.
         assert_eq!(answer_ports(&def("type: choice\ncriteria: { b: \"B\", a: \"A\" }\nout: {}")), ["a", "b"]);
-        // Un `score`: un tramo por nivel menos uno.
+        // A `score`: one span per level minus one.
         assert_eq!(
             answer_ports(&def("type: score\ncriteria: [\"bajo\", \"medio\", \"alto\"]\nout: {}")),
             ["0..1", "1..2"]
         );
-        // Un `batch` no cablea puertos de respuesta: enrutan sus reglas `route`.
+        // A `batch` wires no answer ports: its `route` rules do the routing.
         assert!(answer_ports(&def("type: batch\nquestions: { q: { type: noul } }\nout: {}")).is_empty());
     }
 
@@ -813,7 +813,7 @@ outputs:
         assert!(matches!(err(&y), FlowError::BadReference { .. }));
     }
 
-    /// Flujo con un nodo `batch` de tres preguntas, reglas de enrutado y `else`.
+    /// Flow with a `batch` node of three questions, routing rules and `else`.
     const BATCH: &str = r#"
 defaults: { backend: ollama, model: nimble }
 start: risks
@@ -844,7 +844,7 @@ outputs:
         parse("agent-guard", yaml, &BACKENDS, "ollama").unwrap_or_else(|e| panic!("{e}"))
     }
 
-    /// El motivo del error, para comprobar que el mensaje señala la pregunta culpable.
+    /// The error reason, to check that the message points at the culprit question.
     fn reason(e: &FlowError) -> String {
         match e {
             FlowError::BadCriteria { node, reason } => format!("{node}: {reason}"),
@@ -865,7 +865,7 @@ outputs:
         assert_eq!(risks.route.len(), 2);
         assert_eq!(risks.else_branch.as_deref(), Some("allow"));
         assert_eq!(risks.out["error"], "abstain");
-        // Sin umbrales propios: los del flujo, y ni uno más (D4).
+        // No thresholds of its own: the flow's, and not one more (D4).
         assert_eq!((risks.backend.as_str(), risks.model.as_str(), risks.threshold), ("ollama", "nimble", 0.5));
         assert_eq!(f.nodes["risks"].min_confidence, DEFAULT_MIN_CONFIDENCE);
     }
@@ -917,7 +917,7 @@ outputs:
 
     #[test]
     fn batch_only_wires_the_error_port() {
-        // D4: `low-confidence` es medio umbral, y en un `batch` no pinta nada.
+        // D4: `low-confidence` is half a threshold, and in a `batch` it plays no part.
         let y = BATCH.replace("out: { error: abstain }", "out: { error: abstain, low-confidence: ask }");
         let e = err(&y);
         assert!(reason(&e).contains("low-confidence"), "{e:?}");
@@ -926,7 +926,7 @@ outputs:
         let e = err(&y);
         assert!(matches!(e, FlowError::UnknownPort { .. }), "{e:?}");
 
-        // El `out` de una pregunta se admite ausente, pero si está no puede cablear nada.
+        // A question's `out` is allowed to be absent, but if it is there it cannot wire anything.
         let y = BATCH.replace(
             "      destructive: { type: noul, instructions: \"¿Rompe algo?\" }",
             "      destructive: { type: noul, instructions: \"¿Rompe algo?\", out: { \"true\": deny } }",
@@ -954,11 +954,11 @@ outputs:
             matches!(err(&y), FlowError::UnknownTarget { port, target, .. } if port == "else" && target == "nowhere")
         );
 
-        // Sin `else` y con puerto de error, el flujo sigue siendo válido: el error es una salida.
+        // Without `else` and with an error port, the flow is still valid: the error is an exit.
         let y = BATCH.replace("    else: allow\n", "");
         assert_eq!(batch_ok_with(&y).nodes["risks"].else_branch, None);
 
-        // Sin `else` ni `out.error`, el nodo no sabría a dónde ir cuando ninguna regla case.
+        // Without `else` or `out.error`, the node would not know where to go when no rule matches.
         let y = BATCH.replace("    else: allow\n", "").replace("error: abstain", "");
         assert!(matches!(err(&y), FlowError::MissingPort { port, .. } if port == "else"));
     }

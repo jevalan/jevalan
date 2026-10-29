@@ -1,13 +1,13 @@
-//! Registro sombra del hook: lectura y clasificación de las líneas de `shadow.jsonl`.
-//! Cabe señalar que todo cuanto aquí figura es puro, de suerte que el informe y la TUI lo comparten.
+//! The hook's shadow log: reading and classifying the lines of `shadow.jsonl`.
+//! Note that everything here is pure, so that the report and the TUI share it.
 
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-/// Umbral a partir del cual un riesgo se considera dominante.
+/// Threshold above which a risk is considered dominant.
 pub const RISK_THRESHOLD: f64 = 0.55;
 pub const HIGH_THRESHOLD: f64 = 0.85;
-/// Nombres de las probabilidades; `authorized` no es un riesgo.
+/// Names of the probabilities; `authorized` is not a risk.
 pub const NAMES: [&str; 8] = [
     "destructive",
     "exfiltration",
@@ -19,7 +19,7 @@ pub const NAMES: [&str; 8] = [
     "authorized",
 ];
 
-/// Una línea del registro, reducida a lo que el informe necesita.
+/// A log line, reduced to what the report needs.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Entry {
     pub ts: String,
@@ -36,7 +36,7 @@ pub struct Entry {
 }
 
 impl Entry {
-    /// Mayor probabilidad entre los riesgos (todo salvo `authorized`).
+    /// Highest probability among the risks (everything except `authorized`).
     pub fn max_risk(&self) -> Option<(&str, f64)> {
         self.probabilities
             .iter()
@@ -50,7 +50,7 @@ impl Entry {
     }
 }
 
-/// Interpreta el texto del registro; devuelve las entradas y el número de líneas ignoradas.
+/// Parses the log text; returns the entries and the number of ignored lines.
 pub fn parse(text: &str) -> (Vec<Entry>, usize) {
     let mut entries = Vec::new();
     let mut ignored = 0;
@@ -63,7 +63,7 @@ pub fn parse(text: &str) -> (Vec<Entry>, usize) {
     (entries, ignored)
 }
 
-/// Interpreta una sola línea; `None` si no es JSON o le falta `ts` o `status`.
+/// Parses a single line; `None` if it is not JSON or lacks `ts` or `status`.
 pub fn parse_line(line: &str) -> Option<Entry> {
     serde_json::from_str::<Value>(line).ok().and_then(|v| entry_of(&v))
 }
@@ -91,7 +91,7 @@ fn entry_of(v: &Value) -> Option<Entry> {
     })
 }
 
-/// Clasifica el motivo de un `ask` o `deny`.
+/// Classifies the reason for an `ask` or `deny`.
 pub fn category(e: &Entry) -> String {
     if e.reason.as_deref().is_some_and(|r| r.contains("input too large")) {
         return "contexto truncado".into();
@@ -105,17 +105,17 @@ pub fn category(e: &Entry) -> String {
     }
 }
 
-/// Un `ask` sospechoso: el modelo duda aunque todos los riesgos queden por debajo del umbral.
+/// A suspicious `ask`: the model doubts even though every risk stays under the threshold.
 pub fn suspicious(e: &Entry) -> bool {
     e.is("ask") && e.source.as_deref() != Some("static-rule") && e.max_risk().is_some_and(|(_, p)| p < RISK_THRESHOLD)
 }
 
-/// Porcentaje de `n` sobre `total`; cero si no hay total.
+/// Percentage of `n` over `total`; zero if there is no total.
 pub fn pct(n: usize, total: usize) -> f64 {
     if total == 0 { 0.0 } else { n as f64 * 100.0 / total as f64 }
 }
 
-/// Latencias ordenadas de las llamadas que obtuvieron respuesta (ok o abstain).
+/// Sorted latencies of the calls that got a response (ok or abstain).
 pub fn sorted_latencies<'a>(entries: impl Iterator<Item = &'a Entry>) -> Vec<u64> {
     let mut v: Vec<u64> = entries.filter(|e| e.status != "error").filter_map(|e| e.latency_ms).collect();
     v.sort_unstable();
