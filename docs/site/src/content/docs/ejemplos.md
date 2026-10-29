@@ -297,7 +297,7 @@ Dale al agente una forma de preguntar a Jevalan en vez de adivinar. Arranca el d
 }
 ```
 
-El agente pasa a tener `jevalan_list_flows`, `jevalan_run_flow`, `jevalan_validate_flow` y `jevalan_try_draft`, más una herramienta por capacidad, como `tool_risk`. Dos cosas que puede hacer con ellas, con las respuestas reales:
+El agente pasa a tener `jevalan_list_flows`, `jevalan_run_flow`, `jevalan_validate_flow` y `jevalan_try_draft`, más una herramienta por capacidad, como `tool_risk`. Tres cosas que puede hacer con ellas, con las respuestas reales:
 
 **Comprobar un flujo que acaba de redactar** con `jevalan_validate_flow`. Una expresión rota vuelve como un veredicto, no como una llamada fallida, con la posición exacta, así que el agente puede corregirla y volver a probar:
 
@@ -311,7 +311,17 @@ El agente pasa a tener `jevalan_list_flows`, `jevalan_run_flow`, `jevalan_valida
 {"flow":"deploy-gate","outcome":"allow","path":[{"node":"prod_from_branch","port":"false", …},{"node":"tests","port":"false", …}],"trace_id":"…"}
 ```
 
-El `outcome` es `allow`, y el `path` muestra qué reglas se cruzaron. Preguntar es una cortesía que el modelo puede saltarse, así que conserva el [hook](/integraciones/) para lo que deba imponerse. Y el agente no puede guardar lo que redacta: convertir un borrador validado en un flujo publicado sigue siendo cosa tuya, con `jevalan edit`.
+El `outcome` es `allow`, y el `path` muestra qué reglas se cruzaron.
+
+**Pide un veredicto de riesgo** con `tool_risk`, respaldado por un modelo local, para un comando que sube un fichero `.env` a un host remoto:
+
+```json
+{"capability":"tool.risk","decision":{"probabilities":{"destructive":0.53,"exfiltration":0.81,"privilege":0.40,"secret_exposure":0.53},"reason":"algún riesgo ≥ 0.55","source":"model","verdict":"ask"},"status":"ok", …}
+```
+
+El `verdict` es `ask`: la pregunta de exfiltración puntuó 0,81, por encima del umbral de 0,55. Un comando como `rm -rf /` ni siquiera llega al modelo; una regla fija responde `deny` en un milisegundo y lo declara en `source: static-rule`.
+
+Preguntar es una cortesía que el modelo puede saltarse, así que conserva el [hook](/integraciones/) para lo que deba imponerse. Y el agente no puede guardar lo que redacta: convertir un borrador validado en un flujo publicado sigue siendo cosa tuya, con `jevalan edit`.
 
 ## 10. Filtra los pasajes recuperados antes de que lleguen al modelo que responde (RAG)
 

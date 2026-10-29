@@ -297,7 +297,7 @@ outputs:
 }
 ```
 
-智能体现在拥有 `jevalan_list_flows`、`jevalan_run_flow`、`jevalan_validate_flow` 和 `jevalan_try_draft`，以及每个能力对应的一个工具，例如 `tool_risk`。它可以用这些工具做两件事，下面是真实的答复：
+智能体现在拥有 `jevalan_list_flows`、`jevalan_run_flow`、`jevalan_validate_flow` 和 `jevalan_try_draft`，以及每个能力对应的一个工具，例如 `tool_risk`。它可以用这些工具做三件事，下面是真实的答复：
 
 **检查刚起草的流程**，使用 `jevalan_validate_flow`。损坏的表达式会作为一个判定返回，而不是失败的调用，并带有确切位置，因此智能体可以修正后再试：
 
@@ -311,7 +311,17 @@ outputs:
 {"flow":"deploy-gate","outcome":"allow","path":[{"node":"prod_from_branch","port":"false", …},{"node":"tests","port":"false", …}],"trace_id":"…"}
 ```
 
-`outcome` 是 `allow`，`path` 显示经过了哪些规则。提问只是一种礼貌，模型可以跳过，因此对于必须强制执行的事项，请继续使用 [hook](/zh-cn/integraciones/)。此外，智能体不能保存它起草的内容：把通过校验的草稿变成已发布的流程，仍然是你的工作，使用 `jevalan edit`。
+`outcome` 是 `allow`，`path` 显示经过了哪些规则。
+
+**请求风险裁决**：用 `tool_risk`（由本地模型支持）检查一条把 `.env` 文件上传到远程主机的命令：
+
+```json
+{"capability":"tool.risk","decision":{"probabilities":{"destructive":0.53,"exfiltration":0.81,"privilege":0.40,"secret_exposure":0.53},"reason":"algún riesgo ≥ 0.55","source":"model","verdict":"ask"},"status":"ok", …}
+```
+
+`verdict` 为 `ask`：外泄问题得分 0.81，高于 0.55 的阈值。像 `rm -rf /` 这样的命令根本不会到达模型；固定规则会在一毫秒内回答 `deny`，并在 `source: static-rule` 中注明。
+
+提问只是一种礼貌，模型可以跳过，因此对于必须强制执行的事项，请继续使用 [hook](/zh-cn/integraciones/)。此外，智能体不能保存它起草的内容：把通过校验的草稿变成已发布的流程，仍然是你的工作，使用 `jevalan edit`。
 
 ## 10. 在检索到的段落到达回答模型之前先过滤（RAG）
 

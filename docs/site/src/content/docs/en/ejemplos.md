@@ -297,7 +297,7 @@ Give the agent a way to ask Jevalan instead of guessing. Start the daemon, then 
 }
 ```
 
-The agent now has `jevalan_list_flows`, `jevalan_run_flow`, `jevalan_validate_flow` and `jevalan_try_draft`, plus one tool per capability such as `tool_risk`. Two things it can do with them, with the real answers:
+The agent now has `jevalan_list_flows`, `jevalan_run_flow`, `jevalan_validate_flow` and `jevalan_try_draft`, plus one tool per capability such as `tool_risk`. Three things it can do with them, with the real answers:
 
 **Check a flow it just drafted** with `jevalan_validate_flow`. A broken expression comes back as a verdict, not as a failed call, with the exact position, so the agent can fix it and try again:
 
@@ -311,7 +311,17 @@ The agent now has `jevalan_list_flows`, `jevalan_run_flow`, `jevalan_validate_fl
 {"flow":"deploy-gate","outcome":"allow","path":[{"node":"prod_from_branch","port":"false", …},{"node":"tests","port":"false", …}],"trace_id":"…"}
 ```
 
-The `outcome` is `allow`, and the `path` shows which rules were crossed. Asking is a courtesy the model can skip, so keep the [hook](/en/integraciones/) for anything that must be enforced. And the agent cannot save what it drafts: turning a validated draft into a published flow is still your job, with `jevalan edit`.
+The `outcome` is `allow`, and the `path` shows which rules were crossed.
+
+**Ask for a risk verdict** with `tool_risk`, backed by a local model, for a command that uploads a `.env` file to a remote host:
+
+```json
+{"capability":"tool.risk","decision":{"probabilities":{"destructive":0.53,"exfiltration":0.81,"privilege":0.40,"secret_exposure":0.53},"reason":"algún riesgo ≥ 0.55","source":"model","verdict":"ask"},"status":"ok", …}
+```
+
+The `verdict` is `ask`: the exfiltration question scored 0.81, above the 0.55 threshold. A command like `rm -rf /` never reaches the model; a fixed rule answers `deny` in a millisecond and says so in `source: static-rule`.
+
+Asking is a courtesy the model can skip, so keep the [hook](/en/integraciones/) for anything that must be enforced. And the agent cannot save what it drafts: turning a validated draft into a published flow is still your job, with `jevalan edit`.
 
 ## 10. Filter retrieved passages before they reach your answering model (RAG)
 
