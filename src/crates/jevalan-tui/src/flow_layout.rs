@@ -133,7 +133,8 @@ mod tests {
             "true".into(),
             FlowNodeId::Output("deny".into())
         )));
-        assert_eq!(e.len(), 3 + 4 + 2);
+        // destructive: true, false, low-confidence, error · kind: three answers and low-confidence · risk: two ranges.
+        assert_eq!(e.len(), 4 + 4 + 2);
     }
 
     #[test]
