@@ -1,0 +1,9 @@
+id: threshold-edge-unsure
+version: 1
+description: "En el umbral inferior (0.3) la evidencia es dudosa y el agente sigue"
+input: { task: "arreglar el fallo de exportación", claim: "ya está arreglado", blocked: 0, files_changed: 2 }
+replay:
+  done: { answer: 0.3, confidence: 0.9 }
+expect:
+  - cel: "status == 'ok' && decision.stop == false && decision.reason == 'unsure'"
+    why: "El umbral es semiabierto: 0.3 ya es zona dudosa, y con duda el agente no para"

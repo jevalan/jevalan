@@ -1,0 +1,9 @@
+id: tests-failed
+version: 1
+description: "Con las pruebas fallando el agente no puede dar el trabajo por terminado"
+input: { task: "arreglar el fallo de exportación", claim: "ya está arreglado", blocked: 0, files_changed: 2, tests_passed: false }
+expect:
+  - cel: "status == 'ok' && decision.stop == false && decision.reason == 'tests-failed'"
+    why: "Una regla determinista basta: pruebas rojas significan trabajo sin terminar"
+  - cel: "!has(decision.probability)"
+    why: "Sin modelo no hay probabilidad que inventar"

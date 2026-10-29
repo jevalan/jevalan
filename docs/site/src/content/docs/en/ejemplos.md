@@ -495,6 +495,6 @@ Add the laboratory to your pipeline. It needs no backend and no key:
 jevalan lab check && jevalan lab offline
 ```
 
-`lab check` validates the fixtures (it prints `lab en orden: 16 fixtures` in this repository). `lab offline` replays them and prints a table per capability with `pasa`, `skipped` and `fallan` columns; it exits non-zero if any case fails.
+`lab check` validates the fixtures (it prints `lab en orden: 29 fixtures` in this repository). `lab offline` replays them and prints a table per capability with `pasa`, `skipped` and `fallan` columns; it exits non-zero if any case fails.
 
 To validate a flow file before it reaches the daemon, post it to `POST /v1/flows/validate`. An invalid flow answers `ok: false` with the exact problem, including the position inside a CEL expression. See [API](/en/api/) and [Laboratory](/en/laboratorio/).

@@ -1,0 +1,16 @@
+{
+  "recorded_at": "2026-10-29T12:00:00Z",
+  "fixture_version": 1,
+  "input_hash": "7ac624ec5c219b28",
+  "target": "openrouter",
+  "backend": "openrouter",
+  "model": "typesafe/jev-1.13",
+  "replies": {
+    "done": {
+      "status": 500,
+      "body": {
+        "error": "backend caído"
+      }
+    }
+  }
+}

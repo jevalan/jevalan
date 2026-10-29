@@ -1,0 +1,10 @@
+id: backend-down
+version: 1
+modes: [offline]
+description: "El backend cae: se deja parar al agente con razón error"
+input: { task: "arreglar el fallo de exportación", claim: "ya está arreglado", blocked: 0, files_changed: 2, tests_passed: true }
+expect:
+  - cel: "status == 'ok' && decision.stop == true && decision.reason == 'error'"
+    why: "Un guardián caído no debe atrapar al agente: ante el fallo se abre la puerta"
+  - cel: "!has(decision.probability)"
+    why: "El motivo debe ser error y no inventar una probabilidad"

@@ -1,0 +1,9 @@
+id: threshold-edge-verified
+version: 1
+description: "En el umbral superior (0.6) la evidencia se da por buena"
+input: { task: "arreglar el fallo de exportación", claim: "ya está arreglado", blocked: 0, files_changed: 2 }
+replay:
+  done: { answer: 0.6, confidence: 0.9 }
+expect:
+  - cel: "status == 'ok' && decision.stop == true && decision.reason == 'verified'"
+    why: "Desde 0.6 la evidencia se considera suficiente y el agente puede parar"

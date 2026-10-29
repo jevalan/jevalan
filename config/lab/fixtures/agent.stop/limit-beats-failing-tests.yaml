@@ -1,0 +1,7 @@
+id: limit-beats-failing-tests
+version: 1
+description: "El límite de bloqueos prevalece incluso con las pruebas fallando"
+input: { task: "arreglar el fallo de exportación", blocked: 3, files_changed: 2, tests_passed: false }
+expect:
+  - cel: "status == 'ok' && decision.stop == true && decision.reason == 'block-limit'"
+    why: "Por muy rojas que estén las pruebas, el límite evita que el agente quede atrapado para siempre"

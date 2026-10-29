@@ -1,0 +1,1 @@
+{"type":"object","required":["stop","reason"],"properties":{"stop":{"type":"boolean"},"reason":{"enum":["tests-failed","no-changes","block-limit","verified","unverified","unsure","error"]},"probability":{"type":"number","minimum":0,"maximum":1}},"additionalProperties":false}

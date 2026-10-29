@@ -495,6 +495,6 @@ curl -s http://127.0.0.1:8080/v1/decide/rag-passage \
 jevalan lab check && jevalan lab offline
 ```
 
-`lab check` 校验 fixture（在本仓库中会输出 `lab en orden: 16 fixtures`）。`lab offline` 重放它们，并为每个能力输出一张表，包含 `pasa`、`skipped` 和 `fallan` 列；只要有用例失败，就会以非零状态退出。
+`lab check` 校验 fixture（在本仓库中会输出 `lab en orden: 29 fixtures`）。`lab offline` 重放它们，并为每个能力输出一张表，包含 `pasa`、`skipped` 和 `fallan` 列；只要有用例失败，就会以非零状态退出。
 
 要在流程到达守护进程之前校验它，请把它发送到 `POST /v1/flows/validate`。无效的流程会返回 `ok: false` 以及确切的问题，包括 CEL 表达式中的位置。参见 [API](/zh-cn/api/) 和[实验室](/zh-cn/laboratorio/)。
