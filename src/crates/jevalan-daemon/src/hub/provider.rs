@@ -50,8 +50,9 @@ pub async fn invoke(
             emit_request(tracer, &cap.provider_id);
             let run = exec::run(command, env, &state.cfg.hub.dotenv, input, deadline);
             let result = io.specialist(&cap.provider_id, run).await;
-            emit_response(tracer, &cap.provider_id, result.is_ok(), 0, started);
-            plain(finish(result, cap))
+            let status = finish(result, cap);
+            emit_response(tracer, &cap.provider_id, !matches!(status, Status::Error { .. }), 0, started);
+            plain(status)
         }
         Provider::Http { url } => {
             let started = Instant::now();
@@ -66,9 +67,10 @@ pub async fn invoke(
                 Ok(done) => done,
                 Err(_) => Err(deadline_exceeded()),
             };
-            let status = http_status.load(Ordering::Relaxed);
-            emit_response(tracer, &cap.provider_id, result.is_ok(), status, started);
-            plain(finish(result, cap))
+            let http_status = http_status.load(Ordering::Relaxed);
+            let status = finish(result, cap);
+            emit_response(tracer, &cap.provider_id, !matches!(status, Status::Error { .. }), http_status, started);
+            plain(status)
         }
     }
 }
@@ -132,6 +134,7 @@ fn emit_request(tracer: &Tracer, provider: &str) {
     tracer.emit(EventKind::BackendRequest { backend: provider.into(), model: "-".into(), questions: 1 });
 }
 
+/// `ok` is the outcome of the call as the hub classified it, so a response the specialist declares a failure counts too.
 fn emit_response(tracer: &Tracer, provider: &str, ok: bool, status: u16, started: Instant) {
     let duration_ms = started.elapsed().as_millis() as u64;
     tracer.emit(EventKind::BackendResponse { backend: provider.into(), ok, status, duration_ms, input_tokens: None });

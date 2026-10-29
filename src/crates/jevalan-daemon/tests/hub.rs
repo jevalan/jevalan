@@ -3,7 +3,7 @@ mod common;
 use axum::Router;
 use axum::http::StatusCode;
 use axum::routing::post;
-use common::{TempDir, answer, cfg_with, say, scripted_backend};
+use common::{TempDir, answer, cfg_with, connect, next_json, say, scripted_backend};
 use futures_util::StreamExt;
 use jevalan_daemon::mock::spawn_mock;
 use jevalan_daemon::{AppState, router};
@@ -517,6 +517,28 @@ async fn hub_events_never_contain_input_or_decision() {
     let trace_of = |kind: &str| events.iter().rev().find(|e| e["type"] == kind).map(|e| e["trace_id"].clone());
     assert_eq!(trace_of("HUB_REQUEST"), trace_of("NODE_START"));
     assert!(kinds.contains(&"BACKEND_REQUEST"));
+}
+
+/// The `ok` of a provider's `BACKEND_RESPONSE` is the call's outcome, not just "it answered": a specialist that
+/// reports its own failure (`error_when`) must look like a failed call to whoever watches the bus, such as the TUI.
+#[tokio::test]
+async fn a_specialist_that_reports_failure_is_a_failed_backend_call_on_the_bus() {
+    let daemon = exec_daemon(&[], 5000).await;
+    let mut ws = connect(&daemon.url).await;
+
+    let healthy = risk(&daemon, json!({ "mode": "allow" }), None).await;
+    let failing = risk(&daemon, json!({ "mode": "fail" }), None).await;
+
+    assert_eq!(healthy["status"], "ok", "{healthy}");
+    assert_eq!(code(&failing), Some("provider_failed"), "{failing}");
+    let mut oks = Vec::new();
+    while oks.len() < 2 {
+        let event = next_json(&mut ws).await;
+        if event["type"] == "BACKEND_RESPONSE" {
+            oks.push(event["payload"]["ok"].clone());
+        }
+    }
+    assert_eq!(oks, [json!(true), json!(false)]);
 }
 
 #[tokio::test]
