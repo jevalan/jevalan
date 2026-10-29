@@ -70,6 +70,20 @@ El camino recomendado para `tool.risk` en un hook de agente es el de siempre:
 3. **Fija lo que importa en el laboratorio.** Cada caso que te sorprendió se convierte en un fixture con su `why` (mira [Laboratorio](/laboratorio/)); `jevalan lab offline` lo repite sin red ni claves, también en CI.
 4. **Pasa a `enforce`** solo cuando shadow y laboratorio te convenzan. Aun así, en `enforce` el hook solo puede endurecer permisos, y sin respuesta pregunta.
 
+## Qué probar antes de pasar a `enforce`
+
+Los estudios independientes que se han publicado sobre modelos de decisión coinciden en pocos fallos, y cada uno se prueba con el [laboratorio](/laboratorio/). Sus resultados dependen de la tarea y del modelo que midieron: úsalos para diseñar tus pruebas, no para fiarte de sus cifras.
+
+| La decisión | Qué puede fallar | Qué probar en Jevalan |
+|---|---|---|
+| **¿Responder o abstenerse?** | Un `choice` obligado a elegir entre opciones que no encajan elige una igualmente. | Ofrece siempre una opción «ninguna» (`other`) y cablea `low-confidence`. Escribe fixtures con entradas que no pertenezcan a ninguna opción. |
+| **¿Pasar a un modelo mayor?** | La escalada no siempre mejora el resultado y casi siempre cuesta más. | Mide con `jevalan lab live` cuántos casos escalan y con qué coste, sobre casos que **no** usaste para fijar `min_confidence` (ejemplo 8 de [Ejemplos](/ejemplos/)). |
+| **¿Fijar un umbral?** | Un umbral ajustado a tus pruebas se desajusta con el tráfico real. | Calibra con `jevalan shadow report` sobre tráfico de verdad, y fija los bordes con fixtures: `threshold-edge-sleep`, `threshold-edge-unsure` y `threshold-edge-judged` de `agent.wakeup` comprueban qué pasa justo por debajo, en y por encima de cada umbral. |
+| **¿Ordenar por probabilidad?** | Muchas respuestas empatan cerca del corte, y agrupar preguntas puede mover los números. | Pon fixtures con valores iguales al umbral. Los intervalos de un nodo son semiabiertos (`[a, b)`), así que un empate cae siempre en el mismo lado. |
+| **¿Aprobar una acción?** | Gran parte de los errores no viene del modelo sino de cómo se traduce su respuesta en una acción. | Prueba el mapeo aparte del modelo: un fixture con `replay` fija la respuesta del modelo y comprueba solo qué hace tu flujo con ella. |
+
+Un fixture con `replay` no mide ningún modelo: mide **tus reglas**. Por eso corre sin red ni claves, en CI, y es lo primero que conviene tener.
+
 ## Elegir el valor por defecto
 
 Es la decisión más importante y la que más se olvida. Pregúntate qué cuesta equivocarse en cada sentido:
