@@ -41,7 +41,9 @@ Your agent should treat `abstain` and `error` as "no answer" and choose a safe d
 {"capability":"nope.nope","capability_version":"1","error":{"code":"unknown_capability","message":"capacidad desconocida: nope.nope","retryable":false},"protocol_version":"jev-hub/0.1","provider":{"id":"-","version":"-"},"request_id":"r2","status":"error","trace":{"cost":"not_measured","elapsed_ms":0,"trace_id":"18e2ca4a825001080006"}}
 ```
 
-Other codes you may see are `provider_failed`, `deadline_exceeded`, `provider_disabled`, and `invalid_decision`. `retryable` tells you whether trying again can help.
+Other codes you may see are `invalid_input` (the `input` does not match the `input_schema`), `version_mismatch` (the `capability_version` is not the loaded one), `provider_failed`, `deadline_exceeded`, `provider_disabled`, and `invalid_decision`. `retryable` tells you whether trying again can help.
+
+The HTTP status is `200` even for these errors, because they travel in `status`. Only a malformed request, such as a `protocol_version` other than `jev-hub/0.1`, answers `400`.
 
 ## Define a capability
 
@@ -68,13 +70,13 @@ Both schemas are enforced: a request that does not match `input_schema` is rejec
 | Http | `http` | A POST to a `url`. |
 | Exec | `exec` | A local process: `command`, plus the environment variable names listed in `env`. |
 
-`abstain_when` and `error_when` are optional expressions over the provider's `response` that turn a reply into `abstain` or `error`. They let you adapt a third-party tool without changing it.
+`abstain_when` and `error_when` are optional expressions over the provider's `response` that turn a reply into `abstain` or `error`. They let you adapt a third-party tool without changing it. If an expression cannot be evaluated, for example because it reads a field the response does not have, the reply is an `error` with the code `provider_failed`.
 
 ### Running processes is off by default
 
 `exec` providers launch a program on your machine, so they are disabled unless you set `hub.allow_exec: true` (or `JEVALAN_ALLOW_EXEC=1`). When they run:
 
-- The process is started **without a shell**, with an empty environment plus `PATH` and only the variables named in `env`.
+- The process is started **without a shell**, with an empty environment plus `PATH` (and `SystemRoot` on Windows) and only the variables named in `env`.
 - It is killed, with its whole process tree, if it exceeds the deadline.
 - Its output is capped at 1 MiB.
 - On Windows, `.cmd` and `.bat` files are refused, because launching them goes through a shell.

@@ -41,7 +41,9 @@ Tu agente debería tratar `abstain` y `error` como «sin respuesta» y elegir un
 {"capability":"nope.nope","capability_version":"1","error":{"code":"unknown_capability","message":"capacidad desconocida: nope.nope","retryable":false},"protocol_version":"jev-hub/0.1","provider":{"id":"-","version":"-"},"request_id":"r2","status":"error","trace":{"cost":"not_measured","elapsed_ms":0,"trace_id":"18e2ca4a825001080006"}}
 ```
 
-Otros códigos que puedes ver son `provider_failed`, `deadline_exceeded`, `provider_disabled` e `invalid_decision`. `retryable` indica si volver a intentarlo puede servir.
+Otros códigos que puedes ver son `invalid_input` (el `input` no cumple el `input_schema`), `version_mismatch` (la `capability_version` no es la cargada), `provider_failed`, `deadline_exceeded`, `provider_disabled` e `invalid_decision`. `retryable` indica si volver a intentarlo puede servir.
+
+El estado HTTP es `200` incluso con estos errores, porque viajan en `status`. Solo una petición mal formada, como un `protocol_version` distinto de `jev-hub/0.1`, responde `400`.
 
 ## Definir una capacidad
 
@@ -68,13 +70,13 @@ Se aplican los dos esquemas: una petición que no cumple el `input_schema` se re
 | Http | `http` | Un POST a una `url`. |
 | Exec | `exec` | Un proceso local: `command`, más los nombres de variables de entorno listados en `env`. |
 
-`abstain_when` y `error_when` son expresiones opcionales sobre la `response` del proveedor que convierten una respuesta en `abstain` o `error`. Te dejan adaptar una herramienta de terceros sin modificarla.
+`abstain_when` y `error_when` son expresiones opcionales sobre la `response` del proveedor que convierten una respuesta en `abstain` o `error`. Te dejan adaptar una herramienta de terceros sin modificarla. Si una expresión no se puede evaluar, por ejemplo porque lee un campo que la respuesta no tiene, la respuesta es un `error` con el código `provider_failed`.
 
 ### Lanzar procesos está desactivado por defecto
 
 Los proveedores `exec` lanzan un programa en tu máquina, así que están desactivados salvo que pongas `hub.allow_exec: true` (o `JEVALAN_ALLOW_EXEC=1`). Cuando corren:
 
-- El proceso se lanza **sin shell**, con un entorno vacío más `PATH` y solo las variables nombradas en `env`.
+- El proceso se lanza **sin shell**, con un entorno vacío más `PATH` (y `SystemRoot` en Windows) y solo las variables nombradas en `env`.
 - Se mata, con todo su árbol de procesos, si supera el plazo.
 - Su salida está limitada a 1 MiB.
 - En Windows se rechazan los `.cmd` y `.bat`, porque lanzarlos pasa por una shell.

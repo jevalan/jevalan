@@ -50,6 +50,8 @@ The request's `state` is what your expressions see as `input`. The reply tells y
 | `score` | Asks for a rating over an ordered list of `criteria`. Ports are numeric ranges such as `"0..1.5"`. | Yes |
 | `batch` | Asks several questions in **one** backend call and routes on all the answers. | Yes (one call) |
 
+Numeric ranges include their lower bound: a `score` of `1.5` takes the port `"1.5..3"`.
+
 Nodes that ask a model take `instructions` (the question) and `criteria`, and inherit `backend` and `model` from `defaults` unless they name their own.
 
 Besides your own ports, a model node can use two special ones:

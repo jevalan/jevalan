@@ -50,6 +50,8 @@ El `state` de la petición es lo que tus expresiones ven como `input`. La respue
 | `score` | Pide una puntuación sobre una lista ordenada de `criteria`. Los puertos son rangos numéricos como `"0..1.5"`. | Sí |
 | `batch` | Hace varias preguntas en **una** llamada al backend y enruta según todas las respuestas. | Sí (una llamada) |
 
+Los rangos numéricos incluyen su límite inferior: una puntuación `score` de `1.5` toma el puerto `"1.5..3"`.
+
 Los nodos que preguntan a un modelo llevan `instructions` (la pregunta) y `criteria`, y heredan `backend` y `model` de `defaults` salvo que nombren los suyos.
 
 Además de tus puertos, un nodo con modelo puede usar dos especiales:
