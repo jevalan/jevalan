@@ -113,6 +113,9 @@ impl CapRegistry {
         bus: Bus,
     ) -> notify::Result<RecommendedWatcher> {
         let base = dir.clone();
+        // Event paths are absolute while `dir` may be relative (`./capabilities`): compare canonical forms, or
+        // every event looks like a change under `schemas/` and a deleted file is never noticed.
+        let base_canon = dir.canonicalize().unwrap_or_else(|_| dir.clone());
         let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(event) = res else { return };
             if matches!(event.kind, FsKind::Access(_)) {
@@ -120,7 +123,7 @@ impl CapRegistry {
             }
             for path in &event.paths {
                 // Any change under `schemas/` may affect several capabilities: everything is re-read.
-                if path.parent().is_some_and(|p| p != base) {
+                if path.parent().and_then(|p| p.canonicalize().ok()).is_some_and(|p| p != base_canon) {
                     self.load_dir(&base, &flows, &hub, &bus);
                     continue;
                 }

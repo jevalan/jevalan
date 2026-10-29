@@ -60,8 +60,21 @@ async fn start(caps: &[(&str, String)]) -> Daemon {
 
 /// Like `start`, with the given `allow_exec` and `.env` variables.
 async fn start_with(caps: &[(&str, String)], allow_exec: bool, dotenv: &[(&str, &str)]) -> Daemon {
+    launch(caps, allow_exec, dotenv, false).await
+}
+
+/// `relative`: the capabilities directory is given to the daemon as a path relative to the working directory,
+/// like the sample configuration does (`./capabilities`), instead of an absolute one.
+async fn launch(caps: &[(&str, String)], allow_exec: bool, dotenv: &[(&str, &str)], relative: bool) -> Daemon {
     let flows = TempDir::with(&[("agent-wakeup.yaml", WAKE_FLOW)]);
-    let caps_dir = TempDir::with(&[]);
+    let caps_dir = if relative {
+        let name = format!("jevalan-test-{}", jevalan_daemon::bus::new_trace_id());
+        let abs = std::env::current_dir().unwrap().join(&name);
+        std::fs::create_dir_all(&abs).unwrap();
+        TempDir(abs)
+    } else {
+        TempDir::with(&[])
+    };
     copy_schemas(&caps_dir.0);
     for (name, yaml) in caps {
         std::fs::write(caps_dir.0.join(name), yaml).unwrap();
@@ -75,7 +88,8 @@ async fn start_with(caps: &[(&str, String)], allow_exec: bool, dotenv: &[(&str, 
         None,
     );
     cfg.flows_dir = flows.0.clone();
-    cfg.hub.capabilities_dir = caps_dir.0.clone();
+    cfg.hub.capabilities_dir =
+        if relative { PathBuf::from(caps_dir.0.file_name().unwrap()) } else { caps_dir.0.clone() };
     cfg.hub.allow_exec = allow_exec;
     cfg.hub.dotenv = dotenv.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
     let state = AppState::new(cfg);
@@ -174,6 +188,18 @@ async fn invalid_reload_keeps_the_previous_capability() {
 #[tokio::test]
 async fn deleted_capability_stops_serving() {
     let daemon = start(&[("agent.wakeup.yaml", repo_yaml("agent.wakeup.yaml"))]).await;
+    assert_eq!(daemon.code_of("agent.wakeup").await.as_deref(), Some("invalid_input"));
+
+    std::fs::remove_file(daemon.cap_file("agent.wakeup.yaml")).unwrap();
+
+    assert!(
+        eventually(|| async { daemon.code_of("agent.wakeup").await.as_deref() == Some("unknown_capability") }).await
+    );
+}
+
+#[tokio::test]
+async fn deleted_capability_stops_serving_with_a_relative_directory() {
+    let daemon = launch(&[("agent.wakeup.yaml", repo_yaml("agent.wakeup.yaml"))], false, &[], true).await;
     assert_eq!(daemon.code_of("agent.wakeup").await.as_deref(), Some("invalid_input"));
 
     std::fs::remove_file(daemon.cap_file("agent.wakeup.yaml")).unwrap();
