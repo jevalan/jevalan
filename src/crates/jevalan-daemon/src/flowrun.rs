@@ -53,13 +53,15 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
                     backend: backend.into(),
                     model: model.into(),
                 });
-                let body = request_body(model, input, node, &question).to_string();
-                tracer.emit(EventKind::BackendRequest { backend: backend.into(), model: model.into(), questions: 1 });
+                let members = candidates(state, io, backend, model);
                 let asked = Instant::now();
-                let result = io.backend(state, backend, node, Bytes::from(body)).await;
+                let got = ask_members(state, io, tracer, node, &members, 1, None, |m| {
+                    Bytes::from(request_body(m, input, node, &question).to_string())
+                })
+                .await;
                 let duration_ms = asked.elapsed().as_millis() as u64;
-                let (reply, given) = judge(tracer, backend, flow, node, result, duration_ms);
-                if let Some(step) = run.answer(reply, duration_ms) {
+                let (reply, given) = judge(tracer, &got.backend, flow, node, got.result, duration_ms);
+                let closed = if let Some(step) = run.answer(reply, duration_ms) {
                     // A backend failure contributes no confidence: none is ever made up.
                     if let (Some(_), Some(p)) = (step.confidence, given) {
                         io.note_confidence(p);
@@ -71,6 +73,12 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
                         confidence: step.confidence.unwrap_or(0.0),
                         port: step.port.clone(),
                     });
+                    true
+                } else {
+                    false
+                };
+                if closed {
+                    run.set_responder(got.answered.as_ref().map(|(b, m)| (b.as_str(), m.as_str())), got.tried);
                 }
             }
             Next::BatchAsk { node, backend, model, questions } => {
@@ -89,19 +97,17 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
                     .flatten()
                     .map(|(question, body)| (format!("{node}.{question}"), body.clone()))
                     .collect();
-                let body = request_body_many(model, input, named.clone()).to_string();
                 // A single request to the backend for all of the node's questions: only their count travels.
-                tracer.emit(EventKind::BackendRequest {
-                    backend: backend.into(),
-                    model: model.into(),
-                    questions: named.len() as u32,
-                });
+                let members = candidates(state, io, backend, model);
                 let asked = Instant::now();
                 let names: Vec<String> = named.keys().cloned().collect();
-                let result = io.backend_many(state, backend, node, &names, Bytes::from(body)).await;
+                let got = ask_members(state, io, tracer, node, &members, named.len() as u32, Some(&names), |m| {
+                    Bytes::from(request_body_many(m, input, named.clone()).to_string())
+                })
+                .await;
                 let duration_ms = asked.elapsed().as_millis() as u64;
-                let (replies, given) = judge_many(tracer, backend, flow, node, result, duration_ms);
-                if let Some(step) = run.answer_batch(replies, duration_ms) {
+                let (replies, given) = judge_many(tracer, &got.backend, flow, node, got.result, duration_ms);
+                let closed = if let Some(step) = run.answer_batch(replies, duration_ms) {
                     // The confidence recorded is the mean of those given to each question (see `answer_batch`).
                     if let (Some(_), Some(p)) = (step.confidence, given) {
                         io.note_confidence(p);
@@ -116,6 +122,12 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
                     if let Some(event) = audit(name, step) {
                         tracer.emit(event);
                     }
+                    true
+                } else {
+                    false
+                };
+                if closed {
+                    run.set_responder(got.answered.as_ref().map(|(b, m)| (b.as_str(), m.as_str())), got.tried);
                 }
             }
             Next::Outcome { outcome, data } => {
@@ -141,6 +153,79 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
             }
         }
     }
+}
+
+/// Who a node's question goes to, in order: the members of the route it names, or the backend itself with the
+/// node's model. A recording (`Replay`, `Record`) is deterministic, so it never falls back: only the first member counts.
+fn candidates(state: &AppState, io: &Io<'_>, backend: &str, model: &str) -> Vec<(String, String)> {
+    let Some(route) = state.cfg.routes.get(backend) else {
+        return vec![(backend.into(), model.into())];
+    };
+    let take = if io.is_live() { route.members.len() } else { 1 };
+    route.members.iter().take(take).map(|m| (m.backend.clone(), m.model.clone())).collect()
+}
+
+/// What came of asking the members of a route in order.
+struct Asked {
+    /// The last member asked: the one whose response (or failure) is judged.
+    backend: String,
+    /// The member that answered, with its model; `None` if every one failed at the transport.
+    answered: Option<(String, String)>,
+    /// Members that failed before the last one was asked, plus the last if it failed too. Empty without a route.
+    tried: Vec<String>,
+    result: Result<(u16, Bytes), String>,
+}
+
+/// Asks `members` in order and stops at the first one that answers at the transport level, whatever it says: an
+/// HTTP error or an unusable body is the node's to judge, not a reason to try another model. `body` builds the
+/// request for the member's model; `names` makes it a `batch` call.
+#[allow(clippy::too_many_arguments)]
+async fn ask_members(
+    state: &AppState,
+    io: &Io<'_>,
+    tracer: &Tracer,
+    node: &str,
+    members: &[(String, String)],
+    questions: u32,
+    names: Option<&[String]>,
+    body: impl Fn(&str) -> Bytes,
+) -> Asked {
+    let routed = members.len() > 1;
+    let mut tried = Vec::new();
+    let mut last = Asked {
+        backend: String::new(),
+        answered: None,
+        tried: Vec::new(),
+        result: Err("la ruta no tiene miembros".into()),
+    };
+    for (i, (backend, model)) in members.iter().enumerate() {
+        tracer.emit(EventKind::BackendRequest { backend: backend.clone(), model: model.clone(), questions });
+        let asked = Instant::now();
+        let bytes = body(model);
+        let result = match names {
+            Some(names) => io.backend_many(state, backend, node, names, bytes).await,
+            None => io.backend(state, backend, node, bytes).await,
+        };
+        if result.is_err() && i + 1 < members.len() {
+            let failed = EventKind::BackendResponse {
+                backend: backend.clone(),
+                ok: false,
+                status: 0,
+                duration_ms: asked.elapsed().as_millis() as u64,
+                input_tokens: None,
+            };
+            tracer.emit(failed);
+            tried.push(backend.clone());
+            continue;
+        }
+        if result.is_err() && routed {
+            tried.push(backend.clone());
+        }
+        let answered = result.is_ok().then(|| (backend.clone(), model.clone()));
+        last = Asked { backend: backend.clone(), answered, tried: std::mem::take(&mut tried), result };
+        break;
+    }
+    last
 }
 
 /// Probability the model gave to the answer it gave (not the concentration of its distribution):
@@ -292,6 +377,7 @@ mod audit_tests {
             duration_ms: 0,
             signals,
             rule,
+            tried: Vec::new(),
         }
     }
 

@@ -40,7 +40,9 @@ async fn pump(mut socket: WebSocket, state: AppState, mut rx: Receiver<Event>) {
 /// returns `false` if the client is gone.
 async fn send_initial(socket: &mut WebSocket, state: &AppState) -> bool {
     let names = state.cfg.backends.keys().cloned().collect();
-    let backends = new_event(&format!("backends:{}", state.boot), 1, "daemon", EventKind::Backends { backends: names });
+    let routes = state.cfg.routes.keys().cloned().collect();
+    let backends =
+        new_event(&format!("backends:{}", state.boot), 1, "daemon", EventKind::Backends { backends: names, routes });
     if !send(socket, &backends).await {
         return false;
     }

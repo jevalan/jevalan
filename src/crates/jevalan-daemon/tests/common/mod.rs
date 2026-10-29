@@ -69,6 +69,7 @@ pub fn cfg_with(backends: &[(&str, &str, Option<&str>)], token: Option<&str>) ->
                 path: "/v1/systemone".into(),
                 api_key: key.map(str::to_string),
                 timeout: Duration::from_millis(2000),
+                cloud: false,
             };
             (name.to_string(), backend)
         })
@@ -77,6 +78,7 @@ pub fn cfg_with(backends: &[(&str, &str, Option<&str>)], token: Option<&str>) ->
         addr: "127.0.0.1:0".parse().unwrap(),
         token: token.map(str::to_string),
         backends: map,
+        routes: BTreeMap::new(),
         default_backend: backends[0].0.to_string(),
         flows_dir: "./config/flows".into(),
         hub: Default::default(),

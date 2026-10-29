@@ -68,7 +68,7 @@ pub fn detail(kind: &EventKind) -> String {
         EventKind::PassthroughDone { backend, model, status, duration_ms } => {
             format!("{backend}/{model} · {status} · {duration_ms} ms")
         }
-        EventKind::Backends { backends } => format!("backends: {}", backends.join(", ")),
+        EventKind::Backends { backends, .. } => format!("backends: {}", backends.join(", ")),
         EventKind::FlowLoaded { nodes, .. } => format!("{nodes} nodos"),
         EventKind::FlowInvalid { reason, .. } => reason.clone(),
         EventKind::FlowRemoved { .. } => "retirado".into(),

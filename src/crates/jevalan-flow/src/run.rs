@@ -27,6 +27,9 @@ pub struct PathStep {
     /// `batch` only: index of the `route` rule that won; `None` if `else` ruled or there was an error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<usize>,
+    /// Route members tried before `backend` answered, in order; empty when the node did not fall back.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tried: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -138,6 +141,7 @@ impl<'f> Run<'f> {
             duration_ms,
             signals: Map::new(),
             rule: None,
+            tried: Vec::new(),
         };
         match result.and_then(|r| port_for(node, &r).map(|port| (r, port))) {
             Ok((r, port)) => {
@@ -158,6 +162,18 @@ impl<'f> Run<'f> {
             }
         }
         self.path.last()
+    }
+
+    /// Records who really answered the node just closed: the route member that did (`answered_by`, with its model),
+    /// and the members that failed before it. The node keeps the name it declared when nobody answered.
+    pub fn set_responder(&mut self, answered_by: Option<(&str, &str)>, tried: Vec<String>) {
+        if let Some(step) = self.path.last_mut() {
+            if let Some((backend, model)) = answered_by {
+                step.backend = backend.into();
+                step.model = model.into();
+            }
+            step.tried = tried;
+        }
     }
 
     pub fn path(&self) -> &[PathStep] {
@@ -187,6 +203,7 @@ impl Run<'_> {
             duration_ms,
             signals: Map::new(),
             rule: None,
+            tried: Vec::new(),
         };
         // `rule`: the failure comes from a rule or heuristic, whose error may quote the input; the daemon
         // then publishes a generic sentence. A missing or invalid response is a backend failure.
@@ -369,6 +386,7 @@ fn rule_step(node: &str, answer: Value, port: &str) -> PathStep {
         duration_ms: 0,
         signals: Map::new(),
         rule: None,
+        tried: Vec::new(),
     }
 }
 
@@ -594,6 +612,7 @@ mod tests {
                 duration_ms: 42,
                 signals: Map::new(),
                 rule: None,
+                tried: Vec::new(),
             }
         );
     }
@@ -762,6 +781,7 @@ outputs:
             duration_ms: 0,
             signals: Map::new(),
             rule: None,
+            tried: Vec::new(),
         }];
         let data = json!({"a": ["$answer/n", {"b": "$input/k/0"}], "c": "literal"});
         assert_eq!(resolve_refs(&data, &json!({"k": [7]}), &path), json!({"a": ["x", {"b": 7}], "c": "literal"}));

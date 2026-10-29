@@ -3,7 +3,7 @@
 use crate::daemon::Cliente;
 use crate::documento::Documento;
 use crate::inspector::Campo;
-use jevalan_flow::{Criteria, FlowError, NodeDef, NodeType, RouteDef, Signals, parse_with};
+use jevalan_flow::{Criteria, FlowError, NodeDef, NodeType, RouteDef, Signals, parse_routed, parse_with};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -36,6 +36,8 @@ pub struct Borrador {
     /// The daemon's backend catalogue, which arrives over the bus; without it, local validation cannot
     /// judge the backends and will say so.
     backends: Vec<String>,
+    /// Route names of the daemon: they go where a backend goes, and their members bring the model.
+    rutas: Vec<String>,
     backend_por_defecto: String,
     /// Signal catalogue: without it, a flow that uses them cannot be judged locally.
     senales: Signals,
@@ -51,6 +53,7 @@ impl Borrador {
         Self {
             doc,
             backends: Vec::new(),
+            rutas: Vec::new(),
             backend_por_defecto: String::new(),
             senales: Signals::new(),
             cliente: None,
@@ -63,6 +66,11 @@ impl Borrador {
     pub fn catalogo(&mut self, backends: Vec<String>, por_defecto: String) {
         self.backends = backends;
         self.backend_por_defecto = por_defecto;
+    }
+
+    /// The daemon's route names, which arrive over the bus together with the backends.
+    pub fn rutas(&mut self, rutas: Vec<String>) {
+        self.rutas = rutas;
     }
 
     /// The signal catalogue against which the draft is judged locally.
@@ -128,11 +136,13 @@ impl Borrador {
     fn juzgar(&self) -> Validez {
         if !self.backends.is_empty() {
             let backends: Vec<&str> = self.backends.iter().map(String::as_str).collect();
-            return match parse_with(
+            let rutas: Vec<&str> = self.rutas.iter().map(String::as_str).collect();
+            return match parse_routed(
                 &self.nombre(),
                 &self.doc.yaml(),
                 &self.senales,
                 &backends,
+                &rutas,
                 &self.backend_por_defecto,
             ) {
                 Ok(_) => Validez::valido(),

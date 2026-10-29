@@ -47,6 +47,7 @@ fn cfg() -> Config {
             path: "/v1/systemone".into(),
             api_key: None,
             timeout: std::time::Duration::from_secs(1),
+            cloud: false,
         };
         cfg.backends.insert(name.into(), backend);
     }
@@ -323,7 +324,10 @@ async fn live_cfg() -> Config {
     for (name, api_key) in [("typesafe", Some(SECRET.to_string())), ("ollama", None), ("openrouter", None)] {
         let mock = spawn_mock(7, (0, 1), 0.0).await.unwrap();
         let timeout = std::time::Duration::from_secs(2);
-        cfg.backends.insert(name.into(), Backend { url: mock.url, path: "/v1/systemone".into(), api_key, timeout });
+        cfg.backends.insert(
+            name.into(),
+            Backend { url: mock.url, path: "/v1/systemone".into(), api_key, timeout, cloud: false },
+        );
     }
     cfg
 }
@@ -713,6 +717,7 @@ async fn cfg_at(url: &str) -> Config {
             path: "/v1/systemone".into(),
             api_key: None,
             timeout: std::time::Duration::from_secs(2),
+            cloud: false,
         };
         cfg.backends.insert(name.into(), backend);
     }

@@ -43,6 +43,8 @@ pub struct Telemetria {
     /// Backend catalogue the daemon declared. It is the one local validation uses when the daemon
     /// does not answer: the `BACKENDS` event only carries their names.
     pub backends: Vec<String>,
+    /// Route names the daemon declared: a flow may name one where it would name a backend.
+    pub rutas: Vec<String>,
 }
 
 impl Telemetria {
@@ -64,6 +66,7 @@ impl Telemetria {
             estado: Estado::Apagado,
             ultimo: None,
             backends: Vec::new(),
+            rutas: Vec::new(),
         }
     }
 
@@ -108,7 +111,10 @@ impl Telemetria {
     /// because its name is not among the current flows.
     fn anotar(&mut self, e: &Event, ahora: Instant) {
         match &e.kind {
-            EventKind::Backends { backends } => self.backends = backends.clone(),
+            EventKind::Backends { backends, routes } => {
+                self.backends = backends.clone();
+                self.rutas = routes.clone();
+            }
             EventKind::FlowLoaded { flow, definition, .. } => {
                 if let Ok(f) = serde_json::from_value::<Flow>(definition.clone()) {
                     self.flows.insert(flow.clone(), Arc::new(f));
@@ -190,7 +196,10 @@ mod tests {
     #[test]
     fn el_catalogo_de_backends_y_la_actividad_llegan_por_el_bus() {
         let mut telemetria = sorda("tool-risk-local");
-        telemetria.anotar(&evento(EventKind::Backends { backends: vec!["kev".into(), "laya".into()] }), Instant::now());
+        telemetria.anotar(
+            &evento(EventKind::Backends { backends: vec!["kev".into(), "laya".into()], routes: Vec::new() }),
+            Instant::now(),
+        );
         assert_eq!(telemetria.backends, ["kev", "laya"]);
 
         let ahora = Instant::now();

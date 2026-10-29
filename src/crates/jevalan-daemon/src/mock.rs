@@ -72,7 +72,7 @@ pub async fn demo_config(addr: SocketAddr, seed: u64, specialist: Vec<String>) -
         let api_key = (name == "typesafe").then(|| "demo-key".to_string());
         backends.insert(
             name.to_string(),
-            Backend { url, path: "/v1/systemone".into(), api_key, timeout: Duration::from_secs(5) },
+            Backend { url, path: "/v1/systemone".into(), api_key, timeout: Duration::from_secs(5), cloud: false },
         );
     }
     let (capabilities_dir, flag) = write_capabilities(seed, specialist)?;
@@ -82,6 +82,7 @@ pub async fn demo_config(addr: SocketAddr, seed: u64, specialist: Vec<String>) -
         addr,
         token: None,
         backends,
+        routes: BTreeMap::new(),
         default_backend: "ollama".into(),
         flows_dir: PathBuf::from("./config/flows"),
         hub,

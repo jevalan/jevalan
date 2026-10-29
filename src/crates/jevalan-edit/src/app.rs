@@ -369,12 +369,14 @@ impl App {
     pub fn latir(&mut self) {
         self.ahora = Instant::now();
         let antes = self.telemetria.backends.clone();
+        let antes_rutas = self.telemetria.rutas.clone();
         if self.telemetria.latir(self.ahora) {
             self.redibujar = true;
-            if self.telemetria.backends != antes {
+            if self.telemetria.backends != antes || self.telemetria.rutas != antes_rutas {
                 // The daemon's default backend does not travel in the event, so none is faked:
                 // without it local validation does not check the backends, and says so (spec §8).
                 self.borrador.catalogo(self.telemetria.backends.clone(), String::new());
+                self.borrador.rutas(self.telemetria.rutas.clone());
                 self.borrador.revisar();
             }
         }

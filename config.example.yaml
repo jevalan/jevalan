@@ -5,6 +5,16 @@ backends:
   typesafe: { url: "https://api.typesafe.ai", api_key_env: TYPESAFE_API_KEY, timeout_ms: 2000 }
   openrouter: { url: "https://openrouter.ai", path: "/api/alpha/decisions", api_key_env: OPENROUTER_API_KEY, timeout_ms: 8000 }
   ollama: { url: "http://localhost:11434", timeout_ms: 5000 }
+# A route is an ordered list of (backend, model): a flow that names it uses the first member that answers.
+# Only a transport failure (refused, timeout, DNS) moves on to the next; the cloud never joins on its own.
+# routes:
+#   local:
+#     - { backend: ollama, model: nimble }
+#   local-cloud:
+#     allow_cloud: true
+#     members:
+#       - { backend: ollama, model: nimble }
+#       - { backend: openrouter, model: typesafe/jev-1.13 }   # needs `cloud: true` on the backend
 default_backend: ollama
 flows_dir: ./config/flows
 hub:

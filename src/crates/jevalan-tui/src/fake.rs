@@ -212,7 +212,7 @@ fn definition(flow: &Flow) -> Value {
 /// The `BACKENDS` that the daemon sends first when a connection opens.
 pub fn backends_event() -> Event {
     let backends = BACKENDS.iter().map(|b| b.to_string()).collect();
-    new_event("backends:1", 1, "fake", EventKind::Backends { backends })
+    new_event("backends:1", 1, "fake", EventKind::Backends { backends, routes: Vec::new() })
 }
 
 /// One `FLOW_LOADED` per flow, like the one the daemon sends when a connection opens.

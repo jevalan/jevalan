@@ -91,6 +91,9 @@ pub enum EventKind {
     /// Names of the configured backends, never their urls or keys.
     Backends {
         backends: Vec<String>,
+        /// Names of the configured routes; a flow may name one where it would name a backend.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        routes: Vec<String>,
     },
     FlowLoaded {
         flow: String,

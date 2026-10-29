@@ -10,7 +10,7 @@ use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use jevalan_flow::{Flow, parse_with};
+use jevalan_flow::{Flow, parse_routed};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -27,8 +27,9 @@ struct Validate {
 /// The flow the body carries, judged with the real parser and the daemon's backend catalogue.
 fn leer(state: &AppState, flow: &str, yaml: &str) -> Result<Flow, String> {
     let backends: Vec<&str> = state.cfg.backends.keys().map(String::as_str).collect();
+    let routes: Vec<&str> = state.cfg.routes.keys().map(String::as_str).collect();
     let (signals, _) = crate::signals::load_dir(&state.cfg.hub.signals_dir);
-    parse_with(flow, yaml, &signals, &backends, &state.cfg.default_backend).map_err(|e| e.to_string())
+    parse_routed(flow, yaml, &signals, &backends, &routes, &state.cfg.default_backend).map_err(|e| e.to_string())
 }
 
 /// `POST /v1/flows/validate`: the parser's verdict on the draft, without publishing it.

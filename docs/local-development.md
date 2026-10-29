@@ -74,6 +74,35 @@ The daemon forwards to `url + path`; the client-facing route `/{backend}/v1/syst
 The daemon fails fast if `default_backend` is not defined, a `url` is not http(s), or an
 `api_key_env` variable is empty or missing.
 
+### Routes: the first backend that answers
+
+A `routes.<name>` entry is an ordered list of `{ backend, model }`. A flow (`defaults.backend` or a node's `backend`)
+or `default_backend` may name a route wherever it would name a backend; each member brings its own model, so the
+node's `model` is optional and ignored (the daemon says so at load if one is declared). Availability is settled at
+call time: only a **transport** failure (connection refused, timeout, DNS) moves on to the next member. An HTTP 5xx, a
+429 or an unusable body does not; the node judges it as always. If every member fails, the node takes its `error` port.
+
+```yaml
+backends:
+  kev:  { url: "http://127.0.0.1:8009" }
+  laya: { url: "http://127.0.0.1:8021" }
+  openrouter: { url: "https://openrouter.ai", path: "/api/alpha/decisions", api_key_env: OPENROUTER_API_KEY, cloud: true }
+routes:
+  local:                    # short form: the cloud stays out
+    - { backend: kev,  model: kev-latest }
+    - { backend: laya, model: laya-rl-agent }
+  local-cloud:              # long form: the only way to let a `cloud: true` backend in
+    allow_cloud: true
+    members:
+      - { backend: kev, model: kev-latest }
+      - { backend: openrouter, model: typesafe/jev-1.13 }
+```
+
+A route name matches `[a-z0-9-]+`, cannot be `v1` and cannot be the name of a backend. A route whose members are all
+`cloud: true` without `allow_cloud` is a configuration error. The trace stays honest: one node, one step, whose
+`backend` is the member that answered and whose `tried` lists the ones that failed before it. Recordings (the lab's
+`Replay` and `Record`) never fall back, and the passthrough `/{backend}/v1/systemone` keeps naming a concrete backend.
+
 ### Backends
 
 - `ollama`: local, no auth, `http://localhost:11434`. Needs Ollama 0.35.0 or later and a decision model pulled (`ollama pull nimble`); an ordinary chat model does not return System One probabilities.

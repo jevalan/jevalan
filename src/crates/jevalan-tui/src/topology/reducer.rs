@@ -151,7 +151,7 @@ impl Topology {
                     self.finish(e, PacketStatus::Failed, now);
                 }
             }
-            EventKind::Backends { backends } => backends.iter().for_each(|b| self.ensure_backend(b)),
+            EventKind::Backends { backends, .. } => backends.iter().for_each(|b| self.ensure_backend(b)),
             EventKind::FlowLoaded { flow, definition, .. } => {
                 self.loaded_flows.insert(flow.clone());
                 self.rebuild_ports();
@@ -354,7 +354,7 @@ mod tests {
     #[test]
     fn backends_event_adds_chips() {
         let mut t = Topology::new();
-        let kind = EventKind::Backends { backends: vec!["ollama".into(), "typesafe".into()] };
+        let kind = EventKind::Backends { backends: vec!["ollama".into(), "typesafe".into()], routes: Vec::new() };
         assert!(t.reduce(&ev("backends:1", kind.clone()), Instant::now()).is_empty());
         let names: Vec<_> = t.backends().collect();
         assert_eq!(names, [("ollama", BackendState::Up), ("typesafe", BackendState::Up)]);

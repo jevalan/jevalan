@@ -12,7 +12,9 @@ pub use run::{
     request_body_many, resolve_refs,
 };
 pub use signals::{Signals, parse_signal};
-pub use validate::{Flow, FlowError, Node, answer_ports, parse, parse_with, validate, validate_with};
+pub use validate::{
+    Flow, FlowError, Node, answer_ports, parse, parse_routed, parse_with, validate, validate_routed, validate_with,
+};
 
 /// Symbolic backend and model of a rule node: it consults nobody.
 pub const RULE_BACKEND: &str = "-";

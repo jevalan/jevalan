@@ -74,6 +74,11 @@ impl<'a> Io<'a> {
         self.tally.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Only a live transport falls back to the next member of a route: a recording is deterministic.
+    pub fn is_live(&self) -> bool {
+        matches!(self.transport, Transport::Live)
+    }
+
     pub fn is_replay(&self) -> bool {
         matches!(self.transport, Transport::Replay(_))
     }

@@ -63,6 +63,27 @@ The daemon fails fast, with a clear message, if `default_backend` is not defined
 
 Flows name the backend they use. If a flow names a backend that your configuration does not define, that flow is listed as invalid until you add it. See [Troubleshooting](/en/solucion-de-problemas/).
 
+## Routes: the first backend that answers
+
+A route is an ordered list of `{ backend, model }`. A flow (`defaults.backend` or a node's `backend`) or `default_backend` may name one wherever it would name a backend, and the daemon uses the first member that answers. Each member brings its own model, so the node's `model` is optional and ignored (the daemon warns when it loads a flow that declares one).
+
+```yaml
+routes:
+  local:                    # short form: the cloud stays out
+    - { backend: kev,  model: kev-latest }
+    - { backend: laya, model: laya-rl-agent }
+  local-cloud:              # long form: the only way to let a `cloud: true` backend in
+    allow_cloud: true
+    members:
+      - { backend: kev, model: kev-latest }
+      - { backend: openrouter, model: typesafe/jev-1.13 }
+```
+
+- **Only a transport failure moves on** (connection refused, timeout, DNS). An HTTP 5xx, a 429 or an unusable body does not change member: the node judges it as always. If every member fails, the node exits through its `error` port.
+- **The cloud never joins on its own.** A backend marked `cloud: true` takes part only in a route with `allow_cloud: true`. A route whose members are all cloud, without `allow_cloud`, is a configuration error.
+- **The trace stays honest.** A node is still one step: its `backend` is the member that answered and `tried` lists the ones that failed before it.
+- A route name uses lowercase letters, digits and hyphens, cannot be `v1` and cannot match a backend. Lab recordings never fall back, and `/{backend}/v1/systemone` keeps naming a concrete backend.
+
 ## Keys and access
 
 Store keys in environment variables and set each variable's name in YAML with `api_key_env`. Do not put real keys in a versioned file.
