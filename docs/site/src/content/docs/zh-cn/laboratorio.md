@@ -12,7 +12,7 @@ description: 离线测试你的流程，录制真实答案，并在预算内衡�
 
 ```text
 config/lab/
-  lab.yaml                                   # targets、预算、重复次数、价格
+  lab.yaml                                   # targets（可选）、预算、重复次数、价格
   config.yaml                                # 未指定时使用的守护进程配置（无密钥）
   fixtures/<capability>/<id>.yaml            # 每个用例一个文件
   cassettes/<capability>/<fixture>/<target>.json   # 由 `record` 写入的答案
@@ -59,7 +59,7 @@ expect:                          # 不能为空
 
 ## 预算与 target
 
-`record` 和 `live` 会花钱，所以它们要求 `lab.yaml` 中有 `budget`，并且在第一次调用之前要求确认。
+`record` 和 `live` 会花钱，所以它们要求 `lab.yaml` 中有 `budget`，并且在第一次调用之前要求确认。`targets` 是可选的：`check` 和 `offline` 不需要任何 target，但如果存在流程类 fixture 而你没有声明至少一个 target，`record` 和 `live` 会在调用任何东西之前拒绝启动。
 
 ```yaml
 targets:

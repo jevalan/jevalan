@@ -12,7 +12,7 @@ The lab answers two questions: **does my decision logic still behave?** and **wh
 
 ```text
 config/lab/
-  lab.yaml                                   # targets, budget, repetitions, prices
+  lab.yaml                                   # targets (optional), budget, repetitions, prices
   config.yaml                                # daemon config used when none is given (no keys)
   fixtures/<capability>/<id>.yaml            # one file per case
   cassettes/<capability>/<fixture>/<target>.json   # answers written by `record`
@@ -59,7 +59,7 @@ Narrow a run with a capability name, `--fixture`, or `--target`. Use `--lab-dir`
 
 ## Budget and targets
 
-`record` and `live` spend money, so they require a `budget` in `lab.yaml` and ask for confirmation before the first call.
+`record` and `live` spend money, so they require a `budget` in `lab.yaml` and ask for confirmation before the first call. `targets` are optional: `check` and `offline` work with none, but `record` and `live` refuse to start, before calling anything, if there are flow fixtures and you declare no target.
 
 ```yaml
 targets:

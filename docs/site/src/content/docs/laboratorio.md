@@ -12,7 +12,7 @@ El laboratorio responde a dos preguntas: **¿mi lógica de decisión sigue port�
 
 ```text
 config/lab/
-  lab.yaml                                   # targets, presupuesto, repeticiones, precios
+  lab.yaml                                   # targets (opcional), presupuesto, repeticiones, precios
   config.yaml                                # config del daemon si no se da otra (sin claves)
   fixtures/<capacidad>/<id>.yaml             # un fichero por caso
   cassettes/<capacidad>/<fixture>/<target>.json   # respuestas que escribe `record`
@@ -59,7 +59,7 @@ Acota una ejecución con el nombre de una capacidad, `--fixture` o `--target`. U
 
 ## Presupuesto y targets
 
-`record` y `live` gastan dinero, así que exigen un `budget` en `lab.yaml` y piden confirmación antes de la primera llamada.
+`record` y `live` gastan dinero, así que exigen un `budget` en `lab.yaml` y piden confirmación antes de la primera llamada. Los `targets` son opcionales: `check` y `offline` funcionan sin ninguno, pero `record` y `live` se niegan a arrancar, antes de llamar a nada, si hay fixtures de flujos y no declaras al menos uno.
 
 ```yaml
 targets:
