@@ -79,7 +79,7 @@ Each decision is appended to `shadow.jsonl` in the same data directory, with sec
 Turn it into something you can read, and then into tests:
 
 ```sh
-# A Markdown report: verdicts, why the asks happened, probabilities, latency
+# A Markdown report: verdicts, why the asks happened, probabilities, how many decisions sit near a threshold, latency
 jevalan shadow report --since 2026-10-01 --out report.md
 
 # The same, plus a redacted excerpt of each example (local use only)
@@ -88,6 +88,8 @@ jevalan shadow report --with-inputs
 # Real decisions as lab fixtures, highest risk first
 jevalan shadow fixtures --lab-dir lab-fixtures-batch --max 20
 ```
+
+The "Cerca de un umbral" (near a threshold) section splits each decision's highest risk into 0.1 bins and counts how many fall within 0.05 of 0.55 and of 0.85. Those are the ones that would change verdict with a slightly different threshold, and the ones worth reviewing by hand. It does not measure calibration: the log does not record what you would have decided, and without that it cannot.
 
 By default the report holds no tool input, so you can publish it. The fixtures feed the [lab](/en/laboratorio/), so your test bench grows out of what actually happened.
 

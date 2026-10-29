@@ -384,7 +384,7 @@ Add it to `~/.claude/settings.json`, with the absolute path to the binary:
 `jevalan shadow report [--log <path>] [--since <RFC3339 or YYYY-MM-DD>] [--out <file.md>] [--with-inputs]` aggregates
 `shadow.jsonl` into a Markdown report (Spanish headings): overview by status/verdict/source, per-tool verdict mix and
 latency (nearest-rank p50/p95, as in the lab), the anatomy of `ask` (truncated context, static rule, dominant risk,
-other, and how many asks had every risk below 0.55), probability statistics, latency and errors, and up to 10 example
+other, and how many asks had every risk below 0.55), probability statistics, how many decisions sit within 0.05 of the 0.55 and 0.85 thresholds ("Cerca de un umbral"; not a calibration measure, since the log holds no human labels), latency and errors, and up to 10 example
 rows of suspicious asks and denies. By default the report holds no `tool_input` content, so it can be published;
 `--with-inputs` adds each example's redacted input (truncated to 120 characters) for local use only. Malformed lines are
 skipped and counted under "líneas ignoradas". `--since` compares against the UTC timestamps as strings.
