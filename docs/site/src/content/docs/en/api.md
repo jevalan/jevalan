@@ -15,6 +15,8 @@ curl -s http://127.0.0.1:8080/v1/flows -H "Authorization: Bearer $JEVALAN_TOKEN"
 
 The `/events` WebSocket also accepts `?token=<token>`, because browsers cannot set headers on a WebSocket.
 
+Without a valid token a route answers `401` with the plain text `token requerido` (not JSON), and `/events` refuses the upgrade with the same status.
+
 ## Routes
 
 | Route | What it does |
@@ -57,6 +59,7 @@ Errors are JSON with an `error` message:
 |---|---|
 | `400` | The body has no `state`: `{"error":"falta «state»"}`. |
 | `404` | Unknown flow: `{"error":"flujo desconocido: nope"}`. |
+| `401` | Missing or wrong token. The body is the plain text `token requerido`. |
 | `502` | A node failed and has no `error` port, or the backend is unreachable. |
 
 ## Validate and try a draft
@@ -87,6 +90,8 @@ curl -s http://127.0.0.1:8080/v1/flows/draft/run \
 {"confidence":null,"data":{"r":"yes"},"flow":"x","outcome":"ok","path":[{"answer":true,"backend":"-","confidence":1.0,"duration_ms":0,"model":"-","node":"a","port":"true"}],"trace_id":"18e2ca4a96f0d9840007"}
 ```
 
+`transport` is `live` (calls the real backends), `record` (calls them too and returns the recorded `cassette` in the answer) or `replay` (takes a `cassette` from the request and calls nothing). Any other value is a `400`.
+
 ## Proxy to a backend
 
 The passthrough forwards your System One request untouched and adds the backend's API key if one is configured. Identify your client with the `X-Jevalan-Client` header; the default is `unknown`.
@@ -106,6 +111,6 @@ See [Capabilities and hub](/en/capacidades/) for `POST /v1/hub` and `GET /v1/hub
 
 ## Events
 
-`GET /events` upgrades to a WebSocket and publishes one JSON event per message: requests received, nodes started and finished, decisions made, flows and capabilities loaded, and errors. The terminal UI is a client of this stream.
+`GET /events` upgrades to a WebSocket and publishes one JSON event per message: requests received, nodes started and finished, decisions made, flows and capabilities loaded, and errors. The terminal UI is a client of this stream. When you connect you first receive the current state (the backends and the loaded flows), then the live events.
 
 Events carry no field with the original input, but they can carry answers, outcomes, signals, flow definitions, and errors. Treat the stream as sensitive data, and do not share a capture without reviewing it.
