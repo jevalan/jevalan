@@ -29,6 +29,8 @@ The demo includes the daemon, mock backends, and simulated traffic. No credentia
 ./target/release/jevalan tui --demo
 ```
 
+![Terminal screenshot of `jevalan tui --demo`: clients on the left, the hub with its capabilities at the top, the backends with their latency at the bottom, and the live decisions feed.](../../../assets/tui-topologia.png)
+
 ## Start with your backends
 
 From the extracted directory, copy the example configuration and review its endpoints:

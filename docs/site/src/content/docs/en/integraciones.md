@@ -91,6 +91,8 @@ By default the report holds no tool input, so you can publish it. The fixtures f
 
 In the terminal UI, press `H` to see the decisions live: counters with p50 and p95 latency, the latest calls, and the probability of each question as bars with ticks at the 0.55 and 0.85 thresholds. It reads the file locally and never shows the input, so it is safe to screenshot.
 
+![Terminal screenshot of the hook decisions view: verdict counters, the list of decisions, and the probability of each question as bars.](../../../assets/tui-decisiones-hook.png)
+
 ## Beyond hooks
 
 If your client speaks MCP, [`jevalan mcp`](/en/servidor-mcp/) exposes the capabilities as tools, with no adapter to write.

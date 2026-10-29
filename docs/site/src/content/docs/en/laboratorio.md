@@ -114,6 +114,10 @@ jevalan lab live tool.risk --config config.yaml --lab-dir lab --yes
 
 | target | pass | stable | abstain | error | cost | Brier |
 |---|---|---|---|---|---|---|
-| kev-small | 12/12 | 6/6 | 0% | 0% | $0 (local) | 0.062 |
+| kev-small | 11/12 | 5/6 | 0% | 8% | $0 (local) | 0.062 |
+
+![Terminal screenshot of `jevalan lab live`: a report with pass rate, stability, error rate, cost and calibration for the local target.](../../../assets/lab-live.png)
+
+A second run of the same command gave 11 of 12 and one unstable fixture, `cat-readme`: a small model does not always answer the same way, which is what the `stable` column and the details section of the report are for.
 
 Two details from this run. Fixtures marked `modes: [offline]` (the ones that simulate an abstention or a failure) are skipped in `live`. And a `replay` that names a provider the capability does not use, such as `toolgate` when the capability is served by a flow, is rejected: remove the `replay` from a fixture you want to run live and let the backend answer.

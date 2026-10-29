@@ -114,6 +114,10 @@ jevalan lab live tool.risk --config config.yaml --lab-dir lab --yes
 
 | target | 通过 | 稳定 | abstain | error | 成本 | Brier |
 |---|---|---|---|---|---|---|
-| kev-small | 12/12 | 6/6 | 0% | 0% | $0 (local) | 0.062 |
+| kev-small | 11/12 | 5/6 | 0% | 8% | $0 (local) | 0.062 |
+
+![`jevalan lab live` 的终端截图：本地目标的通过率、稳定性、错误率、成本与校准报告。](../../../assets/lab-live.png)
+
+同一命令的第二次运行得到 12 次中通过 11 次，并有一个不稳定的 fixture `cat-readme`：小模型并不总是给出相同的回答，`稳定` 列和报告的详情部分正是为此而设。
 
 这次运行有两点值得一提。标有 `modes: [offline]` 的 fixture（模拟弃权或故障的那些）在 `live` 中会被跳过。而 `replay` 若指向该能力并不使用的提供方（例如能力由流程提供时的 `toolgate`），则会被拒绝：想在线运行的 fixture 请去掉 `replay`，让后端来回答。

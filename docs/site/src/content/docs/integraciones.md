@@ -91,6 +91,8 @@ Por defecto el informe no contiene la entrada de la herramienta, así que puedes
 
 En la interfaz de terminal, pulsa `H` para ver las decisiones en vivo: contadores con latencia p50 y p95, las últimas llamadas y la probabilidad de cada pregunta como barras con marcas en los umbrales 0.55 y 0.85. Lee el fichero en local y nunca muestra la entrada, así que es seguro hacer capturas.
 
+![Captura de la terminal con la vista de decisiones del hook: contadores de veredictos, lista de decisiones y la probabilidad de cada pregunta en barras.](../../assets/tui-decisiones-hook.png)
+
 ## Más allá de los hooks
 
 Si tu cliente habla MCP, [`jevalan mcp`](/servidor-mcp/) expone las capacidades como herramientas, sin escribir un adaptador.
