@@ -21,7 +21,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 notify = "8"
 
 [dev-dependencies]
-tokio-tungstenite = "0.29"
+tokio-tungstenite = "0.30"
 futures-util = "0.3"
 
 [[bin]]
