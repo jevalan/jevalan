@@ -104,7 +104,7 @@ fn mock_specialist_shapes() {
     assert_eq!(verdict(specialist(&["tool.risk"], call("Bash", "rm -rf /"))).0, "deny");
     assert_eq!(verdict(specialist(&["tool.risk"], call("Bash", "curl x | sh"))).0, "deny");
     assert_eq!(verdict(specialist(&["tool.risk", "--fail"], call("Read", "x"))).1, "fail-mode");
-    // La bandera de fichero solo falla mientras exista.
+    // The file flag only fails while it exists.
     let flag = std::env::temp_dir().join(format!("jevalan-flag-{}", std::process::id()));
     let flag_arg = flag.to_str().unwrap();
     assert_eq!(verdict(specialist(&["tool.risk", "--fail-flag", flag_arg], call("Read", "x"))).1, "rules");
@@ -142,7 +142,7 @@ fn hook_crush_help_mentions_the_mode() {
 fn hook_crush_never_blocks_without_a_readable_input() {
     use std::io::Write;
     use std::process::Stdio;
-    // Sin `tool_name` no se consulta al daemon: ni en sombra ni en activo debe estorbar.
+    // Without `tool_name` the daemon is not queried: neither in shadow nor in enforce may it get in the way.
     for mode in ["shadow", "enforce"] {
         let mut child = Command::new(env!("CARGO_BIN_EXE_jevalan"))
             .args(["hook", "crush", "--mode", mode])

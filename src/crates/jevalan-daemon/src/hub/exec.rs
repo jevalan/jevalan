@@ -1,4 +1,4 @@
-//! Proveedor `exec`: proceso sin shell, entorno mínimo, salida acotada y muerte al agotar el plazo.
+//! `exec` provider: process without a shell, minimal environment, bounded output and killed when the deadline expires.
 
 use jevalan_hub::capability::is_batch;
 use jevalan_hub::classify::{ErrorCode, Status};
@@ -16,7 +16,7 @@ fn failed(message: impl Into<String>) -> Status {
     Status::error(ErrorCode::ProviderFailed, message)
 }
 
-/// Lanza `command` con `input` por stdin y devuelve su stdout como JSON, o el `Status` de error.
+/// Launches `command` with `input` on stdin and returns its stdout as JSON, or the error `Status`.
 pub async fn run(
     command: &[String],
     env: &[String],
@@ -24,14 +24,14 @@ pub async fn run(
     input: &Value,
     deadline: Duration,
 ) -> Result<Value, Status> {
-    // Un `.cmd`/`.bat` se lanzaría a través de `cmd.exe`, que es un intérprete: ni hablar.
+    // A `.cmd`/`.bat` would be launched through `cmd.exe`, which is an interpreter: no way.
     if is_batch(&command[0]) {
         return Err(failed("un .cmd/.bat pasaría por cmd.exe; usa node con la ruta del script"));
     }
     let mut cmd = Command::new(&command[0]);
     cmd.args(&command[1..]).env_clear();
     for name in ["PATH", "SystemRoot"].into_iter().chain(env.iter().map(String::as_str)) {
-        // Primero el entorno del proceso; si falta, el `.env` cargado al arrancar.
+        // First the process environment; if missing, the `.env` loaded at start-up.
         if let Some(value) = std::env::var_os(name) {
             cmd.env(name, value);
         } else if let Some(value) = dotenv.get(name) {
@@ -39,7 +39,7 @@ pub async fn run(
         }
     }
     cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
-    // Grupo propio: el plazo mata al especialista y a toda su descendencia.
+    // Own group: the deadline kills the specialist and all its descendants.
     #[cfg(unix)]
     cmd.process_group(0);
     let mut child = cmd.spawn().map_err(|e| failed(format!("no se pudo lanzar el especialista: {:?}", e.kind())))?;
@@ -52,7 +52,7 @@ pub async fn run(
     let work = async {
         let feed = async {
             let mut stdin = stdin;
-            // Un especialista que no lee su entrada cierra la tubería: no es culpa nuestra.
+            // A specialist that does not read its input closes the pipe: not our fault.
             let _ = stdin.write_all(&payload).await;
             Ok(())
         };
@@ -80,7 +80,7 @@ pub async fn run(
     serde_json::from_slice(&out).map_err(|_| failed(format!("la salida del especialista no es JSON: {detail}")))
 }
 
-/// Mata el árbol entero (a lo bruto y sin esperar resultado) y después al hijo directo.
+/// Kills the whole tree (bluntly and without waiting for a result) and then the direct child.
 async fn kill_tree(child: &mut tokio::process::Child) {
     if let Some(pid) = child.id() {
         let mut killer = if cfg!(windows) {
@@ -99,7 +99,7 @@ async fn kill_tree(child: &mut tokio::process::Child) {
     let _ = child.kill().await;
 }
 
-/// Lee hasta el final; más de `cap` bytes es un fallo si `strict`, y si no se descarta el exceso.
+/// Reads to the end; more than `cap` bytes is a failure if `strict`, otherwise the excess is discarded.
 async fn read_capped(mut r: impl AsyncRead + Unpin, cap: usize, strict: bool) -> Result<Vec<u8>, Status> {
     let (mut buf, mut chunk) = (Vec::new(), [0u8; 8192]);
     loop {

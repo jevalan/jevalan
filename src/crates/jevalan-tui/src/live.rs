@@ -1,4 +1,4 @@
-//! Fuente en vivo: se conecta por WebSocket al daemon y reintenta con paciencia.
+//! Live source: connects to the daemon over WebSocket and retries patiently.
 
 use crate::screen::{Feed, SourceStatus};
 use jevalan_events::Event;
@@ -12,7 +12,7 @@ use tungstenite::{Message, connect};
 const BACKOFF_START: Duration = Duration::from_millis(500);
 const BACKOFF_MAX: Duration = Duration::from_secs(10);
 
-/// Lanza el hilo de conexión; termina cuando se suelta el `Receiver`.
+/// Launches the connection thread; it ends when the `Receiver` is dropped.
 pub fn spawn(url: String, token: Option<String>) -> Receiver<Feed> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || run(&url, token.as_deref(), &tx));
@@ -37,10 +37,10 @@ fn run(url: &str, token: Option<&str>, tx: &Sender<Feed>) {
     }
 }
 
-/// La TUI cerró el canal.
+/// The TUI closed the channel.
 struct Closed;
 
-/// Una conexión entera; devuelve el motivo por el que terminó.
+/// One whole connection; returns the reason it ended.
 fn session(url: &str, token: Option<&str>, tx: &Sender<Feed>, backoff: &mut Duration) -> Result<String, Closed> {
     let mut request = match url.into_client_request() {
         Ok(r) => r,
@@ -86,7 +86,7 @@ mod tests {
         Message::text(serde_json::to_string(&e).unwrap())
     }
 
-    /// Servidor de prueba: atiende una conexión por guion, exigiendo `Bearer tok`, y la cierra.
+    /// Test server: serves one connection per script, requiring `Bearer tok`, and closes it.
     fn server(scripts: Vec<Vec<Message>>) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("ws://{}/events", listener.local_addr().unwrap());

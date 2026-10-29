@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { parseEvent } from "./events";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const fixture = resolve(here, "../../config/schema/fixtures/decision_made.json");
+const fixture = resolve(here, "../../../config/schema/fixtures/decision_made.json");
 
 describe("event contract", () => {
   it("parses the shared Go fixture", () => {

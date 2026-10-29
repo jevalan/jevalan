@@ -1,4 +1,4 @@
-//! Dibujo del grafo de un flujo sobre rataflow: cajas por nodo y salida, aristas con contador y paquetes.
+//! Drawing of a flow's graph on rataflow: boxes per node and output, edges with counter and packets.
 
 use crate::flow_activity::FlowActivity;
 use crate::flow_layout::{FlowNodeId, columns, edges};
@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-/// Paso de las flechas, en celdas.
+/// Arrow step, in cells.
 const PAN_STEP: f64 = 2.0;
 pub const NODE_W: u16 = 16;
 pub const NODE_H: u16 = 5;
@@ -41,17 +41,17 @@ fn edge_id(from: &FlowNodeId, port: &str) -> String {
     format!("{}>{port}", key(from))
 }
 
-/// Identificador de una caja, tal como lo usa el pintor: `n:<nodo>` u `o:<salida>`.
+/// Identifier of a box, as the painter uses it: `n:<node>` or `o:<output>`.
 pub fn caja(id: &FlowNodeId) -> String {
     key(id)
 }
 
-/// Identificador de una arista: `n:<nodo>><puerto>`.
+/// Identifier of an edge: `n:<node>><port>`.
 pub fn arista(from: &FlowNodeId, port: &str) -> String {
     edge_id(from, port)
 }
 
-/// Recorta a `n` caracteres, con puntos suspensivos si no cabe.
+/// Trims to `n` characters, with an ellipsis if it does not fit.
 fn clip(s: &str, n: usize) -> String {
     if s.chars().count() <= n { s.to_string() } else { s.chars().take(n.saturating_sub(1)).chain(['…']).collect() }
 }
@@ -83,7 +83,7 @@ impl NodeContent for NodeBox {
 #[derive(Debug, Default)]
 struct FlowEdge {
     label: String,
-    /// Dónde se escribe el rótulo (mundo) y cuántas celdas tiene libres.
+    /// Where the label is written (world) and how many cells it has free.
     at: (f64, f64),
     room: usize,
     hot: bool,
@@ -113,10 +113,10 @@ impl EdgeContent for FlowEdge {
     }
 }
 
-/// Caja colocada: identidad, posición y tamaño en el mundo.
+/// Placed box: identity, position and size in the world.
 type Placed = (FlowNodeId, (f64, f64), (f64, f64));
 
-/// Posición y tamaño en el mundo de cada caja: una columna por profundidad, centrada en el área.
+/// Position and size in the world of each box: one column per depth, centred in the area.
 pub fn place(flow: &Flow, width: u16, height: u16) -> Vec<Placed> {
     let cols = columns(flow);
     let ncols = cols.iter().map(|(_, s)| s.col + 1).max().unwrap_or(0);
@@ -152,7 +152,7 @@ pub fn place(flow: &Flow, width: u16, height: u16) -> Vec<Placed> {
     out
 }
 
-/// Sitio de cada rótulo de arista: en el hueco que sigue a su origen, a la altura del trazo y sin pisar a otro.
+/// Place for each edge label: in the gap following its origin, at the height of the stroke and without overlapping another.
 fn label_spots(flow: &Flow, placed: &[Placed]) -> BTreeMap<String, ((f64, f64), usize)> {
     let find = |id: &FlowNodeId| placed.iter().find(|(n, ..)| n == id).map(|(_, p, s)| (*p, *s));
     let mut taken: Vec<(i32, i32, i32)> = Vec::new();
@@ -181,7 +181,7 @@ pub struct FlowGraph {
     graph: Graph<NodeBox, FlowEdge>,
     built: Option<(Arc<Flow>, u16, u16)>,
     drag_from: Option<(u16, u16)>,
-    /// Identificador de la caja o la arista seleccionada; rataflow la pinta con el acento.
+    /// Identifier of the selected box or edge; rataflow paints it with the accent.
     selected: Option<String>,
 }
 
@@ -196,19 +196,19 @@ impl FlowGraph {
         Self { graph: Graph::new(), built: None, drag_from: None, selected: None }
     }
 
-    /// Marca la caja o la arista `id` (`n:<nodo>`, `o:<salida>` o `n:<nodo>><puerto>`); `None` limpia.
-    /// Se aplica al momento, porque `build` solo rehace el grafo cuando cambia el flujo o el área.
+    /// Marks the box or edge `id` (`n:<node>`, `o:<output>` or `n:<node>><port>`); `None` clears.
+    /// It is applied immediately, because `build` only rebuilds the graph when the flow or the area changes.
     pub fn select(&mut self, id: Option<String>) {
         match &id {
             Some(id) if self.graph.node(id).is_some() => self.graph.select_node(id),
             Some(id) if self.graph.edge(id).is_some() => self.graph.select_edge(id),
-            // Un puerto sin cablear no tiene arista que marcar: se limpia lo anterior y ya está.
+            // An unwired port has no edge to mark: the previous one is cleared and that is all.
             _ => self.graph.clear_selection(),
         }
         self.selected = id;
     }
 
-    /// Reconstruye el grafo si cambió la definición o el tamaño del área, conservando pan y zoom.
+    /// Rebuilds the graph if the definition or the area's size changed, keeping pan and zoom.
     fn build(&mut self, flow: &Arc<Flow>, area: Rect) {
         let same =
             self.built.as_ref().is_some_and(|(f, w, h)| Arc::ptr_eq(f, flow) && *w == area.width && *h == area.height);
@@ -250,7 +250,7 @@ impl FlowGraph {
                 (c.at, c.room) = (at, room);
             }
         }
-        // La selección se vuelve a aplicar: `build` acaba de rehacer el grafo entero.
+        // The selection is applied again: `build` has just rebuilt the whole graph.
         if let Some(id) = self.selected.clone() {
             if self.graph.node(&id).is_some() {
                 self.graph.select_node(&id);
@@ -316,7 +316,7 @@ impl FlowGraph {
         self.build(flow, area);
         self.sync(flow, act, now);
         (&mut self.graph).render(area, buf);
-        // Los rótulos van en una segunda pasada para que ningún trazo los tape.
+        // Labels go in a second pass so that no stroke covers them.
         for edge in self.graph.edges() {
             let c = &edge.content;
             let (x, y) = self.graph.world_to_terminal(Position::new(c.at.0, c.at.1));
@@ -330,7 +330,7 @@ impl FlowGraph {
         }
     }
 
-    /// Pan/zoom/ajustar con teclado y ratón. Devuelve `true` si la vista cambió.
+    /// Pan/zoom/fit with keyboard and mouse. Returns `true` if the view changed.
     pub fn handle(&mut self, msg: &Msg, area: Rect) -> bool {
         match msg {
             Msg::Key(k) if matches!(k.kind, KeyEventKind::Press | KeyEventKind::Repeat) => self.handle_key(k.code),
@@ -372,7 +372,7 @@ impl FlowGraph {
             KeyCode::Down | KeyCode::Char('j') => self.graph.pan(0.0, -1.0),
             KeyCode::Char('+' | '=') => self.graph.zoom_in(),
             KeyCode::Char('-') => self.graph.zoom_out(),
-            // La disposición ya se calcula para caber en el área: ajustar es volver a la vista neutra.
+            // The layout is already computed to fit the area: fitting is returning to the neutral view.
             KeyCode::Char('0') => self.graph.viewport = Viewport::default_view(),
             _ => return false,
         }
@@ -427,11 +427,11 @@ mod tests {
         pintor.render(&flow, &FlowActivity::new(), Instant::now(), area, &mut Buffer::empty(area));
         assert!(pintor.graph.first_selected_node_id().is_none(), "sin selección no hay nada marcado");
 
-        // La selección se aplica al momento: `build` solo rehace el grafo si cambia el flujo o el área.
+        // The selection is applied immediately: `build` only rebuilds the graph if the flow or the area changes.
         pintor.select(Some(caja(&FlowNodeId::Node("destructive".into()))));
         assert_eq!(pintor.graph.first_selected_node_id().as_deref(), Some("n:destructive"));
 
-        // Y sobrevive al rehacido que provoca un cambio de área.
+        // And it survives the rebuild an area change causes.
         let otra = Rect::new(0, 0, 99, 22);
         pintor.render(&flow, &FlowActivity::new(), Instant::now(), otra, &mut Buffer::empty(otra));
         assert_eq!(pintor.graph.first_selected_node_id().as_deref(), Some("n:destructive"));
@@ -439,7 +439,7 @@ mod tests {
         pintor.select(Some(arista(&FlowNodeId::Node("destructive".into()), "false")));
         assert_eq!(pintor.graph.first_selected_edge_id().as_deref(), Some("n:destructive>false"));
 
-        // Un puerto que no existe no marca nada, y limpia lo anterior.
+        // A port that does not exist marks nothing, and clears the previous one.
         pintor.select(Some(arista(&FlowNodeId::Node("destructive".into()), "inventado")));
         assert!(pintor.graph.first_selected_edge_id().is_none());
         assert!(pintor.graph.first_selected_node_id().is_none());

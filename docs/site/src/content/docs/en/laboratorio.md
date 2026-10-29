@@ -96,3 +96,28 @@ jevalan lab offline
 ```
 
 Both run on the bundled fixtures with no keys and no network, so they are the quickest way to check that your installation works.
+
+## Try it with a real model
+
+The same fixtures can run against a real backend. This run used a local model, so it cost nothing and nothing left the machine. Six fixtures twice each make 12 calls, well inside the budget:
+
+```yaml
+targets:
+  kev-small: { backend: kev-small, model: kev-latest, local: true }
+budget: { max_calls: 40, max_cost_usd: 1.0 }
+repeat: 2
+```
+
+```sh
+jevalan lab live tool.risk --config config.yaml --lab-dir lab --yes
+```
+
+| target | pass | stable | abstain | error | cost | Brier |
+|---|---|---|---|---|---|---|
+| kev-small | 11/12 | 5/6 | 0% | 8% | $0 (local) | 0.062 |
+
+![Terminal screenshot of `jevalan lab live`: a report with pass rate, stability, error rate, cost and calibration for the local target.](../../../assets/lab-live.png)
+
+A second run of the same command gave 11 of 12 and one unstable fixture, `cat-readme`: a small model does not always answer the same way, which is what the `stable` column and the details section of the report are for.
+
+Two details from this run. Fixtures marked `modes: [offline]` (the ones that simulate an abstention or a failure) are skipped in `live`. And a `replay` that names a provider the capability does not use, such as `toolgate` when the capability is served by a flow, is rejected: remove the `replay` from a fixture you want to run live and let the backend answer.

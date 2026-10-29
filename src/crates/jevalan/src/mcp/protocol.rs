@@ -1,11 +1,11 @@
-//! Capa de protocolo: JSON-RPC 2.0 de MCP, sin red ni E/S, para poder probarla a pelo.
+//! Protocol layer: MCP's JSON-RPC 2.0, with no network or I/O, so it can be tested bare.
 
 use serde_json::{Value, json};
 
-/// Versiones de MCP que se saben hablar; la primera es la que se anuncia si el cliente pide otra.
+/// MCP versions it knows how to speak; the first is the one announced if the client asks for another.
 pub const SUPPORTED_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
-/// Una herramienta tal como la ve `tools/list`.
+/// A tool as `tools/list` sees it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tool {
     pub name: String,
@@ -13,21 +13,21 @@ pub struct Tool {
     pub input_schema: Value,
 }
 
-/// Resultado de una llamada: el valor tipado y si debe marcarse como fallo.
+/// Result of a call: the typed value and whether it must be flagged as a failure.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolOutcome {
     pub value: Value,
     pub is_error: bool,
 }
 
-/// Error de protocolo (no de herramienta): código JSON-RPC y motivo.
+/// Protocol error (not a tool error): JSON-RPC code and reason.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProtocolError {
     pub code: i64,
     pub message: String,
 }
 
-/// Lo que el servidor necesita del exterior; los tests lo sustituyen por un simulacro.
+/// What the server needs from the outside; tests replace it with a stand-in.
 pub trait Daemon {
     fn list_tools(&self) -> Vec<Tool>;
     fn call(&self, name: &str, args: Value) -> Result<ToolOutcome, ProtocolError>;
@@ -41,13 +41,13 @@ fn failure(id: &Value, code: i64, message: &str) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
 
-/// Aviso de que la lista de herramientas cambió.
+/// Notice that the tool list changed.
 pub fn list_changed_notification() -> String {
     json!({ "jsonrpc": "2.0", "method": "notifications/tools/list_changed" }).to_string()
 }
 
-/// Atiende una línea de entrada. `None` para líneas vacías, notificaciones y lotes que solo las contienen.
-/// Un lote (array) devuelve un array con las respuestas que haya, como exige JSON-RPC 2.0.
+/// Handles one input line. `None` for empty lines, notifications and batches that contain only them.
+/// A batch (array) returns an array with whatever responses there are, as JSON-RPC 2.0 requires.
 pub fn handle_line(daemon: &dyn Daemon, line: &str) -> Option<String> {
     if line.trim().is_empty() {
         return None;
@@ -65,7 +65,7 @@ pub fn handle_line(daemon: &dyn Daemon, line: &str) -> Option<String> {
     }
 }
 
-/// Un mensaje suelto: `None` si es una notificación.
+/// A single message: `None` if it is a notification.
 fn handle_message(daemon: &dyn Daemon, msg: &Value) -> Option<Value> {
     if !msg.is_object() {
         return Some(failure(&Value::Null, -32600, "petición inválida"));

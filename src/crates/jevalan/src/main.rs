@@ -23,15 +23,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Dashboard de terminal.
+    /// Terminal dashboard.
     Tui {
-        /// Alimenta la TUI con trazas ficticias en vez de conectarse al daemon.
+        /// Feeds the TUI with fictitious traces instead of connecting to the daemon.
         #[arg(long, conflicts_with = "demo")]
         fake: bool,
-        /// WebSocket de eventos del daemon.
+        /// The daemon's event WebSocket.
         #[arg(long, default_value = "ws://127.0.0.1:8080/events")]
         url: String,
-        /// Token del daemon, si exige autenticación.
+        /// Daemon token, if it requires authentication.
         #[arg(long, env = "JEVALAN_TOKEN", hide_env_values = true)]
         token: Option<String>,
         /// Efectos visuales: off, events o full.
@@ -40,51 +40,51 @@ enum Cmd {
         /// Peticiones ficticias por segundo.
         #[arg(long, default_value_t = 2.0)]
         fake_rate: f64,
-        /// Semilla del generador; sin ella, cada arranque es distinto.
+        /// Generator seed; without it, every start is different.
         #[arg(long)]
         fake_seed: Option<u64>,
-        /// Fichero de configuración del daemon propio, si hay que convocarlo (sin él, como `serve`).
+        /// Configuration file of the own daemon, if one has to be summoned (without it, as `serve`).
         #[arg(long)]
         config: Option<PathBuf>,
-        /// Demostración: backends simulados si hay que convocar daemon, y tráfico incesante.
+        /// Demonstration: simulated backends if a daemon has to be summoned, and incessant traffic.
         #[arg(long)]
         demo: bool,
-        /// Peticiones por segundo del tráfico de `--demo`.
+        /// Requests per second of the `--demo` traffic.
         #[arg(long, default_value_t = 2.0)]
         rate: f64,
     },
-    /// Daemon: proxy de System One, flujos de decisión y bus de eventos.
+    /// Daemon: System One proxy, decision flows and event bus.
     Serve {
-        /// Fichero de configuración; sin él, `JEVALAN_CONFIG` o los valores por defecto.
+        /// Configuration file; without it, `JEVALAN_CONFIG` or the defaults.
         #[arg(long)]
         config: Option<PathBuf>,
     },
-    /// Editor visual de flujos: abre un `config/flows/*.yaml` y lo edita sin publicarlo.
+    /// Visual flow editor: opens a `config/flows/*.yaml` and edits it without publishing it.
     Edit {
-        /// Fichero del flujo que se abre.
+        /// File of the flow to open.
         file: PathBuf,
-        /// Dirección del daemon; sin ella, la de `daemon.json`, y sin ella ninguna.
+        /// Daemon address; without it, the one in `daemon.json`, and without that, none.
         #[arg(long)]
         url: Option<String>,
-        /// Token del daemon, si exige autenticación.
+        /// Daemon token, if it requires authentication.
         #[arg(long, env = "JEVALAN_TOKEN", hide_env_values = true)]
         token: Option<String>,
-        /// No escuchar el bus de eventos (solo se pierde la telemetría).
+        /// Do not listen to the event bus (only the telemetry is lost).
         #[arg(long)]
         no_events: bool,
-        /// Catálogo de señales con que se valida en local.
+        /// Signal catalogue used for local validation.
         #[arg(long, default_value = "./config/signals")]
         signals_dir: PathBuf,
     },
-    /// Servidor MCP por stdio: expone las capacidades del hub como herramientas.
+    /// MCP server over stdio: exposes the hub's capabilities as tools.
     Mcp {
-        /// Dirección `host:puerto` del daemon; sin ella, la de `daemon.json`, y después la de por defecto.
+        /// Daemon `host:port` address; without it, the one in `daemon.json`, and then the default.
         #[arg(long)]
         addr: Option<String>,
-        /// Token del daemon, si exige autenticación.
+        /// Daemon token, if it requires authentication.
         #[arg(long, env = "JEVALAN_TOKEN", hide_env_values = true)]
         token: Option<String>,
-        /// Permite que `jevalan_try_draft` use los transportes `live` y `record`, que llaman a modelos reales.
+        /// Lets `jevalan_try_draft` use the `live` and `record` transports, which call real models.
         #[arg(long)]
         allow_live: bool,
     },
@@ -98,12 +98,12 @@ enum Cmd {
         #[command(subcommand)]
         action: LabAction,
     },
-    /// Registro sombra del hook: informes sobre `shadow.jsonl`.
+    /// The hook's shadow log: reports over `shadow.jsonl`.
     Shadow {
         #[command(subcommand)]
         action: ShadowAction,
     },
-    /// Especialista simulado (lo usa la demo como proveedor `exec`).
+    /// Simulated specialist (the demo uses it as an `exec` provider).
     #[command(hide = true)]
     MockSpecialist {
         capability: String,
@@ -118,27 +118,27 @@ enum Cmd {
 
 #[derive(Subcommand)]
 enum HookAction {
-    /// Hook `PreToolUse` genérico: lee el JSON de stdin y consulta `tool.risk`.
+    /// Generic `PreToolUse` hook: reads the JSON on stdin and queries `tool.risk`.
     Run {
-        /// Nombre con que el daemon reconoce la sesión (p. ej. `crush`).
+        /// Name under which the daemon recognises the session (e.g. `crush`).
         #[arg(long, default_value = "unknown")]
         client: String,
-        /// Dialecto de salida que entiende el harness.
+        /// Output dialect the harness understands.
         #[arg(long, value_enum, default_value_t = hook::Dialect::Claude)]
         dialect: hook::Dialect,
-        /// shadow: solo registra y calla; enforce: puede responder deny o ask.
+        /// shadow: only records and stays silent; enforce: may answer deny or ask.
         #[arg(long, value_enum, default_value_t = hook::Mode::Shadow)]
         mode: hook::Mode,
     },
     /// Alias de `run --client claude-code --dialect claude`.
     ClaudeCode {
-        /// shadow: solo registra y calla; enforce: puede responder deny o ask.
+        /// shadow: only records and stays silent; enforce: may answer deny or ask.
         #[arg(long, value_enum, default_value_t = hook::Mode::Shadow)]
         mode: hook::Mode,
     },
     /// Alias de `run --client crush --dialect crush`.
     Crush {
-        /// shadow: solo registra y calla; enforce: puede bloquear con deny.
+        /// shadow: only records and stays silent; enforce: may block with deny.
         #[arg(long, value_enum, default_value_t = hook::Mode::Shadow)]
         mode: hook::Mode,
     },
@@ -146,33 +146,33 @@ enum HookAction {
 
 #[derive(Subcommand)]
 enum ShadowAction {
-    /// Informe Markdown del registro: veredictos, anatomía del ask, probabilidades y latencias.
+    /// Markdown report of the log: verdicts, anatomy of the ask, probabilities and latencies.
     Report {
-        /// Registro a leer; por defecto, `shadow.jsonl` del directorio de datos.
+        /// Log to read; by default, `shadow.jsonl` in the data directory.
         #[arg(long)]
         log: Option<PathBuf>,
-        /// Solo desde esta fecha (RFC 3339 o AAAA-MM-DD, en UTC).
+        /// Only since this date (RFC 3339 or YYYY-MM-DD, in UTC).
         #[arg(long)]
         since: Option<String>,
-        /// Fichero de salida; sin él, la salida estándar.
+        /// Output file; without it, standard output.
         #[arg(long)]
         out: Option<PathBuf>,
-        /// Incluye la entrada (redactada, truncada) de los ejemplos; solo para uso local.
+        /// Includes the (redacted, truncated) input of the examples; for local use only.
         #[arg(long)]
         with_inputs: bool,
     },
-    /// Convierte decisiones reales del registro en fixtures del laboratorio.
+    /// Turns real decisions from the log into laboratory fixtures.
     Fixtures {
-        /// Registro a leer; por defecto, `shadow.jsonl` del directorio de datos.
+        /// Log to read; by default, `shadow.jsonl` in the data directory.
         #[arg(long)]
         log: Option<PathBuf>,
-        /// Solo desde esta fecha (RFC 3339 o AAAA-MM-DD, en UTC).
+        /// Only since this date (RFC 3339 or YYYY-MM-DD, in UTC).
         #[arg(long)]
         since: Option<String>,
-        /// Banco de fixtures; se crea si no existe, con su `lab.yaml`.
+        /// Fixture bench; created if it does not exist, with its `lab.yaml`.
         #[arg(long, default_value = "lab-fixtures-batch")]
         lab_dir: PathBuf,
-        /// Solo los N casos de mayor riesgo primero; el resto se cuenta como recortado.
+        /// Only the N highest-risk cases first; the rest are counted as trimmed.
         #[arg(long)]
         max: Option<usize>,
     },
@@ -180,32 +180,32 @@ enum ShadowAction {
 
 #[derive(Subcommand)]
 enum LabAction {
-    /// Valida `lab.yaml` y los fixtures, sin red.
+    /// Validates `lab.yaml` and the fixtures, with no network.
     Check(LabArgs),
-    /// Reproduce los fixtures con su `replay` o con las cassettes.
+    /// Replays the fixtures with their `replay` or with the cassettes.
     Offline {
-        /// Solo esta capacidad.
+        /// Only this capability.
         capability: Option<String>,
-        /// Solo este fixture.
+        /// Only this fixture.
         #[arg(long)]
         fixture: Option<String>,
         #[command(flatten)]
         args: LabArgs,
     },
-    /// Llama a los backends reales y graba cassettes (con presupuesto).
+    /// Calls the real backends and records cassettes (with a budget).
     Record {
-        /// Solo esta capacidad.
+        /// Only this capability.
         capability: Option<String>,
-        /// Solo este fixture.
+        /// Only this fixture.
         #[arg(long)]
         fixture: Option<String>,
-        /// Solo este target.
+        /// Only this target.
         #[arg(long)]
         target: Option<String>,
-        /// No pedir confirmación.
+        /// Do not ask for confirmation.
         #[arg(long)]
         yes: bool,
-        /// Sobrescribe la cassette aunque la grabación traiga fallos (401, 500, error).
+        /// Overwrites the cassette even if the recording contains failures (401, 500, error).
         #[arg(long)]
         force: bool,
         #[command(flatten)]
@@ -213,18 +213,18 @@ enum LabAction {
     },
     /// Fixtures × targets × repeticiones contra backends reales (con presupuesto).
     Live {
-        /// Solo esta capacidad.
+        /// Only this capability.
         capability: Option<String>,
-        /// Solo este fixture.
+        /// Only this fixture.
         #[arg(long)]
         fixture: Option<String>,
-        /// Solo este target.
+        /// Only this target.
         #[arg(long)]
         target: Option<String>,
-        /// Repeticiones; sustituye al `repeat` de lab.yaml.
+        /// Repetitions; overrides the `repeat` of lab.yaml.
         #[arg(long)]
         repeat: Option<u32>,
-        /// No pedir confirmación.
+        /// Do not ask for confirmation.
         #[arg(long)]
         yes: bool,
         #[command(flatten)]
@@ -234,10 +234,10 @@ enum LabAction {
 
 #[derive(clap::Args)]
 struct LabArgs {
-    /// Fichero de configuración del daemon; sin él, `JEVALAN_CONFIG`, el `config.yaml` del laboratorio o los valores por defecto.
+    /// Daemon configuration file; without it, `JEVALAN_CONFIG`, the laboratory's `config.yaml` or the defaults.
     #[arg(long)]
     config: Option<PathBuf>,
-    /// Directorio del laboratorio.
+    /// Laboratory directory.
     #[arg(long, default_value = "config/lab")]
     lab_dir: PathBuf,
 }
@@ -272,7 +272,7 @@ fn main() -> ExitCode {
     }
 }
 
-/// `.env` del directorio actual, si existe; vacío si no.
+/// `.env` of the current directory, if it exists; empty if not.
 fn read_dotenv() -> std::collections::BTreeMap<String, String> {
     std::fs::read_to_string(".env").map(|text| parse_dotenv(&text)).unwrap_or_default()
 }
@@ -302,7 +302,7 @@ fn finish(result: std::io::Result<()>) -> ExitCode {
     }
 }
 
-/// Configuración del daemon como la arma `serve`: fichero, `JEVALAN_*` y `.env`.
+/// Daemon configuration as `serve` builds it: file, `JEVALAN_*` and `.env`.
 fn load_cfg(config: Option<&std::path::Path>) -> Result<jevalan_daemon::config::Config, ExitCode> {
     let dotenv = read_dotenv();
     let env = |key: &str| std::env::var(key).ok().or_else(|| dotenv.get(key).cloned());
@@ -330,8 +330,8 @@ fn serve(config: Option<PathBuf>) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    // `block_on` ejecuta el futuro en el hilo principal (1 MB de pila en Windows): el arranque, que compila CEL
-    // al cargar flujos y capacidades, se lanza en un worker del runtime.
+    // `block_on` runs the future on the main thread (1 MB of stack on Windows): the start-up, which compiles CEL
+    // when loading flows and capabilities, is launched on a runtime worker.
     let result = runtime.block_on(async { tokio::spawn(jevalan_daemon::serve(cfg)).await });
     match result {
         Ok(Ok(())) => ExitCode::SUCCESS,

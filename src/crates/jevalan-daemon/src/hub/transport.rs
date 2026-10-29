@@ -1,4 +1,4 @@
-//! Por dónde salen las llamadas al exterior: en vivo, reproducidas de una grabación o grabadas al vuelo.
+//! Where calls to the outside go out: live, replayed from a recording, or recorded on the fly.
 
 use crate::AppState;
 use crate::proxy::call_backend;
@@ -9,26 +9,26 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::{Arc, Mutex, PoisonError};
 
-/// Clave: nombre de nodo (`{status, body}` del backend) o `provider.id` (JSON del especialista).
+/// Key: node name (the backend's `{status, body}`) or `provider.id` (the specialist's JSON).
 pub type Recordings = BTreeMap<String, Value>;
 
 #[derive(Clone)]
 pub enum Transport {
     Live,
-    /// Jamás lanza procesos ni abre conexiones.
+    /// It never launches processes or opens connections.
     Replay(Arc<Recordings>),
-    /// Llama en vivo y guarda solo la respuesta: nunca cabeceras ni la petición.
+    /// Calls live and stores only the response: never headers or the request.
     Record(Arc<Mutex<Recordings>>),
 }
 
-/// Respuesta System One de `node` tal como la grabaría un backend; sirve para repetir a mano.
+/// System One response for `node` as a backend would record it; useful for repeating by hand.
 pub fn system_one_reply(node: &str, node_type: &str, answer: &Value, confidence: f64) -> Value {
     json!({ "status": 200, "body": { "answers": { node: { "type": node_type, node_type: answer, "confidence": confidence } } } })
 }
 
-/// Respuesta uniendo las grabaciones de cada pregunta de un nodo `batch`: una petición, muchas respuestas.
-/// `questions` son las claves completas, `"<nodo>.<pregunta>"`. El estado HTTP lo pone la primera;
-/// ninguna grabación, ninguna respuesta.
+/// Response joining the recordings of each question of a `batch` node: one request, many answers.
+/// `questions` are the full keys, `"<node>.<question>"`. The HTTP status is set by the first one;
+/// no recording, no response.
 pub fn replay_many(rec: &Recordings, questions: &[String]) -> Option<(u16, Bytes)> {
     let mut answers = serde_json::Map::new();
     let mut status = 200;
@@ -50,16 +50,16 @@ struct Tally {
     output_tokens: Option<u64>,
     confidence: Option<f64>,
     missing: Option<String>,
-    /// Llamadas a backends y, de ellas, las que no devolvieron los dos contadores de `usage`.
+    /// Calls to backends and, of those, the ones that did not return both `usage` counters.
     calls: u32,
     unmetered: u32,
     specialist_calls: u32,
-    /// Suma de `usage.cost` y llamadas que no lo traían.
+    /// Sum of `usage.cost` and the calls that did not carry it.
     cost: f64,
     uncosted: u32,
 }
 
-/// Transporte más lo que se mide durante una ejecución.
+/// Transport plus what is measured during a run.
 pub struct Io<'a> {
     transport: &'a Transport,
     tally: Mutex<Tally>,
@@ -82,7 +82,7 @@ impl<'a> Io<'a> {
         self.tally().specialist_calls
     }
 
-    /// Probabilidad de la respuesta dada por el último nodo no `rule`.
+    /// Probability of the answer given by the last non-`rule` node.
     pub fn note_confidence(&self, confidence: f64) {
         self.tally().confidence = Some(confidence);
     }
@@ -102,7 +102,7 @@ impl<'a> Io<'a> {
         (t.calls, t.unmetered)
     }
 
-    /// Coste en USD que declararon los backends; `None` si no hubo llamadas o alguna no lo trajo.
+    /// Cost in USD declared by the backends; `None` if there were no calls or any of them did not carry it.
     pub fn reported_cost(&self) -> Option<f64> {
         let t = self.tally();
         (t.calls > 0 && t.uncosted == 0).then_some(t.cost)
@@ -113,7 +113,7 @@ impl<'a> Io<'a> {
         format!("missing_recording:{key}")
     }
 
-    /// Llamada a un backend por el transporte; `node` es la clave de la grabación.
+    /// Call to a backend through the transport; `node` is the recording key.
     pub async fn backend(
         &self,
         state: &AppState,
@@ -124,8 +124,8 @@ impl<'a> Io<'a> {
         self.backend_keys(state, backend, node, &[], body).await
     }
 
-    /// Como `backend`, pero para un nodo `batch`: la grabación se busca pregunta a pregunta —`questions`
-    /// son las claves completas, `"<nodo>.<pregunta>"`— y las respuestas se juntan en una sola (D3).
+    /// Like `backend`, but for a `batch` node: the recording is looked up question by question (`questions`
+    /// are the full keys, `"<node>.<question>"`) and the responses are merged into one (D3).
     pub async fn backend_many(
         &self,
         state: &AppState,
@@ -156,7 +156,7 @@ impl<'a> Io<'a> {
             }
             _ => call_backend(state, backend, body).await,
         };
-        // Una llamada fallida o sin `usage` no se puede tasar: el coste de la ejecución deja de ser conocido.
+        // A failed call, or one without `usage`, cannot be priced: the run's cost stops being known.
         let mut metered = false;
         let mut cost = None;
         if let Ok((status, bytes)) = &result {
@@ -189,7 +189,7 @@ impl<'a> Io<'a> {
         result
     }
 
-    /// Respuesta de un especialista; `live` solo se sondea si el transporte no es `Replay`.
+    /// Specialist response; `live` is only polled if the transport is not `Replay`.
     pub async fn specialist(
         &self,
         key: &str,

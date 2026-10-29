@@ -1,15 +1,15 @@
-//! Parcheador: reescribe en el texto original solo los nodos tocados, respetando comentarios y orden.
+//! Patcher: rewrites in the original text only the touched nodes, respecting comments and order.
 
 use jevalan_flow::NodeDef;
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-/// Tramo de líneas que ocupa un nodo dentro del bloque `nodes:`.
+/// Span of lines a node occupies inside the `nodes:` block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tramo {
-    /// Línea del encabezado `  <nodo>:`.
+    /// Line of the `  <node>:` header.
     pub inicio: usize,
-    /// Primera línea que ya no pertenece al nodo.
+    /// First line that no longer belongs to the node.
     pub fin: usize,
 }
 
@@ -19,18 +19,18 @@ impl Tramo {
     }
 }
 
-/// Lo que hay que reescribir en el texto. Un parche por nodo, y como mucho uno de cada clase.
+/// What has to be rewritten in the text. One patch per node, and at most one of each kind.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Parche {
-    /// Sustituye el tramo del nodo por su bloque serializado.
+    /// Replaces the node's span with its serialised block.
     Sustituir { nombre: String, lineas: Vec<String> },
-    /// Borra el tramo del nodo, con los comentarios que cuelgan de él.
+    /// Deletes the node's span, with the comments hanging from it.
     Borrar { nombre: String },
-    /// Inserta el bloque al final del bloque `nodes:`.
+    /// Inserts the block at the end of the `nodes:` block.
     Insertar { nombre: String, lineas: Vec<String> },
 }
 
-/// Espacios iniciales de una línea.
+/// Leading spaces of a line.
 fn sangria(l: &str) -> usize {
     l.len() - l.trim_start_matches(' ').len()
 }
@@ -39,14 +39,14 @@ fn es_comentario(l: &str) -> bool {
     l.trim_start().starts_with('#')
 }
 
-/// Línea propia del nivel raíz: sin sangría y con contenido (una clave como `outputs:`).
+/// A root-level line of its own: no indentation and with content (a key such as `outputs:`).
 fn es_raiz(l: &str) -> bool {
     !l.trim().is_empty() && !es_comentario(l) && sangria(l) == 0
 }
 
-/// Nombre del nodo si la línea es un encabezado del bloque `nodes:`: dos espacios y dos puntos.
-/// Un nodo escrito en línea (`  a: { type: noul, ... }`) no es un encabezado: no se reconoce, y el
-/// que lo pida se quedará sin tramo antes que cortar dentro de un valor.
+/// Node name if the line is a header of the `nodes:` block: two spaces and a colon.
+/// A node written inline (`  a: { type: noul, ... }`) is not a header: it is not recognised, and whoever
+/// asks for it is left without a span rather than cutting inside a value.
 fn nombre_de_nodo(l: &str) -> Option<String> {
     let resto = l.strip_prefix("  ")?;
     if resto.starts_with(' ') || es_comentario(l) {
@@ -58,7 +58,7 @@ fn nombre_de_nodo(l: &str) -> Option<String> {
     es_encabezado.then(|| nombre.trim_matches('"').to_string())
 }
 
-/// Primera línea del bloque `nodes:` y primera que ya no le pertenece.
+/// First line of the `nodes:` block and first one that no longer belongs to it.
 fn bloque_nodes(lineas: &[&str]) -> Option<(usize, usize)> {
     let cabecera = lineas.iter().position(|l| l.trim_end() == "nodes:")?;
     let vacia_final = lineas.last().is_some_and(|l| l.is_empty());
@@ -68,8 +68,8 @@ fn bloque_nodes(lineas: &[&str]) -> Option<(usize, usize)> {
     Some((cabecera + 1, fin))
 }
 
-/// Recorta del final del tramo las líneas en blanco y los comentarios del nivel del encabezado: son
-/// del nodo siguiente, no de este.
+/// Trims from the end of the span the blank lines and the comments at the header's level: they belong
+/// to the next node, not this one.
 fn recorta_cola(lineas: &[&str], inicio: usize, fin: usize) -> usize {
     let mut fin = fin;
     while fin > inicio {
@@ -83,7 +83,7 @@ fn recorta_cola(lineas: &[&str], inicio: usize, fin: usize) -> usize {
     fin
 }
 
-/// El tramo de cada nodo del bloque `nodes:`, en el orden en que aparecen.
+/// The span of each node of the `nodes:` block, in the order they appear.
 pub fn tramos(lineas: &[&str]) -> Vec<(String, Tramo)> {
     let Some((inicio, fin)) = bloque_nodes(lineas) else { return Vec::new() };
     let cabeceras: Vec<(usize, String)> =
@@ -98,9 +98,9 @@ pub fn tramos(lineas: &[&str]) -> Vec<(String, Tramo)> {
         .collect()
 }
 
-/// El bloque YAML de un nodo, ya sangrado: la primera línea es `  <nombre>:`.
-/// `serde_yaml` no parte las líneas (el emisor va sin anchura), así que una `instructions` larga
-/// queda en una sola línea; es el precio de reescribir el nodo con el serializador.
+/// A node's YAML block, already indented: the first line is `  <name>:`.
+/// `serde_yaml` does not wrap lines (the emitter has no width), so a long `instructions`
+/// ends up on a single line; it is the price of rewriting the node with the serialiser.
 pub fn bloque(nombre: &str, def: &NodeDef) -> Vec<String> {
     let cuerpo = serde_yaml::to_string(def).unwrap_or_default();
     let mut lineas = vec![format!("  {nombre}:")];
@@ -108,15 +108,15 @@ pub fn bloque(nombre: &str, def: &NodeDef) -> Vec<String> {
     lineas
 }
 
-/// Aplica los parches al texto original; devuelve el texto nuevo y los nombres que no se pudieron
-/// tocar (un nodo que el texto no escribe en forma de bloque, por ejemplo).
+/// Applies the patches to the original text; returns the new text and the names that could not
+/// be touched (a node the text does not write as a block, for instance).
 pub fn aplicar(texto: &str, parches: &[Parche]) -> (String, Vec<String>) {
     let mut lineas: Vec<String> = texto.split('\n').map(str::to_string).collect();
     let tramos: BTreeMap<String, Tramo> = {
         let vista: Vec<&str> = lineas.iter().map(String::as_str).collect();
         tramos(&vista).into_iter().collect()
     };
-    // El fichero conserva su final de línea: las líneas que se insertan llevan el mismo.
+    // The file keeps its line ending: inserted lines carry the same one.
     let cr = if texto.contains("\r\n") { "\r" } else { "" };
     let con_final = |ls: &[String]| -> Vec<String> { ls.iter().map(|l| format!("{l}{cr}")).collect() };
 
@@ -137,10 +137,10 @@ pub fn aplicar(texto: &str, parches: &[Parche]) -> (String, Vec<String>) {
             Parche::Insertar { nombre, lineas: bloque } => insertados.push((nombre.clone(), con_final(bloque))),
         }
     }
-    // De abajo arriba: así los índices de los tramos que quedan por tocar no se mueven. Las
-    // sustituciones y los borrados van en **una sola** pasada y ordenados juntos: aplicarlos en dos
-    // tandas dejaría los índices de la segunda medidos sobre el texto viejo, y sustituir un nodo que
-    // va antes del que se borra —si su bloque cambia de líneas— descolocaría el borrado.
+    // Bottom-up: this way the indices of the spans still to be touched do not move. Replacements
+    // and deletions go in **a single** pass, sorted together: applying them in two
+    // rounds would leave the second one's indices measured against the old text, and replacing a node that
+    // comes before the one being deleted (if its block changes length) would misplace the deletion.
     let mut tocados: Vec<(Tramo, Vec<String>)> = cambios;
     tocados.extend(borrados.into_iter().map(|tramo| (tramo, Vec::new())));
     tocados.sort_by_key(|(tramo, _)| std::cmp::Reverse(tramo.inicio));
@@ -157,7 +157,7 @@ pub fn aplicar(texto: &str, parches: &[Parche]) -> (String, Vec<String>) {
             Some(fin) => {
                 lineas.splice(fin..fin, vistas);
             }
-            // Sin bloque `nodes:` no hay dónde insertar: mejor decirlo que escribir en otro sitio.
+            // Without a `nodes:` block there is nowhere to insert: better to say so than to write somewhere else.
             None => perdidos.extend(insertados.into_iter().map(|(nombre, _)| nombre)),
         }
     }
@@ -169,7 +169,7 @@ mod tests {
     use super::*;
     use jevalan_flow::{Criteria, FlowDef, NodeDef, parse, validate};
 
-    /// El flujo real, con sus comentarios de calibración, como texto de trabajo.
+    /// The real flow, with its calibration comments, as working text.
     const LOCAL: &str = include_str!("../../jevalan-flow/fixtures/tool-risk-local-v1.yaml");
     const BACKENDS: [&str; 1] = ["kev"];
 
@@ -177,7 +177,7 @@ mod tests {
         serde_yaml::from_str(yaml).unwrap_or_else(|e| panic!("{e}"))
     }
 
-    /// El parche que arma `Documento` para un nodo tocado.
+    /// The patch `Documento` builds for a touched node.
     fn parche(nombre: &str, d: &NodeDef) -> Parche {
         Parche::Sustituir { nombre: nombre.into(), lineas: bloque(nombre, d) }
     }
@@ -189,24 +189,24 @@ mod tests {
         d.nodes.get_mut("risks").unwrap().route[1].when = when;
         let nuevo = aplicar(LOCAL, &[parche("risks", &d.nodes["risks"])]).0;
 
-        // Lo que D1 protege: la cabecera escrita a mano.
+        // What D1 protects: the hand-written header.
         assert!(nuevo.contains("# tool.risk servido en local (Kev o Laya)"), "{nuevo}");
         assert!(nuevo.contains("# Réplica sobria de Toolgate"), "{nuevo}");
         assert!(nuevo.contains("0.55 → ask, 0.85 → deny"), "la calibración del comentario sigue: {nuevo}");
-        // El cambio está, y el valor viejo ya no se codea.
+        // The change is there, and the old value is no longer hard-coded.
         assert!(nuevo.contains(">= 0.6"), "{nuevo}");
         assert!(!nuevo.contains(">= 0.55"), "{nuevo}");
-        // Los nodos que no se tocan quedan byte a byte, con sus comillas raras.
+        // Untouched nodes stay byte for byte, with their odd quotes.
         assert!(
             nuevo.contains(r#"has(input.tool_input.command) && input.tool_input.command.matches(r"rm\s+-"#),
             "{nuevo}"
         );
         assert!(nuevo.contains("source: fail-mode"), "las salidas siguen: {nuevo}");
-        // El límite de D1, escrito para que nadie se llame a engaño: los comentarios de dentro del
-        // nodo tocado se van con él, porque su tramo entero se sustituye.
+        // D1's limit, written down so nobody is misled: the comments inside the
+        // touched node go with it, because its whole span is replaced.
         assert!(!nuevo.contains("# Gana la primera que sea verdadera"), "{nuevo}");
 
-        // Y el texto vuelve a parsear al mismo `Flow` que el `FlowDef` en curso, que es la prueba de D1.
+        // And the text parses again into the same `Flow` as the `FlowDef` in progress, which is D1's proof.
         let leido = parse("tool-risk-local", &nuevo, &BACKENDS, "kev").unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(leido, validate("tool-risk-local", d, &BACKENDS, "kev").unwrap());
     }
@@ -218,7 +218,7 @@ mod tests {
         d.nodes.get_mut("risks").unwrap().questions.get_mut("privilege").unwrap().instructions = "Otra pregunta".into();
         let nuevo = aplicar(&crlf, &[parche("risks", &d.nodes["risks"])]).0;
 
-        // Ninguna línea suelta: el fichero sigue siendo CRLF de la primera a la última.
+        // No stray line: the file is still CRLF from first to last.
         assert!(nuevo.split('\n').filter(|l| !l.is_empty()).all(|l| l.ends_with('\r')), "{nuevo}");
         let leido: FlowDef = serde_yaml::from_str(&nuevo).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(leido, d);
@@ -240,7 +240,7 @@ mod tests {
         d.nodes.get_mut("risks").unwrap().instructions = "y, editada".into();
         let nuevo = aplicar(texto, &[parche("risks", &d.nodes["risks"])]).0;
 
-        // El comentario que nombra `risks` sigue donde estaba, y `risk` no se ha rozado.
+        // The comment that names `risks` is still where it was, and `risk` has not been touched.
         assert!(nuevo.contains("# los risks viejos, ya no se usan"), "{nuevo}");
         assert!(
             nuevo.contains("  # ojo: risks es el nodo delicado"),
@@ -254,8 +254,8 @@ mod tests {
 
     #[test]
     fn sustituir_arriba_y_borrar_abajo_no_descoloca_los_tramos() {
-        // El nodo sustituido crece: si el borrado se aplicara después con índices del texto viejo,
-        // caería sobre las líneas equivocadas. Es el caso «recablear arriba y borrar abajo».
+        // The replaced node grows: if the deletion were applied afterwards with indices from the old text,
+        // it would land on the wrong lines. It is the "rewire above and delete below" case.
         let texto = "start: a\nnodes:\n  a:\n    type: noul\n    instructions: \"x\"\n    out: { \"true\": b, \"false\": b }\n  b:\n    type: noul\n    instructions: \"y\"\n    out: { \"true\": ok, \"false\": ok }\noutputs:\n  ok: { outcome: ok }\n";
         let d = def(texto);
         let mut crecido = d.nodes["a"].clone();
@@ -274,7 +274,7 @@ mod tests {
         assert!(perdidos.is_empty(), "{perdidos:?}");
         assert!(!nuevo.contains("  b:"), "el borrado se lleva su tramo entero: {nuevo}");
         assert!(nuevo.contains("bastante más larga"), "{nuevo}");
-        // Y el texto sigue siendo el flujo que se pretendía: `a` crecido, `b` fuera.
+        // And the text is still the intended flow: `a` grown, `b` gone.
         let mut esperado = d.clone();
         esperado.nodes.insert("a".into(), crecido);
         esperado.nodes.remove("b");

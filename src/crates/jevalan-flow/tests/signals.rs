@@ -1,4 +1,4 @@
-//! Señales con nombre: validación (Tarea 2) y ejecución (Tarea 3).
+//! Named signals: validation (Task 2) and execution (Task 3).
 
 use jevalan_flow::{Flow, FlowError, Signals, parse, parse_signal, parse_with};
 
@@ -70,10 +70,10 @@ fn sin_catalogo_la_senal_es_desconocida() {
 
 #[test]
 fn cada_familia_en_su_sitio() {
-    // Una heurística no se pregunta…
+    // A heuristic is not asked…
     let preguntada = RISKS.replace("signals: [destructive]", "signals: [root]");
     assert!(matches!(flow(&preguntada), Err(FlowError::BadCriteria { node, .. }) if node == "risks.root"));
-    // …y una aprendida no se lee en CEL.
+    // …and a learned one is not read in CEL.
     let leida = GUARD.replace("signals.root", "signals.destructive");
     assert!(matches!(flow(&leida), Err(FlowError::BadCriteria { node, .. }) if node == "guard"));
 }
@@ -103,12 +103,12 @@ fn una_senal_dice_que_se_pregunta_y_nada_mas() {
     assert!(mal("root", "type: rule\n").contains("necesita when"));
     assert!(mal("b", "type: batch\n").contains("no puede ser batch"));
     assert!(mal("d", &format!("{DESTRUCTIVE}when: 'true'\n")).contains("when solo vale"));
-    // C1: una aprendida sin pregunta mandaría al modelo una pregunta vacía; no se carga.
+    // C1: a learned one without a question would send the model an empty question; it does not load.
     assert!(mal("d", "type: noul\n").contains("necesita instructions"));
     assert!(mal("d", "type: noul\ninstructions: \"  \"\n").contains("necesita instructions"));
 }
 
-// --- Ejecución (Tarea 3) ---
+// --- Execution (Task 3) ---
 
 use jevalan_flow::{Next, Run};
 use serde_json::{Map, Value, json};
@@ -157,7 +157,7 @@ fn un_batch_anota_la_regla_que_gano_y_las_heurísticas_que_leyo() {
 
 #[test]
 fn solo_se_evalua_la_heuristica_de_la_regla_que_se_mira() {
-    // `broken` falla si se evalúa; la primera regla gana antes de llegar a ella (D4).
+    // `broken` fails if evaluated; the first rule wins before reaching it (D4).
     let f = flow(&RISKS.replace("!signals.root", "signals.broken")).unwrap();
     let mut run = Run::new(&f, json!({}));
     run.next();
@@ -168,12 +168,12 @@ fn solo_se_evalua_la_heuristica_de_la_regla_que_se_mira() {
 
 #[test]
 fn un_batch_que_no_puede_evaluar_su_heuristica_falla() {
-    // D5: con 0.6 se mira la segunda regla, `broken` falla, y no hay `else` que valga: nunca `allow`.
+    // D5: with 0.6 the second rule is looked at, `broken` fails, and no `else` applies: never `allow`.
     let f = flow(&RISKS.replace("!signals.root", "signals.broken")).unwrap();
     let mut run = Run::new(&f, json!({}));
     run.next();
     let step = run.answer_batch(Ok(noul(0.6)), 0).unwrap().clone();
     assert_eq!(step.port, "error");
-    // I2: el error de una heurística es de regla: el daemon publica la frase genérica, no la CEL con la entrada.
+    // I2: a heuristic's error is a rule error: the daemon publishes the generic sentence, not the CEL with the input.
     assert!(matches!(run.next(), Next::Failed { rule: true, .. }));
 }

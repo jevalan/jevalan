@@ -53,12 +53,12 @@ fn copy_schemas(to: &Path) {
     }
 }
 
-/// Daemon con el flujo `agent-wakeup` y las capacidades dadas en un directorio propio (con sus esquemas).
+/// Daemon with the `agent-wakeup` flow and the given capabilities in its own directory (with their schemas).
 async fn start(caps: &[(&str, String)]) -> Daemon {
     start_with(caps, false, &[]).await
 }
 
-/// Como `start`, con `allow_exec` y las variables del `.env` indicados.
+/// Like `start`, with the given `allow_exec` and `.env` variables.
 async fn start_with(caps: &[(&str, String)], allow_exec: bool, dotenv: &[(&str, &str)]) -> Daemon {
     let flows = TempDir::with(&[("agent-wakeup.yaml", WAKE_FLOW)]);
     let caps_dir = TempDir::with(&[]);
@@ -92,7 +92,7 @@ async fn start_with(caps: &[(&str, String)], allow_exec: bool, dotenv: &[(&str, 
 async fn replay(daemon: &Daemon) -> Vec<Value> {
     let (mut ws, _) = connect_async(format!("ws://{}/events", daemon.url.trim_start_matches("http://"))).await.unwrap();
     let mut events = Vec::new();
-    // BACKENDS, un FLOW_LOADED y las capacidades; el resto no llega hasta que algo ocurra.
+    // BACKENDS, a FLOW_LOADED and the capabilities; the rest does not arrive until something happens.
     while let Ok(Some(Ok(Message::Text(text)))) = tokio::time::timeout(Duration::from_millis(500), ws.next()).await {
         events.push(serde_json::from_str(&text).unwrap());
     }
@@ -167,7 +167,7 @@ async fn invalid_reload_keeps_the_previous_capability() {
 
     assert!(eventually(|| async { daemon.listing().await["invalid"]["agent.wakeup"].is_string() }).await);
     assert!(daemon.listing().await["capabilities"].get("agent.wakeup").is_some());
-    // Sigue sirviendo: la entrada vacía es inválida, pero la capacidad existe.
+    // It keeps serving: the empty input is invalid, but the capability exists.
     assert_eq!(daemon.code_of("agent.wakeup").await.as_deref(), Some("invalid_input"));
 }
 
@@ -195,7 +195,7 @@ async fn removing_its_flow_invalidates_a_capability() {
     );
     let listing = daemon.listing().await;
     assert!(listing["invalid"]["agent.wakeup"].as_str().unwrap().contains("agent-wakeup"), "{listing}");
-    // El tablero debe enterarse de que ya no se sirve.
+    // The board must learn that it is no longer served.
     let mut seen = Vec::new();
     while !seen.iter().any(|t| t == "CAPABILITY_REMOVED") {
         let next = tokio::time::timeout(Duration::from_secs(3), ws.next()).await.expect("sin CAPABILITY_REMOVED");
@@ -204,7 +204,7 @@ async fn removing_its_flow_invalidates_a_capability() {
         }
     }
 
-    // Al volver el flujo, la capacidad vuelve sin tocar su fichero.
+    // When the flow returns, the capability returns without touching its file.
     std::fs::write(daemon.flows.0.join("agent-wakeup.yaml"), WAKE_FLOW).unwrap();
 
     assert!(eventually(|| async { daemon.code_of("agent.wakeup").await.as_deref() == Some("invalid_input") }).await);
@@ -264,14 +264,14 @@ async fn exec_command_expands_vars_from_dotenv_and_runs() {
         "{reply}"
     );
 
-    // El comando expandido no se publica ni por HTTP ni por el bus.
+    // The expanded command is published neither over HTTP nor on the bus.
     let published = format!("{}{}", daemon.listing().await, serde_json::to_string(&replay(&daemon).await).unwrap());
     assert!(!published.contains("fake-specialist") && !published.contains("FAKE_SPECIALIST"), "{published}");
 }
 
 #[tokio::test]
 async fn process_env_wins_over_dotenv_and_dotenv_fills_the_gaps() {
-    // CARGO_MANIFEST_DIR existe en el entorno del proceso: si ganara el `.env`, el `.cmd` invalidaría la capacidad.
+    // CARGO_MANIFEST_DIR exists in the process environment: if the `.env` won, the `.cmd` would invalidate the capability.
     let cap = [("tool.risk.yaml", exec_cap("${CARGO_MANIFEST_DIR}/x"))];
     let daemon = start_with(&cap, true, &[("CARGO_MANIFEST_DIR", "C:/x/toolgate.cmd")]).await;
     assert_eq!(invalid_reason(&daemon).await, None);
@@ -301,8 +301,8 @@ async fn undefined_var_invalidates_only_when_exec_is_allowed() {
     assert_eq!(lenient.code_of("tool.risk").await.as_deref(), Some("provider_disabled"));
 }
 
-/// La forma que hoy es válida y que v2 deja de aceptar. Se fija aquí para que el
-/// rechazo del v1 no dependa de cómo esté escrito `exec_cap`.
+/// The shape that is valid today and that v2 stops accepting. It is fixed here so that
+/// v1's rejection does not depend on how `exec_cap` is written.
 const V1_MANIFEST: &str = r#"
 version: "1"
 description: "manifiesto v1"
@@ -312,7 +312,7 @@ provider: { id: toolgate, exec: { command: ["node", "-e", "0"] } }
 defaults: { deadline_ms: 1000 }
 "#;
 
-/// `extra` es donde va lo que la prueba quiera poner o quitar: `namespace`,
+/// `extra` is where whatever the test wants to add or remove goes: `namespace`,
 /// `publisher`, `requires`.
 fn v2_manifest(extra: &str) -> String {
     format!(

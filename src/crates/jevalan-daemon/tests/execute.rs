@@ -69,7 +69,7 @@ fn event() -> Value {
     json!({ "waiting_for": "un correo", "skipped": 0, "event": "llegó" })
 }
 
-/// La respuesta sin la traza, que lleva ids y tiempos.
+/// The response without the trace, which carries ids and times.
 fn bare(mut response: Value) -> Value {
     response.as_object_mut().unwrap().remove("trace");
     response
@@ -114,7 +114,7 @@ async fn record_then_replay_reproduces() {
     let again = run(&wakeup(DEAD, DEAD), event(), None, &Transport::Replay(Arc::new(rec))).await;
     assert_eq!(bare(live.response), bare(again.response));
 
-    // Especialista: se graba con exec activado y se reproduce con exec desactivado, sin lanzar nada.
+    // Specialist: recorded with exec enabled and replayed with exec disabled, launching nothing.
     let store = Arc::new(Mutex::new(Recordings::new()));
     let live = run(&risk(true), json!({ "mode": "allow" }), None, &Transport::Record(store.clone())).await;
     assert_eq!(live.response["status"], "ok", "{}", live.response);
@@ -154,9 +154,9 @@ async fn measure_reports_tokens_and_confidence() {
     let out = run(&wakeup(&url, &url), event(), None, &Transport::Live).await;
     let m = out.measure;
     assert_eq!((m.input_tokens, m.output_tokens, m.confidence), (Some(10), Some(3), Some(0.7)));
-    // La confianza medida es la probabilidad de la respuesta dada (noul 0.7), no la `confidence` reportada.
+    // The measured confidence is the probability of the answer given (noul 0.7), not the reported `confidence`.
 
-    // Solo reglas: nada que medir.
+    // Rules only: nothing to measure.
     let rules = run(&wakeup(DEAD, DEAD), json!({ "waiting_for": "x", "skipped": 0 }), None, &Transport::Live).await;
     assert_eq!((rules.measure.input_tokens, rules.measure.confidence), (None, None));
 }
@@ -203,7 +203,7 @@ async fn measure_sums_reported_cost_only_when_every_call_declares_it() {
     let out = run(&wakeup(&url, &url), event(), None, &Transport::Live).await;
     assert_eq!(out.measure.reported_cost_usd, None);
 
-    // Sin llamadas a backends tampoco hay coste declarado.
+    // Without calls to backends there is no declared cost either.
     let rules = run(&wakeup(DEAD, DEAD), json!({ "waiting_for": "x", "skipped": 0 }), None, &Transport::Live).await;
     assert_eq!(rules.measure.reported_cost_usd, None);
 }

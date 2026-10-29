@@ -1,4 +1,4 @@
-//! `jevalan tui` contra un daemon: lo usa si ya late, lo convoca en el propio proceso si no.
+//! `jevalan tui` against a daemon: uses it if it is already alive, summons one in the same process if not.
 
 use crate::{finish, now_seed, read_dotenv};
 use jevalan_daemon::config::{Config, load};
@@ -14,7 +14,7 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 const STARTUP_WAIT: Duration = Duration::from_secs(5);
-/// Dirección predeterminada de `jevalan tui` (la misma que declara su `--url`).
+/// Default address of `jevalan tui` (the same one its `--url` declares).
 const DEFAULT_URL: &str = "ws://127.0.0.1:8080/events";
 
 pub struct Opts {
@@ -27,7 +27,7 @@ pub struct Opts {
 }
 
 pub fn run(opts: Opts) -> ExitCode {
-    // Todo lo previo a la terminal: ahí aún se puede protestar por stderr con decoro.
+    // Everything prior to the terminal: here one can still complain on stderr with decorum.
     let Some(base) = http_base(&opts.url) else {
         eprintln!("error: --url debe ser ws:// o wss:// con host y puerto, no «{}»", opts.url);
         return ExitCode::from(2);
@@ -36,13 +36,13 @@ pub fn run(opts: Opts) -> ExitCode {
         Ok(rt) => rt,
         Err(e) => return fail(&e.to_string()),
     };
-    // El entorno ya lo lee clap; el `.env` solo rellena el hueco.
+    // clap already reads the environment; `.env` only fills the gap.
     let dotenv = read_dotenv();
     let mut switches = Switches::new();
     let mut token = opts.token.or_else(|| dotenv.get("JEVALAN_TOKEN").cloned());
 
     match runtime.block_on(probe(&base)) {
-        // El fichero de descubrimiento describe al daemon en ejecución; un daemon ausente deja un fichero caduco.
+        // The discovery file describes the running daemon; an absent daemon leaves a stale file.
         Probe::Jevalan => token = token.or_else(|| discovered_token(&base, &opts.url)),
         Probe::Foreign => {
             eprintln!("error: en {base} escucha algo que no es jevalan; use otro --url o libere el puerto");
@@ -70,8 +70,8 @@ pub fn run(opts: Opts) -> ExitCode {
         let _guard = runtime.enter();
         spawn_simulator(base, token.clone(), opts.rate, now_seed());
     }
-    // Al volver de aquí caen el runtime, el daemon propio, los mocks y el simulador.
-    // Solo el daemon propio de la demo tiene mocks que derribar.
+    // On returning from here the runtime, the own daemon, the mocks and the simulator are dropped.
+    // Only the demo's own daemon has mocks to tear down.
     let toggle: Option<BackendToggle> = (!switches.is_empty())
         .then(|| Box::new(move |name: &str| switches.get(name).map(|switch| switch.toggle())) as BackendToggle);
     finish(jevalan_tui::run::run(
@@ -83,8 +83,8 @@ pub fn run(opts: Opts) -> ExitCode {
     ))
 }
 
-/// Token de `daemon.json`, solo si ese fichero describe el daemon de `base` o si `url` es el predeterminado.
-/// Así no se envía el token a una dirección ajena a la que el fichero describe.
+/// Token from `daemon.json`, only if that file describes the daemon at `base` or if `url` is the default.
+/// This way the token is never sent to an address other than the one the file describes.
 fn discovered_token(base: &str, url: &str) -> Option<String> {
     let (addr, token) = discovery::read()?;
     let host = base.split("://").nth(1).unwrap_or_default();
@@ -136,7 +136,7 @@ fn embedded_config(
     Ok((cfg, Switches::new()))
 }
 
-/// Espera a que el daemon propio conteste, o a que muera diciendo por qué.
+/// Waits for the own daemon to answer, or to die saying why.
 async fn await_daemon(base: &str, server: &tokio::task::JoinHandle<std::io::Result<()>>) -> Result<(), String> {
     let deadline = tokio::time::Instant::now() + STARTUP_WAIT;
     while !server.is_finished() && tokio::time::Instant::now() < deadline {

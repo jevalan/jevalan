@@ -13,8 +13,8 @@ pub fn run(action: LabAction) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    // `block_on` corre en el hilo principal (1 MB de pila en Windows, poco para TLS y CEL en debug): el trabajo
-    // va a un worker del runtime. La confirmación por stdin es síncrona y vive dentro de esa tarea.
+    // `block_on` runs on the main thread (1 MB of stack on Windows, little for TLS and CEL in debug): the work
+    // goes to a runtime worker. The stdin confirmation is synchronous and lives inside that task.
     match runtime.block_on(async { tokio::spawn(dispatch(action)).await }) {
         Ok(code) => code,
         Err(e) => {
@@ -39,13 +39,13 @@ async fn dispatch(action: LabAction) -> ExitCode {
     }
 }
 
-/// `--config`; si no, la del laboratorio salvo que `JEVALAN_CONFIG` (entorno o `.env`) ya señale una.
+/// `--config`; otherwise the laboratory's, unless `JEVALAN_CONFIG` (environment or `.env`) already points to one.
 fn pick_config(explicit: Option<PathBuf>, env: &dyn Fn(&str) -> Option<String>, own: PathBuf) -> Option<PathBuf> {
     explicit.or_else(|| (env("JEVALAN_CONFIG").is_none() && own.is_file()).then_some(own))
 }
 
 fn open(args: &LabArgs) -> Result<Lab, ExitCode> {
-    // Sin configuración explícita, la del propio laboratorio: sus backends no llevan claves y bastan para offline.
+    // Without an explicit configuration, the laboratory's own: its backends carry no keys and suffice for offline.
     let dotenv = crate::read_dotenv();
     let env = |key: &str| std::env::var(key).ok().or_else(|| dotenv.get(key).cloned());
     let config = pick_config(args.config.clone(), &env, args.lab_dir.join("config.yaml"));
@@ -85,7 +85,7 @@ async fn offline(args: &LabArgs, filter: Filter) -> ExitCode {
     lab.notes().iter().for_each(|n| eprintln!("nota: {n}"));
     let out = lab.offline(&filter).await;
     println!("{}", out.report);
-    // Un filtro que no admite nada, o todo `skipped`, no demuestra nada: no puede pasar por verde.
+    // A filter that admits nothing, or everything `skipped`, proves nothing: it cannot pass as green.
     let ran = out.results.iter().any(|r| r.skipped.is_none());
     if !ran {
         eprintln!("no se ejecutó ningún fixture");
@@ -123,7 +123,7 @@ async fn live(args: &LabArgs, mode: Mode, filter: Filter, opts: LiveOpts) -> Exi
         (_, Some(e)) => eprintln!("no se pudo escribir: {e}"),
         _ => {}
     }
-    // Una aserción rota es dato en live; falla la salida si se cortó por presupuesto o no se pudo escribir.
+    // A broken assertion is data in live; the exit fails if the run was cut by budget or could not be written.
     if out.stopped || out.write_error.is_some() { ExitCode::FAILURE } else { ExitCode::SUCCESS }
 }
 

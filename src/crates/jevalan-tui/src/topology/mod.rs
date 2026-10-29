@@ -1,4 +1,4 @@
-//! Topología animada: modelo, reducer y layout. Lógica pura, sin ratatui.
+//! Animated topology: model, reducer and layout. Pure logic, no ratatui.
 
 mod layout;
 mod model;

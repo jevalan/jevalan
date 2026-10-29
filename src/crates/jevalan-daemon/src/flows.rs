@@ -1,4 +1,4 @@
-//! Registro de flujos: carga, versiones, recarga en caliente y su rastro en el bus.
+//! Flow registry: loading, versions, hot reload and its trail on the bus.
 
 use crate::bus::Bus;
 use crate::config::Config;
@@ -19,12 +19,12 @@ type Hook = Box<dyn Fn(&Registry) + Send + Sync>;
 #[derive(Default)]
 struct Inner {
     flows: BTreeMap<String, Arc<Flow>>,
-    /// Sube en cada carga válida y sobrevive al borrado del flujo.
+    /// Increases on every valid load and survives the flow's deletion.
     versions: BTreeMap<String, u64>,
     invalid: BTreeMap<String, String>,
 }
 
-/// `std::sync::RwLock` y no el de tokio: el callback de `notify` es síncrono.
+/// `std::sync::RwLock` and not tokio's: the `notify` callback is synchronous.
 #[derive(Default)]
 pub struct Registry {
     inner: RwLock<Inner>,
@@ -37,7 +37,7 @@ impl Registry {
         Self::default()
     }
 
-    /// Aviso, con el cerrojo ya soltado, cada vez que cambia el conjunto de flujos vigentes.
+    /// Notification, with the lock already released, every time the set of current flows changes.
     pub fn set_on_change(&self, hook: impl Fn(&Registry) + Send + Sync + 'static) {
         let _ = self.on_change.set(Box::new(hook));
     }
@@ -61,7 +61,7 @@ impl Registry {
         }
     }
 
-    /// Un fichero ilegible (a medio escribir, bloqueado) cuenta como inválido; la versión vigente se respeta.
+    /// An unreadable file (half-written, locked) counts as invalid; the current version is respected.
     pub fn load_file(&self, path: &Path, cfg: &Config, bus: &Bus) {
         let Some(name) = flow_name(path) else { return };
         let backends: Vec<&str> = cfg.backends.keys().map(String::as_str).collect();
@@ -72,7 +72,7 @@ impl Registry {
                 parse_with(&name, &text, &signals, &backends, &cfg.default_backend).map_err(|e| why(e, &invalid))
             });
 
-        // Se publica con el cerrojo tomado: quien se suscribe antes de leer la instantánea no pierde nada.
+        // It is published with the lock held: whoever subscribes before reading the snapshot loses nothing.
         let mut inner = self.write();
         match parsed {
             Ok(flow) => {
@@ -112,24 +112,24 @@ impl Registry {
         }
     }
 
-    /// Un `FLOW_LOADED` por flujo vigente, para quien acaba de conectarse.
+    /// One `FLOW_LOADED` per current flow, for whoever has just connected.
     pub fn loaded_events(&self) -> Vec<Event> {
         let inner = self.read();
         inner.flows.iter().map(|(name, flow)| loaded_event(name, inner.versions[name], flow)).collect()
     }
 
-    /// Definición completa de cada flujo y motivo de cada inválido.
+    /// Full definition of each flow and the reason for each invalid one.
     pub fn list(&self) -> Value {
         let inner = self.read();
         let flows: BTreeMap<_, _> = inner.flows.iter().map(|(name, flow)| (name, &**flow)).collect();
         json!({ "flows": flows, "invalid": inner.invalid })
     }
 
-    /// El vigilante deja de actuar al soltarse el valor devuelto.
+    /// The watcher stops acting when the returned value is dropped.
     pub fn watch(self: Arc<Self>, cfg: Arc<Config>, bus: Bus) -> notify::Result<RecommendedWatcher> {
         let dir = cfg.flows_dir.clone();
         let signals_dir = cfg.hub.signals_dir.clone();
-        // ponytail: un `signals_dir` que no existía al arrancar no se vigila; reiniciar el daemon tras crearlo.
+        // ponytail: a `signals_dir` that did not exist at start-up is not watched; restart the daemon after creating it.
         let signals_canon = signals_dir.canonicalize().ok();
         let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(event) = res else { return };
@@ -137,7 +137,7 @@ impl Registry {
                 return;
             }
             for path in &event.paths {
-                // Una señal cambió: cualquier flujo puede depender de ella, así que se recargan todos.
+                // A signal changed: any flow may depend on it, so all of them are reloaded.
                 if signals_canon.is_some() && path.parent().and_then(|p| p.canonicalize().ok()) == signals_canon {
                     self.load_dir(&cfg.flows_dir, &cfg, &bus);
                     continue;
@@ -170,7 +170,7 @@ impl Registry {
     }
 }
 
-/// Nombre del flujo si `path` es un `*.yaml` / `*.yml`.
+/// Flow name if `path` is a `*.yaml` / `*.yml`.
 pub(crate) fn flow_name(path: &Path) -> Option<String> {
     let ext = path.extension()?.to_str()?;
     if ext != "yaml" && ext != "yml" {
@@ -179,7 +179,7 @@ pub(crate) fn flow_name(path: &Path) -> Option<String> {
     path.file_stem()?.to_str().map(str::to_string)
 }
 
-/// Motivo de un flujo que no carga; si cita una señal cuyo fichero no vale, dice también por qué no vale.
+/// Reason a flow does not load; if it cites a signal whose file is not valid, it also says why it is not valid.
 fn why(e: FlowError, invalid: &[(String, String)]) -> String {
     match &e {
         FlowError::UnknownSignal { signal, .. } => match invalid.iter().find(|(name, _)| name == signal) {
@@ -199,8 +199,8 @@ fn loaded_event(name: &str, version: u64, flow: &Flow) -> Event {
     new_event(&format!("flow:{name}:{version}"), 1, SOURCE, kind)
 }
 
-/// Los eventos jamás llevan las `instructions` —tampoco las de las preguntas de un nodo `batch`, que son
-/// el prompt—; `GET /v1/flows` sí las muestra.
+/// Events never carry the `instructions` (nor those of the questions of a `batch` node, which are
+/// the prompt); `GET /v1/flows` does show them.
 fn without_instructions(flow: &Flow) -> Value {
     let mut def = serde_json::to_value(flow).unwrap_or(Value::Null);
     if let Some(nodes) = def.get_mut("nodes").and_then(Value::as_object_mut) {
@@ -278,7 +278,7 @@ mod tests {
         reg.load_file(&file, &cfg, &bus);
         assert_eq!(reg.loaded_events()[0].trace_id, "flow:agent-guard:2");
 
-        // Releer lo mismo no es una versión nueva.
+        // Re-reading the same thing is not a new version.
         reg.load_file(&file, &cfg, &bus);
         assert_eq!(reg.loaded_events()[0].trace_id, "flow:agent-guard:2");
     }
@@ -320,7 +320,7 @@ mod tests {
         assert!(reg.list().to_string().contains("borra o sobrescribe"));
     }
 
-    /// Un nodo `batch` lleva el prompt dentro de cada pregunta: tampoco eso sale en los eventos.
+    /// A `batch` node carries the prompt inside each question: that does not appear in the events either.
     const BATCH: &str = r#"
 defaults: { backend: ollama, model: nimble }
 start: risks
@@ -348,7 +348,7 @@ outputs:
 
         let text = serde_json::to_string(&reg.loaded_events()).unwrap();
         assert!(!text.contains("instructions") && !text.contains("¿Rompe algo?"), "{text}");
-        // La pregunta sigue nombrada: el grafo necesita saber que existe.
+        // The question stays named: the graph needs to know it exists.
         assert!(text.contains("destructive"), "{text}");
         assert!(reg.list().to_string().contains("¿Rompe algo?"), "el listado sí las muestra");
     }
@@ -382,7 +382,7 @@ when: 'input.x == 1'
         reg.load_dir(&flows, &cfg, &bus);
         assert_eq!(reg.get("guard").map(|f| f.signals.len()), Some(1));
 
-        // La señal se estropea: el flujo pasa a inválido, dice por qué, y la versión vigente se respeta.
+        // The signal breaks: the flow becomes invalid, says why, and the current version is respected.
         std::fs::write(
             signals.join("root.yaml"),
             "type: rule

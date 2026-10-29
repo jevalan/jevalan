@@ -1,4 +1,4 @@
-//! Actividad por flujo: recorridos de cada arista, última respuesta de cada nodo y paquetes en vuelo. Lógica pura.
+//! Per-flow activity: traversals of each edge, last answer of each node and packets in flight. Pure logic.
 
 use jevalan_events::{Event, EventKind};
 use jevalan_flow::Flow;
@@ -7,9 +7,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// Vida de un paquete sobre una arista.
+/// Life of a packet on an edge.
 pub const PACKET_TTL: Duration = Duration::from_millis(800);
-/// Tope de paquetes simultáneos; al pasarse se descartan los más antiguos.
+/// Cap on simultaneous packets; once exceeded, the oldest are dropped.
 const MAX_PACKETS: usize = 256;
 
 #[derive(Debug, Default)]
@@ -37,8 +37,8 @@ impl FlowActivity {
         Self::default()
     }
 
-    /// Anota `NODE_END` (contador, última respuesta, paquete) y olvida el flujo con `FLOW_REMOVED`.
-    /// Los eventos de flujos o nodos desconocidos se ignoran.
+    /// Records `NODE_END` (counter, last answer, packet) and forgets the flow on `FLOW_REMOVED`.
+    /// Events of unknown flows or nodes are ignored.
     pub fn on_event(&mut self, flows: &BTreeMap<String, Arc<Flow>>, e: &Event, now: Instant) {
         match &e.kind {
             EventKind::NodeEnd { flow, node, answer, confidence, port } => {
@@ -61,13 +61,13 @@ impl FlowActivity {
         }
     }
 
-    /// Olvida todo el estado por flujo (al reconectar, el daemon reenvía los flujos vigentes).
+    /// Forgets all per-flow state (on reconnecting, the daemon resends the current flows).
     pub fn clear_flows(&mut self) {
         self.flows.clear();
         self.packets.clear();
     }
 
-    /// Retira los paquetes cuya vida ha expirado.
+    /// Removes the packets whose life has expired.
     pub fn tick(&mut self, now: Instant) {
         self.packets.retain(|p| now.saturating_duration_since(p.born) < PACKET_TTL);
     }
@@ -80,7 +80,7 @@ impl FlowActivity {
         self.stats(flow, node).and_then(|s| s.ports.get(port)).copied().unwrap_or(0)
     }
 
-    /// Veces que ha terminado el nodo, por cualquier puerto.
+    /// Times the node has finished, through any port.
     pub fn node_count(&self, flow: &str, node: &str) -> u64 {
         self.stats(flow, node).map_or(0, |s| s.ports.values().sum())
     }

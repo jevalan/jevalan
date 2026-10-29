@@ -52,8 +52,8 @@ impl Status {
     }
 }
 
-/// Respuesta de un proveedor `exec`/`http`. `error_when` manda sobre `abstain_when`; un `error_when` que no
-/// puede evaluarse falla cerrado (error), mientras que un `abstain_when` inevaluable cuenta como falso.
+/// Response of an `exec`/`http` provider. `error_when` takes precedence over `abstain_when`; an `error_when` that
+/// cannot be evaluated fails closed (error), whereas an unevaluable `abstain_when` counts as false.
 pub fn classify(response: Value, abstain_when: Option<&str>, error_when: Option<&str>) -> Status {
     match error_when.map(|e| eval(e, &response)) {
         Some(Some(true)) => return Status::error(ErrorCode::ProviderFailed, "el especialista informó de un fallo"),
@@ -69,7 +69,7 @@ pub fn classify(response: Value, abstain_when: Option<&str>, error_when: Option<
     }
 }
 
-/// Proveedor `flow`: `outcome: abstain` se abstiene; lo demás es una decisión con el `data` de la salida.
+/// `flow` provider: `outcome: abstain` abstains; anything else is a decision with the output's `data`.
 pub fn from_flow(outcome: &str, data: Option<Value>) -> Status {
     if outcome == "abstain" {
         Status::Abstain(data.as_ref().and_then(|d| d.get("reason")).and_then(Value::as_str).map(String::from))
@@ -82,7 +82,7 @@ fn holds(expr: &str, response: &Value) -> bool {
     eval(expr, response) == Some(true)
 }
 
-/// `None` si la expresión no compila, no se evalúa o no da un booleano.
+/// `None` if the expression does not compile, cannot be evaluated or does not yield a boolean.
 fn eval(expr: &str, response: &Value) -> Option<bool> {
     let program = crate::program::compiled(expr).ok()?;
     let mut ctx = cel::Context::default();
@@ -93,7 +93,7 @@ fn eval(expr: &str, response: &Value) -> Option<bool> {
     }
 }
 
-/// Cuerpo de la respuesta `jev-hub/0.1`. `abstain` y `error` nunca llevan `decision`.
+/// Body of the `jev-hub/0.1` response. `abstain` and `error` never carry `decision`.
 pub fn response_body(
     req: &HubRequest,
     status: &Status,

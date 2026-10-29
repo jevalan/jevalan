@@ -1,4 +1,4 @@
-//! Ejecución de la matriz de fixtures.
+//! Execution of the fixtures matrix.
 
 use crate::load::stale;
 use crate::{Case, FailedAssert, Lab, ResultLine, RunOutcome, write};
@@ -25,7 +25,7 @@ impl Filter {
 }
 
 impl Lab {
-    /// Reproduce cada fixture con su `replay` o con la cassette del primer target; sin red ni procesos.
+    /// Replays each fixture with its `replay` or with the first target's cassette; no network or processes.
     pub async fn offline(&self, filter: &Filter) -> RunOutcome {
         let started = write::Stamp::now();
         let mut results = Vec::new();
@@ -52,8 +52,8 @@ impl Lab {
         };
         let mut line = ResultLine::blank(case, &target, 1, "replay");
 
-        // El replay manual manda; la cassette solo completa las claves que faltan. Las claves de un `batch`
-        // son las de sus preguntas, `"<nodo>.<pregunta>"`, que es lo que el daemon pedirá (D3).
+        // The manual replay rules; the cassette only fills in the missing keys. A `batch`'s keys
+        // are those of its questions, `"<node>.<question>"`, which is what the daemon will ask for (D3).
         let nodes = self.jev_questions(cap);
         let mut rec = Recordings::new();
         for (key, value) in &fx.replay {
@@ -79,7 +79,7 @@ impl Lab {
                 }
             }
             Ok(None) => {}
-            // Una cassette rota no es un caso por grabar: es un fallo que hay que ver.
+            // A broken cassette is not a case to record: it is a failure that must be seen.
             Err(e) => {
                 line.status = "error".into();
                 line.failed_asserts =
@@ -107,7 +107,7 @@ impl Lab {
     }
 }
 
-/// La petición `jev-hub` de un fixture.
+/// A fixture's `jev-hub` request.
 pub(crate) fn request(case: &Case) -> Result<HubRequest, String> {
     let (cap, fx) = (&case.cap, &case.fixture);
     let body = json!({
@@ -117,7 +117,7 @@ pub(crate) fn request(case: &Case) -> Result<HubRequest, String> {
     parse_request(body.to_string().as_bytes())
 }
 
-/// Vuelca la respuesta y la medida en la línea y evalúa las aserciones.
+/// Dumps the response and the measurement into the line and evaluates the assertions.
 pub(crate) fn finish_line(line: &mut ResultLine, fx: &Fixture, done: &Executed) {
     let failures = assert(fx, &done.response);
     line.status = done.response["status"].as_str().unwrap_or("error").to_string();
@@ -132,7 +132,7 @@ pub(crate) fn finish_line(line: &mut ResultLine, fx: &Fixture, done: &Executed) 
     line.output_tokens = done.measure.output_tokens;
 }
 
-/// Texto del error de una respuesta cuyo estado es `error`; en cualquier otro caso, nada.
+/// Error text of a response whose status is `error`; in any other case, nothing.
 fn error_message(response: &serde_json::Value) -> Option<String> {
     if response["status"].as_str() != Some("error") {
         return None;

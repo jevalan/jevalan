@@ -3,10 +3,10 @@ mod common;
 use common::{TempDir, answers, connect, next_json, say, scripted_backend, start_with_flows_and};
 use serde_json::{Value, json};
 
-/// El flujo local de `tool.risk`, tal cual se sirve: cuatro riesgos en un `batch` y reglas `route`.
+/// The local `tool.risk` flow, exactly as served: four risks in a `batch` and `route` rules.
 const LOCAL: &str = include_str!("../../jevalan-flow/fixtures/tool-risk-local-v1.yaml");
 
-/// POST con cuerpo JSON; devuelve el estado y la respuesta ya leída.
+/// POST with a JSON body; returns the status and the already-read response.
 async fn post(daemon: &str, ruta: &str, cuerpo: Value) -> (u16, Value) {
     let respuesta = reqwest::Client::new().post(format!("{daemon}{ruta}")).json(&cuerpo).send().await.unwrap();
     let estado = respuesta.status().as_u16();
@@ -26,7 +26,7 @@ async fn validate_accepts_a_good_flow_and_names_the_error_of_a_broken_one() {
     assert_eq!(bueno["flow"]["name"], "tool-risk-local");
     assert_eq!(bueno["flow"]["nodes"]["risks"]["questions"].as_object().unwrap().len(), 4);
 
-    // Una expresión CEL cortada: el error ha de ser el del parser, y ha de nombrar la regla.
+    // A truncated CEL expression: the error must be the parser's, and must name the rule.
     let roto = LOCAL.replace("answers.risks.destructive >= 0.85", "answers.risks.destructive >");
     let (estado, malo) = post(&daemon, "/v1/flows/validate", json!({ "flow": "tool-risk-local", "yaml": &roto })).await;
     assert_eq!(estado, 200);
@@ -44,18 +44,18 @@ async fn validate_never_touches_the_registry() {
     let (_, bueno) = post(&daemon, "/v1/flows/validate", json!({ "flow": "tool-risk-local", "yaml": LOCAL })).await;
     assert_eq!(bueno["ok"], true);
 
-    // El flujo es válido, y aun así no se publica: el registro sigue vacío y nada emite FLOW_LOADED.
+    // The flow is valid, and yet it is not published: the registry stays empty and nothing emits FLOW_LOADED.
     let listado: Value = reqwest::get(format!("{daemon}/v1/flows")).await.unwrap().json().await.unwrap();
     assert!(listado["flows"].as_object().unwrap().is_empty(), "{listado}");
     assert!(listado["invalid"].as_object().unwrap().is_empty(), "{listado}");
 }
 
-/// Una entrada que pasa las dos reglas fijas y llega al nodo `batch`.
+/// An input that passes the two fixed rules and reaches the `batch` node.
 fn entrada() -> Value {
     json!({ "tool_name": "Bash", "tool_input": { "command": "ls -la" } })
 }
 
-/// Grabaciones de un `batch`: una por pregunta, con la clave completa `"risks.<pregunta>"`.
+/// Recordings of a `batch`: one per question, with the full key `"risks.<question>"`.
 fn cassette(p: [f64; 4]) -> Value {
     let claves = ["destructive", "exfiltration", "privilege", "secret_exposure"];
     Value::Object(
@@ -102,9 +102,9 @@ async fn draft_run_walks_the_borrador_and_leaves_the_registry_untouched() {
 
     assert_eq!(estado, 200);
     assert_eq!(ran["flow"], "tool-risk-local");
-    // La salida `deny` de este flujo declara `outcome: ok` con `verdict: deny` en sus datos.
+    // This flow's `deny` output declares `outcome: ok` with `verdict: deny` in its data.
     assert_eq!((ran["outcome"].as_str(), ran["data"]["verdict"].as_str()), (Some("ok"), Some("deny")));
-    // El camino: las dos reglas fijas y el nodo `batch`, que enruta a `deny`.
+    // The path: the two fixed rules and the `batch` node, which routes to `deny`.
     assert_eq!(
         ran["path"].as_array().unwrap().iter().map(|p| p["node"].as_str().unwrap()).collect::<Vec<_>>(),
         ["rm_root", "pipe_sh", "risks"]

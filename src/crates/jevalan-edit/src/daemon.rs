@@ -1,26 +1,26 @@
-//! Cliente del daemon: validar el borrador sin publicarlo, con el parser local como caída.
+//! Daemon client: validate the draft without publishing it, with the local parser as a fallback.
 
 use jevalan_flow::Flow;
 use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
-/// Tiempos del cliente: cortos, porque el editor no puede quedarse esperando a nadie.
+/// Client timings: short, because the editor cannot be left waiting for anyone.
 const CONECTAR: Duration = Duration::from_millis(200);
 const TOTAL: Duration = Duration::from_secs(1);
 
-/// Veredicto de una validación contra el daemon.
+/// Verdict of a validation against the daemon.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Veredicto {
     pub ok: bool,
-    /// El mensaje del `FlowError` real, tal como lo redacta el daemon.
+    /// The real `FlowError` message, as the daemon words it.
     pub error: Option<String>,
-    /// El flujo ya validado, con los valores por defecto aplicados.
+    /// The already-validated flow, with the defaults applied.
     pub flow: Option<Flow>,
 }
 
-/// Cliente de las rutas de borrador. Si el daemon no responde, el editor sigue: la validación cae al
-/// parser local —que es la misma autoridad (D6)— y la banda inferior lo avisa.
+/// Client of the draft routes. If the daemon does not answer, the editor carries on: validation falls back to the
+/// local parser (the same authority, D6) and the bottom band says so.
 pub struct Cliente {
     runtime: Runtime,
     http: reqwest::Client,
@@ -29,7 +29,7 @@ pub struct Cliente {
 }
 
 impl Cliente {
-    /// `base` es `http://<addr>`, como lo lee `jevalan_daemon::discovery::read`.
+    /// `base` is `http://<addr>`, as `jevalan_daemon::discovery::read` reads it.
     pub fn nuevo(base: &str, token: Option<String>) -> Result<Self, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -43,7 +43,7 @@ impl Cliente {
         Ok(Self { runtime, http, base: base.trim_end_matches('/').to_string(), token })
     }
 
-    /// `POST /v1/flows/validate`: el veredicto del daemon sobre el borrador. `Err` si no responde.
+    /// `POST /v1/flows/validate`: the daemon's verdict on the draft. `Err` if it does not answer.
     pub fn validar(&self, flow: &str, yaml: &str) -> Result<Veredicto, String> {
         let respuesta = self.pedir("/v1/flows/validate", &json!({ "flow": flow, "yaml": yaml }))?;
         Ok(Veredicto {
@@ -53,7 +53,7 @@ impl Cliente {
         })
     }
 
-    /// Un POST con el token, si lo hay; error con el motivo si el daemon no contesta.
+    /// A POST with the token, if there is one; an error with the reason if the daemon does not answer.
     fn pedir(&self, ruta: &str, cuerpo: &Value) -> Result<Value, String> {
         let (http, token, url) = (self.http.clone(), self.token.clone(), format!("{}{ruta}", self.base));
         self.runtime.block_on(async move {
@@ -71,18 +71,18 @@ impl Cliente {
     }
 }
 
-/// Servidor de mentira y puerto muerto, para las pruebas de este módulo y de quien usa el cliente.
+/// Fake server and dead port, for the tests of this module and of whoever uses the client.
 #[cfg(test)]
 pub(crate) mod pruebas {
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::time::Duration;
 
-    /// Servidor de mentira: responde `cuerpo` a cualquier POST y cierra la conexión.
+    /// Fake server: answers `cuerpo` to any POST and closes the connection.
     ///
-    /// La petición se lee **entera** antes de contestar: un solo `read` puede traer la cabecera sin el
-    /// cuerpo, y responder entonces cortaría la conexión antes de que el cliente acabara de enviarlo
-    /// —`error sending request`—, que es una carrera y no lo que se quiere probar.
+    /// The request is read **in full** before answering: a single `read` can bring the header without the
+    /// body, and answering then would cut the connection before the client had finished sending it
+    /// (`error sending request`), which is a race and not what is meant to be tested.
     pub fn servidor(cuerpo: &'static str) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
@@ -97,7 +97,7 @@ pub(crate) mod pruebas {
                         Ok(0) | Err(_) => break,
                         Ok(n) => pedido.extend_from_slice(&trozo[..n]),
                     }
-                    // Con la cabecera se sabe cuántos bytes de cuerpo faltan; se espera a tenerlos.
+                    // With the header it is known how many body bytes are missing; it waits until it has them.
                     if let Some(corte) = pedido.windows(4).position(|v| v == b"\r\n\r\n") {
                         let largo = String::from_utf8_lossy(&pedido[..corte])
                             .lines()
@@ -121,7 +121,7 @@ pub(crate) mod pruebas {
         url
     }
 
-    /// Un puerto donde no escucha nadie: se abre y se suelta.
+    /// A port where nobody listens: it is opened and dropped.
     pub fn puerto_muerto() -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();

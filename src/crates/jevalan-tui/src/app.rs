@@ -1,4 +1,4 @@
-//! Shell de la TUI al estilo Elm: un estado, mensajes, `update` y `draw`.
+//! Elm-style shell of the TUI: a state, messages, `update` and `draw`.
 
 use crate::fx::FxMode;
 use crate::screen::{Ctx, KeyHint, Msg, Nav, Screen, SourceStatus};
@@ -16,7 +16,7 @@ use std::time::Instant;
 
 pub const MIN_WIDTH: u16 = 80;
 pub const MIN_HEIGHT: u16 = 24;
-/// Eventos que se guardan en pausa; al pasarse se descartan los más antiguos.
+/// Events kept while paused; once exceeded, the oldest are dropped.
 pub const MAX_PAUSED: usize = 10_000;
 
 pub const GLOBAL_KEYS: &[KeyHint] = &[
@@ -81,7 +81,7 @@ impl App {
             Msg::Status(status) => {
                 self.ctx.source_status = Some(status.clone());
                 if *status == SourceStatus::Connected {
-                    // Flujos y capacidades son estado: el daemon los reenvía al conectar, y lo local puede estar obsoleto.
+                    // Flows and capabilities are state: the daemon resends them on connecting, and what is local may be out of date.
                     self.ctx.flows.clear();
                     self.ctx.topo.clear_flow_ports();
                     self.ctx.topo.clear_capabilities();
@@ -113,7 +113,7 @@ impl App {
         }
     }
 
-    /// Teclas globales; devuelve `true` si la tecla quedó atendida.
+    /// Global keys; returns `true` if the key was handled.
     fn global_key(&mut self, k: &KeyEvent) -> bool {
         if self.help {
             if matches!(k.code, KeyCode::Esc | KeyCode::Char('?')) {
@@ -134,7 +134,7 @@ impl App {
                 }
             }
             KeyCode::Esc if self.stack.len() > 1 => self.pop(),
-            // En la raíz no hay a dónde volver: `esc` sale, como en cualquier otro visor.
+            // At the root there is nowhere to go back to: `esc` quits, as in any other viewer.
             KeyCode::Esc => self.quit = true,
             _ => return false,
         }
@@ -150,7 +150,7 @@ impl App {
 
     fn apply(&mut self, e: Event) {
         let now = self.ctx.now;
-        // Anunciar backends y cargar o quitar flujos y capacidades es idempotente: se aplica aunque la traza ya constara.
+        // Announcing backends and loading or removing flows and capabilities is idempotent: it is applied even if the trace was already recorded.
         let fresh = self.ctx.store.ingest(e.clone(), now);
         let is_state = matches!(
             e.kind,
@@ -169,7 +169,7 @@ impl App {
         }
     }
 
-    /// Mantiene `ctx.flows` con la estructura que llega en `FLOW_LOADED`; una definición ilegible se ignora.
+    /// Keeps `ctx.flows` with the structure that arrives in `FLOW_LOADED`; an unreadable definition is ignored.
     fn track_flows(&mut self, kind: &EventKind) {
         match kind {
             EventKind::FlowLoaded { flow, definition, .. } => {
@@ -184,7 +184,7 @@ impl App {
         }
     }
 
-    /// La fuente de eventos se cerró; se avisa en la cabecera.
+    /// The event source closed; the header gives notice.
     pub fn mark_source_closed(&mut self) {
         if !self.ctx.source_closed {
             self.ctx.source_closed = true;
@@ -192,7 +192,7 @@ impl App {
         }
     }
 
-    /// Hay que pintar si cambió algo, hay paquetes en vuelo, la pantalla anima o los efectos van a tope.
+    /// Painting is needed if something changed, there are packets in flight, the screen animates or the effects are at full tilt.
     pub fn needs_redraw(&self) -> bool {
         self.dirty
             || self.ctx.topo.has_live_packets()
@@ -241,7 +241,7 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    /// Pantalla de prueba: apunta lo que recibe; `x` apila otra igual, `z` pide salir.
+    /// Test screen: notes what it receives; `x` stacks another like it, `z` asks to quit.
     struct Probe {
         seen: Rc<RefCell<Vec<String>>>,
     }
@@ -390,7 +390,7 @@ mod tests {
         assert_eq!(a.ctx.flows.keys().collect::<Vec<_>>(), ["model-route"]);
     }
 
-    /// `FLOW_LOADED` de `agent-guard` con la descripción dada y el `(trace_id, seq)` fijos.
+    /// `FLOW_LOADED` of `agent-guard` with the given description and the `(trace_id, seq)` fixed.
     fn guard_loaded(description: &str) -> Msg {
         let mut def = serde_json::to_value(&crate::fake::flows()[0]).unwrap();
         def["description"] = description.into();
@@ -406,7 +406,7 @@ mod tests {
         assert_eq!(a.ctx.topo.backends().count(), 1);
         a.update(flow_event("backends:1", kind));
         assert_eq!(a.ctx.topo.backends().count(), 1);
-        // Un daemon reiniciado repite el mismo (trace, seq) con otros nombres.
+        // A restarted daemon repeats the same (trace, seq) with other names.
         a.update(flow_event("backends:1", EventKind::Backends { backends: vec!["ollama".into(), "nuevo".into()] }));
         assert_eq!(a.ctx.topo.backends().count(), 2);
     }
@@ -466,7 +466,7 @@ mod tests {
         assert_eq!(a.ctx.topo.capabilities().count(), 2, "un CAPABILITY_LOADED repetido no duplica");
         assert_eq!(a.ctx.topo.ports(), ["agent.wakeup", "tool.risk", "passthrough"]);
         assert!(a.ctx.topo.backends().any(|(n, _)| n == "toolgate"));
-        // Un daemon reiniciado repite el mismo (trace, seq) con otra versión: se aplica aunque ya constara.
+        // A restarted daemon repeats the same (trace, seq) with another version: it is applied even if it was already recorded.
         let kind = EventKind::CapabilityLoaded {
             capability: "tool.risk".into(),
             version: "2".into(),

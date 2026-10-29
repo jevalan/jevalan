@@ -1,19 +1,19 @@
-//! Sondeo de `/healthz`: ¿hay un daemon de jevalan en esa dirección?
+//! `/healthz` probe: is there a jevalan daemon at that address?
 
 use std::time::Duration;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Probe {
-    /// Responde `ok`: es un jevalan.
+    /// It answers `ok`: it is a jevalan.
     Jevalan,
     /// Nadie escucha.
     Down,
-    /// Algo escucha, pero no es jevalan.
+    /// Something is listening, but it is not jevalan.
     Foreign,
 }
 
 pub async fn probe(base: &str) -> Probe {
-    // Windows tarda unos 2 s en dar por rechazada una conexión local: el plazo de conexión ha de holgar.
+    // Windows takes about 2 s to consider a local connection refused: the connect timeout must leave room for that.
     let client = reqwest::Client::builder().connect_timeout(Duration::from_secs(3)).build().expect("cliente HTTP");
     match client.get(format!("{base}/healthz")).timeout(Duration::from_secs(4)).send().await {
         Ok(resp) => {
@@ -25,7 +25,7 @@ pub async fn probe(base: &str) -> Probe {
     }
 }
 
-/// Espera hasta `wait` a que el daemon conteste `ok`.
+/// Waits up to `wait` for the daemon to answer `ok`.
 pub async fn wait_healthy(base: &str, wait: Duration) -> bool {
     let deadline = tokio::time::Instant::now() + wait;
     loop {

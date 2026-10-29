@@ -1,4 +1,4 @@
-//! Flujos de decisión sobre System One: modelo, validación y ejecución. Lógica pura.
+//! Decision flows over System One: model, validation and execution. Pure logic.
 
 mod model;
 mod program;
@@ -14,11 +14,11 @@ pub use run::{
 pub use signals::{Signals, parse_signal};
 pub use validate::{Flow, FlowError, Node, answer_ports, parse, parse_with, validate, validate_with};
 
-/// Backend y modelo simbólicos de un nodo rule: no consulta a nadie.
+/// Symbolic backend and model of a rule node: it consults nobody.
 pub const RULE_BACKEND: &str = "-";
 pub const DEFAULT_THRESHOLD: f64 = 0.5;
 pub const DEFAULT_MIN_CONFIDENCE: f64 = 0.5;
-/// Puerto común: el backend falló o devolvió algo inservible.
+/// Common port: the backend failed or returned something unusable.
 pub const ERROR: &str = "error";
-/// Puerto común: la confianza no alcanzó `min_confidence`.
+/// Common port: the confidence did not reach `min_confidence`.
 pub const LOW_CONFIDENCE: &str = "low-confidence";

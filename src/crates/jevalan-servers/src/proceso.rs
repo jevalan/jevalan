@@ -1,43 +1,43 @@
-//! Arrancar, sondear y parar servidores locales. Sin UI: la pantalla solo pinta lo que sale de aquí.
+//! Start, probe and stop local servers. No UI: the screen only paints what comes out of here.
 
 use crate::registro::{Servidor, dir_pids};
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Lo que se puede decir de un servidor mirando su `.pid` y su puerto.
+/// What can be said about a server by looking at its `.pid` and its port.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Estado {
-    /// El puerto contesta **y** el proceso es nuestro.
+    /// The port answers **and** the process is ours.
     Listo,
-    /// Hay un proceso nuestro vivo, pero el puerto aún no contesta: está cargando.
+    /// There is a live process of ours, but the port does not answer yet: it is loading.
     Cargando,
-    /// Ni puerto ni proceso: se cayó, o nunca llegó a arrancar.
+    /// Neither port nor process: it fell over, or never got started.
     Caido,
-    /// El puerto lo ocupa otro: se dice **con su pid**, que es lo que pide la spec (§7).
+    /// Someone else holds the port: it is said **with its pid**, which is what the spec asks for (§7).
     ///
-    /// El `pid` viaja en 0 cuando el sistema no lo quiere decir —`netstat` ausente, o su salida en
-    /// un idioma que no se entiende—: no se finge un pid.
+    /// The `pid` travels as 0 when the system will not say it (`netstat` absent, or its output in
+    /// a language that is not understood): no pid is faked.
     PuertoAjeno { pid: u32 },
-    /// No hay `.pid` y el puerto está libre.
+    /// There is no `.pid` and the port is free.
     SinArrancar,
 }
 
-/// ¿Contesta alguien en `port`? Se sondea la vuelta local, con un plazo corto: no se toca la red.
+/// Does anyone answer on `port`? The local loopback is probed, with a short timeout: the network is not touched.
 pub fn puerto_contesta(port: u16) -> bool {
-    // 127.0.0.1 y no `localhost`: el sondeo ha de ser local y no depender de la resolución de nombres.
+    // 127.0.0.1 and not `localhost`: the probe must be local and not depend on name resolution.
     let dir = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     TcpStream::connect_timeout(&dir, Duration::from_millis(300)).is_ok()
 }
 
-/// ¿Existe el proceso `pid`? 0 no es un pid válido, y los enormes no existen.
+/// Does process `pid` exist? 0 is not a valid pid, and huge ones do not exist.
 pub fn pid_vivo(pid: u32) -> bool {
     if pid == 0 || pid == u32::MAX {
         return false;
     }
     #[cfg(windows)]
     {
-        // `tasklist` es la vía sin dependencias nuevas; se filtra en Rust, no en el shell.
+        // `tasklist` is the route with no new dependencies; it is filtered in Rust, not in the shell.
         let salida = std::process::Command::new("tasklist")
             .args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"])
             .output();
@@ -52,23 +52,23 @@ pub fn pid_vivo(pid: u32) -> bool {
     }
 }
 
-/// La ruta del `.pid` de un servidor nombrado.
+/// The path of a named server's `.pid`.
 fn ruta_pid(nombre: &str) -> Option<PathBuf> {
     dir_pids().map(|d| d.join(format!("{nombre}.pid")))
 }
 
-/// El pid anotado para `nombre`, si lo hay y el fichero se entiende.
+/// The pid recorded for `nombre`, if there is one and the file is understood.
 ///
-/// Un fichero que diga `0` se lee como si no hubiera pid: el 0 no es un pid utilizable —[`pid_vivo`]
-/// lo rechaza de entrada, y [`escribir_pid`] nunca lo escribe—, y distinguir «cero» de «ilegible»
-/// obligaría a cada llamante a filtrarlo otra vez. La consecuencia, dicha: un `.pid` con 0 se
-/// comporta como un `.pid` que no está.
+/// A file that says `0` is read as if there were no pid: 0 is not a usable pid ([`pid_vivo`]
+/// rejects it outright, and [`escribir_pid`] never writes it), and distinguishing "zero" from "unreadable"
+/// would force every caller to filter it again. The consequence, stated: a `.pid` with 0
+/// behaves like a `.pid` that is not there.
 pub fn pid_de(nombre: &str) -> Option<u32> {
     let texto = std::fs::read_to_string(ruta_pid(nombre)?).ok()?;
     texto.trim().parse().ok().filter(|p| *p != 0)
 }
 
-/// Anota el pid de un servidor.
+/// Records a server's pid.
 pub fn escribir_pid(nombre: &str, pid: u32) -> Result<(), String> {
     let ruta = ruta_pid(nombre).ok_or("sin directorio de datos para los `.pid`")?;
     if let Some(dir) = ruta.parent() {
@@ -77,30 +77,30 @@ pub fn escribir_pid(nombre: &str, pid: u32) -> Result<(), String> {
     std::fs::write(&ruta, pid.to_string()).map_err(|e| format!("no se puede escribir {}: {e}", ruta.display()))
 }
 
-/// Borra el `.pid` de un servidor; si ya no estaba, nada ocurre.
+/// Deletes a server's `.pid`; if it was already gone, nothing happens.
 ///
-/// **No lo llama [`estado`]**, que no escribe: un `.pid` caduco se limpia cuando alguien decide
-/// —arrancar de nuevo, parar (tarea 3)—, no como efecto colateral de mirar. Si [`estado`] lo borrara,
-/// dos llamadas seguidas dirían cosas distintas, y quien tenga que decidir no podría fiarse de la
-/// segunda.
+/// **[`estado`] does not call it**, as it does not write: a stale `.pid` is cleaned up when someone decides to
+/// (start again, stop (task 3)), not as a side effect of looking. If [`estado`] deleted it,
+/// two consecutive calls would say different things, and whoever has to decide could not trust the
+/// second.
 pub fn borrar_pid(nombre: &str) {
     if let Some(ruta) = ruta_pid(nombre) {
         let _ = std::fs::remove_file(ruta);
     }
 }
 
-/// El pid que `netstat` atribuye a quien escucha en `port`, leído de su salida.
+/// The pid `netstat` attributes to whoever listens on `port`, read from its output.
 ///
-/// Una línea de escucha es `  TCP    127.0.0.1:8009    0.0.0.0:0    LISTENING    1234`: cinco campos,
-/// el cuarto `LISTENING` y el quinto el pid. Se separa de [`proceso_de_puerto`] para poder probar el
-/// parseo sin depender de que `netstat` exista o conteste: lo que puede faltar es el programa, no el
-/// formato. El cotejo del puerto es por el número entero —`ends_with(":8009")`— para que `:8021` no
-/// valga por `:21`, y vale igual para una dirección entre corchetes (`[::]:8009`).
+/// A listening line is `  TCP    127.0.0.1:8009    0.0.0.0:0    LISTENING    1234`: five fields,
+/// the fourth `LISTENING` and the fifth the pid. It is split off from [`proceso_de_puerto`] so the
+/// parsing can be tested without depending on `netstat` existing or answering: what can be missing is the program, not the
+/// format. The port is matched by the whole number (`ends_with(":8009")`) so that `:8021` does not
+/// count as `:21`, and it works the same for a bracketed address (`[::]:8009`).
 ///
-/// Solo lo llama la rama de Windows de [`proceso_de_puerto`], así que en Linux y macOS quedaría sin
-/// usar y `clippy --all-targets -- -D warnings` se caería por código muerto: de ahí el `allow`, que
-/// no tapa un descuido sino una consecuencia del `cfg`. El día que la otra rama aprenda `ss`/`lsof`,
-/// lo alimentará esta misma función, sin tocar el `allow`.
+/// Only called by the Windows branch of [`proceso_de_puerto`], so on Linux and macOS it would be left
+/// unused and `clippy --all-targets -- -D warnings` would fall over for dead code: hence the `allow`, which
+/// does not hide an oversight but a consequence of the `cfg`. The day the other branch learns `ss`/`lsof`,
+/// this same function will feed it, without touching the `allow`.
 #[allow(dead_code)]
 fn pid_en_netstat(texto: &str, port: u16) -> Option<u32> {
     let sufijo = format!(":{port}");
@@ -117,11 +117,11 @@ fn pid_en_netstat(texto: &str, port: u16) -> Option<u32> {
     None
 }
 
-/// El pid de quien escucha en `port`, si el sistema lo dice. Se pregunta solo cuando hace falta —un
-/// puerto ocupado que no es nuestro—, porque `netstat` tarda cientos de milisegundos.
+/// The pid of whoever listens on `port`, if the system says. It is only asked when needed (an
+/// occupied port that is not ours), because `netstat` takes hundreds of milliseconds.
 ///
-/// Cuando no se puede saber —sin `netstat`, o con una salida que no se entiende— devuelve `None`, y
-/// quien llame decidirá si eso es un 0 o un silencio. No se adivina un pid.
+/// When it cannot be known (no `netstat`, or an output that is not understood) it returns `None`, and
+/// the caller will decide whether that is a 0 or a silence. No pid is guessed.
 pub fn proceso_de_puerto(port: u16) -> Option<u32> {
     #[cfg(windows)]
     {
@@ -131,17 +131,17 @@ pub fn proceso_de_puerto(port: u16) -> Option<u32> {
     #[cfg(not(windows))]
     {
         let _ = port;
-        None // `ss`/`lsof` cuando haga falta: hoy solo se soporta Windows para los servidores locales.
+        None // `ss`/`lsof` when needed: today only Windows is supported for local servers.
     }
 }
 
-/// El estado de un servidor. **No escribe nada**: dos llamadas seguidas dan lo mismo, que es lo que
-/// permite a quien lo consume (arrancar, la pantalla) decidir con un solo resultado.
+/// A server's state. **It writes nothing**: two consecutive calls give the same, which is what
+/// lets whoever consumes it (start, the screen) decide with a single result.
 ///
-/// El puerto es la señal que no engaña; el `.pid` dice si el proceso es nuestro. Sin `.pid` propio,
-/// un puerto que contesta es de otro —el `ollama` de turno, un vecino, un `serve.bat` lanzado a mano
-/// del que nadie anotó el pid— y se dice con su pid: darlo por `Listo` sería atribuirnos un proceso
-/// que no arrancamos, que es justo lo que la spec §7 prohíbe.
+/// The port is the signal that does not lie; the `.pid` says whether the process is ours. Without its own `.pid`,
+/// a port that answers belongs to someone else (the `ollama` of the day, a neighbour, a hand-launched `serve.bat`
+/// whose pid nobody recorded) and it is said with its pid: reporting it as `Listo` would be claiming a process
+/// we did not start, which is exactly what spec §7 forbids.
 pub fn estado(s: &Servidor) -> Estado {
     let nuestro = pid_de(&s.nombre);
     let vivo = nuestro.is_some_and(pid_vivo);
@@ -149,50 +149,50 @@ pub fn estado(s: &Servidor) -> Estado {
         if vivo {
             return Estado::Listo;
         }
-        // Contesta y no es nuestro: se dice **con el pid de quien lo ocupa**, que es lo que pide la
-        // spec (§7). `0` cuando el sistema no lo quiere decir: no se finge un pid.
+        // It answers and is not ours: it is said **with the pid of whoever holds it**, which is what the
+        // spec asks for (§7). `0` when the system will not say: no pid is faked.
         return Estado::PuertoAjeno { pid: proceso_de_puerto(s.port).unwrap_or(0) };
     }
     match nuestro {
-        // `vivo` ya está medido arriba: volver a preguntar por el mismo proceso costaría otro
-        // `tasklist` —cientos de milisegundos— y podría contestar otra cosa a mitad de la misma
-        // llamada, que es exactamente lo que este rediseño quita de en medio.
+        // `vivo` is already measured above: asking again about the same process would cost another
+        // `tasklist` (hundreds of milliseconds) and could answer something else halfway through the same
+        // call, which is exactly what this redesign removes.
         Some(_) if vivo => Estado::Cargando,
         Some(_) => Estado::Caido,
         None => Estado::SinArrancar,
     }
 }
 
-/// Lanza el servidor sin consola propia y con su salida añadida al `log` del registro.
+/// Launches the server without its own console and with its output appended to the registry's `log`.
 ///
-/// Antes de lanzar nada se pregunta **de quién es el puerto**, no solo si contesta: desde que
-/// [`Estado::Listo`] exige `.pid` nuestro y vivo (tarea 2), un puerto que contesta sin `.pid` nuestro
-/// es de otro. Con uno ajeno no se lanza —lanzar sería pelearse por el puerto— ni se dice «ya
-/// estaba» —sería mentir sobre un proceso que no arrancamos—: se dice de quién es y se para. Y un
-/// servidor que ya está cargando tampoco se relanza: con Kev, que tarda uno o dos minutos, esa
-/// ventana es la más ancha de todas, y un segundo proceso se pelearía con el primero por el puerto y
-/// por la memoria de la máquina.
+/// Before launching anything it asks **whose the port is**, not just whether it answers: since
+/// [`Estado::Listo`] requires a live `.pid` of ours (task 2), a port that answers without a `.pid` of ours
+/// belongs to someone else. With a foreign one it neither launches (launching would be fighting over the port) nor says "it was
+/// already there" (that would be lying about a process we did not start): it says whose it is and stops. And a
+/// server that is already loading is not relaunched either: with Kev, which takes one or two minutes, that
+/// window is the widest of all, and a second process would fight the first over the port and
+/// over the machine's memory.
 ///
-/// Del desacoplado, lo que se promete y lo que no: el proceso se crea **sin consola** —con
-/// `CREATE_NO_WINDOW` y `DETACHED_PROCESS`—, de modo que no hereda la de jevalan ni saca una ventana
-/// propia, y su salida va al `log` y no a una pantalla. Que además sobreviva al cierre de jevalan
-/// **no lo ha medido ninguna prueba** —en Windows un hijo no muere con su padre, así que debería, pero
-/// es una propiedad del sistema, no de estas banderas— y por eso no se afirma.
+/// On detaching, what is promised and what is not: the process is created **without a console**
+/// (with `CREATE_NO_WINDOW` and `DETACHED_PROCESS`), so it does not inherit jevalan's or open a window
+/// of its own, and its output goes to the `log` and not to a screen. That it also survives jevalan closing
+/// **has not been measured by any test** (on Windows a child does not die with its parent, so it should, but
+/// that is a property of the system, not of these flags) and so it is not claimed.
 ///
-/// La segunda bandera no es adorno, aunque la documentación de `CreateProcess` diga que se ignora
-/// junto a `DETACHED_PROCESS`: con solo `DETACHED_PROCESS`, cada `arrancar` abría una ventana de
-/// consola. Se descubrió porque el banco de pruebas hacía parpadear una por cada `ping` que lanzaba.
+/// The second flag is not decoration, even though `CreateProcess`'s documentation says it is ignored
+/// together with `DETACHED_PROCESS`: with `DETACHED_PROCESS` alone, every `arrancar` opened a console
+/// window. It was discovered because the test bench made one flash for every `ping` it launched.
 ///
-/// Y el aviso del `.pid`, que es el precio de creérselo: si el sistema reutilizó el pid anotado para
-/// otro proceso, un servidor que ya murió se lee como [`Estado::Cargando`] y esto devuelve `Ok` sin
-/// lanzar nada —un no-op silencioso—. Su espejo está en [`parar`], donde el mismo error mata a ese
-/// poseedor inocente del pid.
+/// And the `.pid` warning, which is the price of believing it: if the system reused the recorded pid for
+/// another process, a server that has already died reads as [`Estado::Cargando`] and this returns `Ok` without
+/// launching anything (a silent no-op). Its mirror is in [`parar`], where the same mistake kills that
+/// innocent holder of the pid.
 pub fn arrancar(s: &Servidor) -> Result<(), String> {
     match estado(s) {
-        // Ya listo, o ya cargando: en los dos casos hay un proceso nuestro vivo y no hay nada que
-        // lanzar.
+        // Already ready, or already loading: in both cases there is a live process of ours and there is nothing to
+        // launch.
         Estado::Listo | Estado::Cargando => return Ok(()),
-        // Ajeno: se dice de quién, cuando el sistema lo sabe —la spec §7 pide el pid—, y no se toca.
+        // Foreign: it is said whose, when the system knows (spec §7 asks for the pid), and it is not touched.
         Estado::PuertoAjeno { pid } => {
             let dueno = if pid == 0 { String::new() } else { format!(" (pid {pid})") };
             return Err(format!("el puerto {} lo ocupa un proceso ajeno{dueno}: no se lanza nada encima", s.port));
@@ -214,12 +214,12 @@ pub fn arrancar(s: &Servidor) -> Result<(), String> {
     for (k, v) in &s.env {
         cmd.env(k, v);
     }
-    // Sin consola propia: el hijo no hereda la de jevalan, y su salida va al `log`.
+    // Without its own console: the child does not inherit jevalan's, and its output goes to the `log`.
     //
-    // Van **las dos** banderas. `CREATE_NO_WINDOW` no es ruido aunque el manual diga que se ignora
-    // junto a `DETACHED_PROCESS`: medido en esta máquina, con solo `DETACHED_PROCESS` cada `arrancar`
-    // saca una ventana de consola —y las pruebas llaman a `arrancar` con comandos `ping`, así que una
-    // corrida deja media docena de parpadeos—. Vale lo que se observa, no lo que promete el manual.
+    // **Both** flags go in. `CREATE_NO_WINDOW` is not noise even though the manual says it is ignored
+    // together with `DETACHED_PROCESS`: measured on this machine, with `DETACHED_PROCESS` alone every `arrancar`
+    // pops up a console window (and the tests call `arrancar` with `ping` commands, so one
+    // run leaves half a dozen flashes). What is observed counts, not what the manual promises.
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -231,20 +231,20 @@ pub fn arrancar(s: &Servidor) -> Result<(), String> {
     escribir_pid(&s.nombre, hijo.id())
 }
 
-/// Sondea el puerto hasta `s.ready_ms`, informando del estado. Es lo que hace visible que Kev tarda
-/// uno o dos minutos: devuelve el estado, no un timeout ciego.
+/// Probes the port until `s.ready_ms`, reporting the state. It is what makes visible that Kev takes
+/// one or two minutes: it returns the state, not a blind timeout.
 ///
-/// Cuando el puerto llega a contestar no se afirma `Listo` sin más —el plan lo hacía, y era la puerta
-/// de atrás del mismo error que la tarea 2 quitó de [`estado`]—: se devuelve el [`Estado`] entero,
-/// que dirá `Listo` si el proceso es nuestro y [`Estado::PuertoAjeno`] si el puerto se lo ha quedado
-/// otro mientras esperábamos.
+/// When the port does answer, `Listo` is not simply claimed (the plan did so, and it was the back door
+/// of the same mistake that task 2 removed from [`estado`]): the whole [`Estado`] is returned,
+/// which will say `Listo` if the process is ours and [`Estado::PuertoAjeno`] if the port was taken by
+/// someone else while we waited.
 pub fn esperar(s: &Servidor) -> Estado {
     let limite = std::time::Instant::now() + Duration::from_millis(s.ready_ms);
     loop {
         if puerto_contesta(s.port) {
             return estado(s);
         }
-        // Si el proceso ya no está, no hay nada que esperar.
+        // If the process is gone, there is nothing to wait for.
         match pid_de(&s.nombre) {
             Some(pid) if !pid_vivo(pid) => {
                 borrar_pid(&s.nombre);
@@ -259,32 +259,32 @@ pub fn esperar(s: &Servidor) -> Estado {
     }
 }
 
-/// Mata el proceso anotado en el `.pid`, **con su árbol** (`taskkill /T`), y no toca lo que no
-/// arrancamos. Devuelve `false` si ya no estaba.
+/// Kills the process recorded in the `.pid`, **with its tree** (`taskkill /T`), and does not touch what we did
+/// not start. Returns `false` if it was already gone.
 ///
-/// Al `.pid` vivo **no se le compara con quien sostiene el socket**, y es deliberado: un `serve.bat`
-/// —el de Kev, el de Laya— deja el `.pid` apuntando al `cmd.exe` que lo lanzó, y el socket lo
-/// sostiene **su hijo**, el python del venv. Compararlos convertía en «ajeno» al servidor que
-/// nosotros mismos habíamos arrancado, mientras [`estado`] lo daba por `Listo` en el mismo instante:
-/// `parar` se negaba y el servidor se quedaba vivo. Matar el proceso anotado y su árbol es lo que se
-/// pidió, y es lo único que funciona con un `.bat`.
+/// The live `.pid` is **not compared with whoever holds the socket**, and this is deliberate: a `serve.bat`
+/// (Kev's, Laya's) leaves the `.pid` pointing at the `cmd.exe` that launched it, and the socket is
+/// held by **its child**, the venv's python. Comparing them turned the server we
+/// had started ourselves into a "foreign" one, while [`estado`] reported it as `Listo` at the same moment:
+/// `parar` refused and the server stayed alive. Killing the recorded process and its tree is what was
+/// asked for, and it is the only thing that works with a `.bat`.
 ///
-/// Lo que cede, dicho: si el sistema reutilizó el pid anotado para otro proceso, se mata a ese otro
-/// —el `.pid` es la única prueba de propiedad que hay, y se le cree—. Ajeno es, por tanto, lo que
-/// **no** tiene un `.pid` nuestro vivo detrás.
+/// What it gives up, stated: if the system reused the recorded pid for another process, that other one is killed
+/// (the `.pid` is the only proof of ownership there is, and it is believed). Foreign is, therefore, whatever
+/// has **no** live `.pid` of ours behind it.
 pub fn parar(s: &Servidor) -> Result<bool, String> {
     let Some(pid) = pid_de(&s.nombre) else {
-        // Sin `.pid` no hay nada nuestro que matar: si el puerto contesta, es de otro.
+        // Without a `.pid` there is nothing of ours to kill: if the port answers, it belongs to someone else.
         if puerto_contesta(s.port) {
             return Err(format!("el puerto {} lo ocupa un proceso ajeno: no se toca", s.port));
         }
         return Ok(false);
     };
     if !pid_vivo(pid) {
-        // Caduco: se retira aquí, porque `estado` es puro y no escribe (tarea 2), y **antes** de decir
-        // nada del puerto: es el fichero de un proceso que ya no existe, y nadie más va a retirarlo.
-        // Si además el puerto lo ocupa otro, se dice: es más útil que un «ok» sobre un fichero que ya
-        // no vale.
+        // Stale: it is removed here, because `estado` is pure and writes nothing (task 2), and **before** saying
+        // anything about the port: it is the file of a process that no longer exists, and nobody else will remove it.
+        // If, in addition, someone else holds the port, it is said: that is more useful than an "ok" about a file that is no
+        // longer valid.
         let ocupado = puerto_contesta(s.port);
         borrar_pid(&s.nombre);
         if ocupado {
@@ -292,27 +292,27 @@ pub fn parar(s: &Servidor) -> Result<bool, String> {
         }
         return Ok(false);
     }
-    // Vivo y nuestro: se mata **el árbol**, y con él los hijos que sostengan el puerto.
+    // Alive and ours: **the tree** is killed, and with it the children that hold the port.
     matar(pid)?;
     borrar_pid(&s.nombre);
     Ok(true)
 }
 
-/// Mata un proceso por su pid, con `taskkill` en Windows y `kill` en el resto.
+/// Kills a process by its pid, with `taskkill` on Windows and `kill` elsewhere.
 fn matar(pid: u32) -> Result<(), String> {
     #[cfg(windows)]
     let salida = std::process::Command::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).output();
     #[cfg(not(windows))]
     let salida = std::process::Command::new("kill").args(["-9", &pid.to_string()]).output();
     match salida {
-        // `taskkill` devuelve 128 si el proceso ya no estaba: eso no es un fallo para nosotros.
+        // `taskkill` returns 128 if the process was already gone: that is not a failure for us.
         Ok(o) if o.status.success() || o.status.code() == Some(128) => Ok(()),
         Ok(o) => Err(format!("no se pudo matar el proceso {pid}: {}", String::from_utf8_lossy(&o.stderr).trim())),
         Err(e) => Err(format!("no se pudo matar el proceso {pid}: {e}")),
     }
 }
 
-/// Las últimas `lineas` del log del servidor; vacío si no hay log todavía.
+/// The last `lineas` of the server's log; empty if there is no log yet.
 pub fn cola_log(s: &Servidor, lineas: usize) -> Vec<String> {
     let Ok(texto) = std::fs::read_to_string(&s.log) else { return Vec::new() };
     let todas: Vec<&str> = texto.lines().collect();
@@ -321,41 +321,41 @@ pub fn cola_log(s: &Servidor, lineas: usize) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    //! Estas pruebas **no son herméticas**, y conviene saberlo: escriben `.pid` de verdad en el
-    //! directorio de datos de jevalan (`%LOCALAPPDATA%\jevalan\servers`, véase `registro::dir_pids`),
-    //! lanzan procesos hijos y abren puertos de verdad. Por eso cada prueba usa su propio nombre de
-    //! servidor —corren en paralelo y comparten el directorio—, y por eso un pánico a mitad puede
-    //! dejar un `.pid` huérfano y un hijo vivo: es el precio de probar lo que se toca.
+    //! These tests **are not hermetic**, and it is worth knowing: they write real `.pid` files in
+    //! jevalan's data directory (`%LOCALAPPDATA%\jevalan\servers`, see `registro::dir_pids`),
+    //! launch child processes and open real ports. That is why each test uses its own server name
+    //! (they run in parallel and share the directory), and why a panic midway can
+    //! leave an orphan `.pid` and a live child: it is the price of testing what is touched.
     //!
-    //! Y son **Windows de hecho**, aunque el crate compile en cualquier parte: el andamio lanza un
-    //! `ping -n` y un `.bat` que abre un `powershell`, y llama a `tasklist`, a `netstat` y a
-    //! `taskkill`; todo servidor de prueba pasa, además, por el `cmd /c` que pone [`arrancar`] —el
-    //! `ping` del andamio es el único hijo que no va por ahí—. En Linux o macOS compilarían —el
-    //! `cfg` de [`Hijo`] y el de `matar` existen—, pero no pasarían: allí `proceso_de_puerto`
-    //! devuelve `None` por diseño y no hay `cmd /c` que valga. Soportar esos sistemas es un trabajo
-    //! aparte, no un descuido que estas pruebas puedan tapar.
+    //! And they are **Windows in fact**, even though the crate compiles anywhere: the scaffolding launches a
+    //! `ping -n` and a `.bat` that opens a `powershell`, and calls `tasklist`, `netstat` and
+    //! `taskkill`; every test server also goes through the `cmd /c` that [`arrancar`] adds (the scaffolding's
+    //! `ping` is the only child that does not go that way). On Linux or macOS they would compile (the
+    //! `cfg` of [`Hijo`] and that of `matar` exist) but would not pass: there `proceso_de_puerto`
+    //! returns `None` by design and there is no `cmd /c` to speak of. Supporting those systems is a separate
+    //! job, not an oversight these tests can cover up.
 
     use super::*;
     use std::net::TcpListener;
     use std::path::PathBuf;
 
-    /// Un puerto en el que nadie escucha y que **nadie nos puede quitar**: uno por debajo del rango
-    /// dinámico de TCP, que aquí empieza en 1024 (`netsh int ipv4 show dynamicport tcp`: inicio 1024,
-    /// 64511 puertos) y llega hasta el 65535. El sistema reparte los efímeros de ahí, en orden, así
-    /// que un puerto alto —el `47_313` que hubo aquí— puede serle asignado a otra prueba a mitad de
-    /// la corrida; uno por debajo de 1024, nunca. En Unix hay un motivo de más: sin privilegios no
-    /// se puede ocupar.
+    /// A port where nobody listens and that **nobody can take from us**: one below the dynamic
+    /// TCP range, which here starts at 1024 (`netsh int ipv4 show dynamicport tcp`: start 1024,
+    /// 64511 ports) and goes up to 65535. The system hands out ephemeral ports from there, in order, so
+    /// a high port (the `47_313` that was here) can be assigned to another test midway through
+    /// the run; one below 1024, never. On Unix there is one more reason: without privileges it
+    /// cannot be occupied.
     ///
-    /// No se usa un `TcpListener` propio «vinculado pero sin escuchar», que sería lo ideal, porque en
-    /// Rust **no existe**: `TcpListener::bind` llama a `listen` por dentro y contesta —medido; ver el
-    /// informe—. Un puerto sordo ha de ser, por fuerza, un número que nadie ocupe.
+    /// A `TcpListener` of our own that is "bound but not listening" is not used, which would be ideal, because in
+    /// Rust it **does not exist**: `TcpListener::bind` calls `listen` internally and answers (measured; see the
+    /// report). A deaf port has to be, perforce, a number that nobody occupies.
     ///
-    /// Lo que este número sí puede encontrarse: un servicio que ya estuviera escuchando aquí. Si eso
-    /// pasa, la prueba cae **siempre y en el mismo sitio**, no a veces; entonces se elige otro puerto
-    /// por debajo de 1024 y se deja dicho por qué.
+    /// What this number can still run into: a service that was already listening here. If that
+    /// happens, the test fails **always and in the same place**, not sometimes; then another port
+    /// below 1024 is chosen and the reason is left written down.
     const PUERTO_SORDO: u16 = 471;
 
-    /// Un servidor verosímil y completo, con el nombre que le dé la prueba que lo usa.
+    /// A plausible, complete server, with the name given by the test that uses it.
     fn servidor(nombre: &str, port: u16) -> Servidor {
         Servidor {
             nombre: nombre.to_string(),
@@ -368,23 +368,23 @@ mod tests {
         }
     }
 
-    /// Un nombre que solo usa esta prueba, para no pisar el `.pid` de otra que corra a la vez.
+    /// A name used only by this test, so as not to clobber the `.pid` of another running at the same time.
     fn nombre(etiqueta: &str) -> String {
         format!("prueba-{etiqueta}-{}", std::process::id())
     }
 
-    /// Un hijo de verdad, que vive unos segundos y muere al soltarse.
+    /// A real child, which lives a few seconds and dies when dropped.
     ///
-    /// Existe porque usar `std::process::id()` para probar los `.pid` no distingue nada: el pid
-    /// propio está vivo por definición, así que una implementación que se saltara el fichero y
-    /// asumiera el pid del test pasaría igual. Un hijo ajeno, al que además se puede matar, sí
-    /// distingue. Y muere en `Drop` para que un pánico no deje un `ping` huérfano.
+    /// It exists because using `std::process::id()` to test the `.pid` files distinguishes nothing: the
+    /// own pid is alive by definition, so an implementation that skipped the file and
+    /// assumed the test's pid would pass all the same. A foreign child, which can also be killed, does
+    /// distinguish. And it dies in `Drop` so that a panic does not leave an orphan `ping`.
     ///
-    /// Se lanza **sin consola** (`CREATE_NO_WINDOW`), que es lo mismo que hace [`arrancar`] con los
-    /// servidores de verdad: un hijo de consola lanzado desde un proceso que no tiene la suya —el
-    /// caso de esta casa— se lleva una ventana nueva, y la suite abre y cierra media docena por
-    /// corrida. La bandera no cambia nada de lo que aquí se prueba: el hijo sigue vivo, y `pid_vivo`
-    /// y `kill` lo ven igual.
+    /// It is launched **without a console** (`CREATE_NO_WINDOW`), which is what [`arrancar`] does with the
+    /// real servers: a console child launched from a process that has none of its own (the
+    /// case here) gets a new window, and the suite opens and closes half a dozen per
+    /// run. The flag changes nothing of what is tested here: the child is still alive, and `pid_vivo`
+    /// and `kill` see it the same.
     struct Hijo(std::process::Child);
 
     impl Hijo {
@@ -422,15 +422,15 @@ mod tests {
         }
     }
 
-    /// Un servidor de verdad y efímero: un `cmd` que se queda vivo hasta que lo matan.
+    /// A real, ephemeral server: a `cmd` that stays alive until it is killed.
     ///
-    /// Su `command` es un `ping`, que **no abre puertos**: así la prueba decide con su propio
-    /// `TcpListener` si el puerto contesta, sin depender de lo que haga el hijo. Va **sin** `cmd /c`
-    /// delante —que es quien lo pone, [`arrancar`]— porque es como lo declara `servers.yaml` de
-    /// verdad: llevarlo aquí dejaba `cmd /c cmd /c ping`, un `cmd` de más por cada servidor de las
-    /// pruebas. El `.pid` que se anota es el mismo en los dos casos: el del `cmd` exterior.
+    /// Its `command` is a `ping`, which **opens no ports**: this way the test decides with its own
+    /// `TcpListener` whether the port answers, without depending on what the child does. It goes **without** `cmd /c`
+    /// in front (which is what [`arrancar`] adds) because that is how the real `servers.yaml` declares it:
+    /// carrying it here left `cmd /c cmd /c ping`, one extra `cmd` per test server. The `.pid` that is
+    /// recorded is the same in both cases: the outer `cmd`'s.
     fn servidor_que_escucha(nombre: &str, port: u16) -> Servidor {
-        // `ping` mantiene el proceso vivo sin abrir puertos; la sonda se prueba con un listener aparte.
+        // `ping` keeps the process alive without opening ports; the probe is tested with a separate listener.
         Servidor {
             nombre: nombre.into(),
             port,
@@ -442,24 +442,24 @@ mod tests {
         }
     }
 
-    /// Un puerto en el que nadie escucha. Es [`PUERTO_SORDO`] —por debajo del rango dinámico, y ya
-    /// razonado en las pruebas de arriba—: el plan lo llamaba `puerto_libre()` sin definirlo, y no
-    /// hay motivo para inventar otro número que el que la tarea 2 ya eligió por buenas razones.
+    /// A port where nobody listens. It is [`PUERTO_SORDO`] (below the dynamic range, and already
+    /// reasoned out in the tests above): the plan called it `puerto_libre()` without defining it, and there
+    /// is no reason to invent another number than the one task 2 already chose for good reasons.
     fn puerto_libre() -> u16 {
         PUERTO_SORDO
     }
 
-    /// Un `.bat` que lanza un hijo que **sostiene el puerto**, y deja dicho en un fichero cuál abrió.
+    /// A `.bat` that launches a child that **holds the port**, and leaves in a file which one it opened.
     ///
-    /// Es la forma de un `serve.bat` de verdad —el de Kev, el de Laya—, sin su venv: `arrancar` anota
-    /// el pid del `cmd.exe`, y el socket lo abre **su hijo**. El banco de pruebas no tenía este caso
-    /// —su único hijo, `cmd /c ping`, no abre puertos—, y por eso la rama de `parar` que decidía si
-    /// el puerto era ajeno llegó a producción sin ejercitarse (Crítico C1 de la revisión 1).
+    /// It is the shape of a real `serve.bat` (Kev's, Laya's), without its venv: `arrancar` records
+    /// the `cmd.exe`'s pid, and the socket is opened by **its child**. The test bench lacked this case
+    /// (its only child, `cmd /c ping`, opens no ports), and that is why the branch of `parar` that decided whether
+    /// the port was foreign reached production unexercised (Critical C1 of review 1).
     ///
-    /// El puerto lo elige el hijo, no la prueba: reservarlo aquí para pasárselo sería quedárnoslo
-    /// nosotros, y soltarlo para que él lo tomara sería una carrera con las demás pruebas. El hijo
-    /// pide el 0 —«el que haya»— y escribe el elegido en un fichero, que es lo único que la prueba no
-    /// puede saber de antemano.
+    /// The port is chosen by the child, not the test: reserving it here to pass it on would mean keeping it
+    /// ourselves, and releasing it for the child to take would be a race with the other tests. The child
+    /// asks for 0 ("whichever there is") and writes the chosen one to a file, which is the only thing the test
+    /// cannot know in advance.
     struct EscuchaDeVerdad {
         dir: PathBuf,
         fichero_puerto: PathBuf,
@@ -471,9 +471,9 @@ mod tests {
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).unwrap();
             let fichero_puerto = dir.join("puerto.txt");
-            // `cmd` no sabe abrir un socket, así que el hijo que escucha ha de ser otro; PowerShell
-            // está en toda máquina Windows y no añade dependencias al crate. La ruta del fichero va
-            // entre comillas simples —para que `cmd` no la toque— y el `-Command` entero entre dobles.
+            // `cmd` cannot open a socket, so the child that listens has to be another one; PowerShell
+            // is on every Windows machine and adds no dependencies to the crate. The file path goes
+            // in single quotes (so that `cmd` does not touch it) and the whole `-Command` in double quotes.
             let linea = format!(
                 "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$l = New-Object \
                  System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, 0); $l.Start(); \
@@ -485,10 +485,10 @@ mod tests {
             Self { dir, fichero_puerto }
         }
 
-        /// El servidor del registro apuntando a ese `.bat`.
+        /// The registry server pointing at that `.bat`.
         ///
-        /// `port` es el que [`arrancar`] mira **antes** de lanzar —ha de estar libre para que lance—;
-        /// el de verdad se sabe después, y quien llame ha de corregirlo.
+        /// `port` is the one [`arrancar`] looks at **before** launching (it must be free for it to launch);
+        /// the real one is known afterwards, and whoever calls must correct it.
         fn servidor(&self, nombre: &str, port: u16) -> Servidor {
             Servidor {
                 nombre: nombre.into(),
@@ -501,11 +501,11 @@ mod tests {
             }
         }
 
-        /// El puerto que el hijo dice haber abierto, o `None` si no lo dice a tiempo.
+        /// The port the child says it opened, or `None` if it does not say so in time.
         fn puerto_abierto(&self) -> Option<u16> {
             let limite = std::time::Instant::now() + Duration::from_secs(30);
             while std::time::Instant::now() < limite {
-                // El fichero puede pillarse a medio escribir; el reintento lo cubre.
+                // The file may be caught half-written; the retry covers it.
                 if let Ok(texto) = std::fs::read_to_string(&self.fichero_puerto)
                     && let Ok(puerto) = texto.trim().parse()
                 {
@@ -523,28 +523,28 @@ mod tests {
         }
     }
 
-    /// Un `cmd` lanzado por [`arrancar`], que ha de morir pase lo que pase.
+    /// A `cmd` launched by [`arrancar`], which has to die no matter what.
     ///
-    /// Existe porque una afirmación que caiga antes de `parar` dejaría un `ping` vivo treinta
-    /// segundos **y** su `.pid` en el directorio de datos: el mismo daño que una prueba en rojo,
-    /// pero silencioso. `parar` lo mata por la vía normal; esto es la red por si no se llega.
+    /// It exists because an assertion that fails before `parar` would leave a `ping` alive for thirty
+    /// seconds **and** its `.pid` in the data directory: the same damage as a red test,
+    /// but silent. `parar` kills it the normal way; this is the safety net in case it is not reached.
     ///
-    /// Mira **dos** sitios, y el segundo es el que importa cuando algo falla: lo que diga el `.pid`
-    /// del disco —puede apuntar a un segundo lanzamiento que la prueba no llegó a ver— y el pid que
-    /// la prueba conoció. Con `pid: None` sirve también para las pruebas donde no hay un proceso
-    /// propio conocido de antemano y solo queda un fichero que retirar (M4 de la revisión 1).
+    /// It looks in **two** places, and the second is the one that matters when something fails: what the `.pid`
+    /// on disk says (it may point to a second launch the test never got to see) and the pid
+    /// the test knew about. With `pid: None` it also serves tests where there is no known process
+    /// of its own beforehand and only a file remains to be removed (M4 of review 1).
     struct Guardia {
         nombre: String,
         pid: Option<u32>,
     }
 
     impl Guardia {
-        /// La guardia del caso corriente: se sabe de antemano qué proceso se lanzó.
+        /// The guard for the ordinary case: it is known in advance which process was launched.
         fn nueva(nombre: &str, pid: u32) -> Self {
             Self { nombre: nombre.to_string(), pid: Some(pid) }
         }
 
-        /// La guardia en la que solo el fichero sabe qué hay que matar —y qué hay que retirar—.
+        /// The guard in which only the file knows what has to be killed, and what has to be removed.
         fn del_fichero(nombre: &str) -> Self {
             Self { nombre: nombre.to_string(), pid: None }
         }
@@ -552,8 +552,8 @@ mod tests {
 
     impl Drop for Guardia {
         fn drop(&mut self) {
-            // Se mira también lo que diga el fichero: si una prueba en rojo llegó a lanzar un
-            // segundo proceso, `arrancar` anotó **su** pid, y ese es el que quedaría huérfano.
+            // What the file says is also checked: if a red test got to launch a
+            // second process, `arrancar` recorded **its** pid, and that is the one that would be left orphaned.
             if let Some(anotado) = pid_de(&self.nombre) {
                 let _ = matar(anotado);
             }
@@ -584,7 +584,7 @@ mod tests {
         hijo.matar();
         assert!(!pid_vivo(pid), "y una vez muerto, ya no");
         assert!(pid_vivo(std::process::id()), "este mismo proceso está vivo");
-        // Un pid que no puede existir en Windows: se rechaza el 0 y los enormes.
+        // A pid that cannot exist on Windows: 0 and huge ones are rejected.
         assert!(!pid_vivo(0));
         assert!(!pid_vivo(u32::MAX));
     }
@@ -593,22 +593,22 @@ mod tests {
     fn el_estado_cuenta_las_cuatro_situaciones() {
         let nombre = nombre("cuatro");
 
-        // Sin `.pid` y sin nadie en el puerto: no se ha arrancado.
+        // Without a `.pid` and with nobody on the port: it has not been started.
         assert_eq!(estado(&servidor(&nombre, PUERTO_SORDO)), Estado::SinArrancar);
 
-        // Con un hijo de verdad vivo y el puerto callado: está cargando. El pid no es el nuestro, así
-        // que la prueba no puede pasar por «asumir el pid propio».
+        // With a real live child and the port silent: it is loading. The pid is not ours, so
+        // the test cannot pass by "assuming the own pid".
         let mut hijo = Hijo::new();
         let pid = hijo.pid();
         escribir_pid(&nombre, pid).unwrap();
         assert_eq!(estado(&servidor(&nombre, PUERTO_SORDO)), Estado::Cargando);
 
-        // Con el puerto contestando **y** el proceso vivo: listo.
+        // With the port answering **and** the process alive: ready.
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         assert_eq!(estado(&servidor(&nombre, l.local_addr().unwrap().port())), Estado::Listo);
         drop(l);
 
-        // Y una vez muerto el hijo: caído, con el `.pid` todavía en su sitio —`estado` no lo borra—.
+        // And once the child is dead: down, with the `.pid` still in place (`estado` does not delete it).
         hijo.matar();
         assert_eq!(estado(&servidor(&nombre, PUERTO_SORDO)), Estado::Caido);
         assert_eq!(pid_de(&nombre), Some(pid), "`estado` lee y no borra el `.pid` caduco");
@@ -622,32 +622,32 @@ mod tests {
         let nombre = nombre("ajeno");
         let s = servidor(&nombre, puerto);
 
-        // Sin `.pid` nuestro —el caso corriente: `ollama`, un vecino— el puerto no es nuestro, y no se
-        // disfraza de `Listo`. El pid ha de ser el que da `netstat`; si `netstat` no contesta, 0,
-        // porque no se finge un pid.
+        // Without a `.pid` of ours (the ordinary case: `ollama`, a neighbour) the port is not ours, and it is not
+        // disguised as `Listo`. The pid must be the one `netstat` gives; if `netstat` does not answer, 0,
+        // because no pid is faked.
         match (estado(&s), proceso_de_puerto(puerto)) {
             (Estado::PuertoAjeno { pid }, Some(esperado)) => {
                 assert_eq!(pid, esperado, "el estado ha de llevar el pid que da netstat");
-                // Y el listener es de este mismo proceso, así que ese pid ha de ser el nuestro.
+                // And the listener belongs to this very process, so that pid must be ours.
                 assert_eq!(esperado, std::process::id(), "el listener es de este mismo proceso");
             }
             (Estado::PuertoAjeno { pid }, None) => {
                 assert_eq!(pid, 0, "sin netstat no se finge un pid");
-                // En voz alta, para que `--nocapture` deje constancia de por qué no se afirmó más.
+                // Out loud, so that `--nocapture` records why nothing more was asserted.
                 eprintln!("netstat no contestó por {puerto}: no se pudo afirmar el pid ajeno");
             }
             (otro, _) => panic!("un puerto ajeno ha de señalarse como tal, y salió {otro:?}"),
         }
 
-        // Un `.pid` caduco no lo cambia: el puerto sigue siendo de otro, y el fichero se queda donde
-        // está —limpiarlo es de quien arranque o pare, no de quien mira—.
+        // A stale `.pid` does not change it: the port is still someone else's, and the file stays where it
+        // is (cleaning it up is for whoever starts or stops, not whoever looks).
         escribir_pid(&nombre, u32::MAX).unwrap();
         let primero = estado(&s);
         assert!(matches!(primero, Estado::PuertoAjeno { .. }), "{primero:?}");
         assert_eq!(estado(&s), primero, "`estado` ha de ser idempotente");
         assert_eq!(pid_de(&nombre), Some(u32::MAX), "`estado` no ha de borrar el `.pid`");
 
-        // Y con un `.pid` de un proceso vivo y el puerto contestando, el puerto sí es nuestro.
+        // And with a `.pid` of a live process and the port answering, the port is indeed ours.
         let mut hijo = Hijo::new();
         escribir_pid(&nombre, hijo.pid()).unwrap();
         assert_eq!(estado(&s), Estado::Listo);
@@ -656,12 +656,12 @@ mod tests {
         let _ = l;
     }
 
-    /// El invariante que trae el rediseño: `estado` lee y no escribe, así que dos llamadas seguidas
-    /// dan lo mismo en los dos casos que antes cambiaban de tick a tick.
+    /// The invariant the redesign brings: `estado` reads and does not write, so two consecutive calls
+    /// give the same in the two cases that used to change from tick to tick.
     #[test]
     fn el_estado_dos_veces_seguidas_da_lo_mismo() {
-        // Puerto sordo con `.pid` caduco: antes decía `Caido` y a la segunda `SinArrancar`, porque
-        // borraba el fichero al detectarlo.
+        // Deaf port with a stale `.pid`: it used to say `Caido` and the second time `SinArrancar`, because
+        // it deleted the file on detecting it.
         let caido = nombre("idempotente-caido");
         escribir_pid(&caido, u32::MAX).unwrap();
         let sordo = servidor(&caido, PUERTO_SORDO);
@@ -670,7 +670,7 @@ mod tests {
         assert_eq!(pid_de(&caido), Some(u32::MAX), "y el `.pid` caduco sigue donde estaba");
         borrar_pid(&caido);
 
-        // Puerto ocupado con `.pid` caduco: antes decía `PuertoAjeno` y a la segunda `Listo`.
+        // Occupied port with a stale `.pid`: it used to say `PuertoAjeno` and the second time `Listo`.
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let ajeno_nombre = nombre("idempotente-ajeno");
         escribir_pid(&ajeno_nombre, u32::MAX).unwrap();
@@ -682,9 +682,9 @@ mod tests {
         borrar_pid(&ajeno_nombre);
     }
 
-    /// El 0 no es un pid: un fichero que lo diga se lee como si no hubiera pid. Se decide así —y no
-    /// distinguiendo «cero» de «ilegible»— porque `pid_vivo(0)` es falso por definición y
-    /// `escribir_pid` nunca lo escribe: distinguirlo obligaría a cada llamante a filtrarlo otra vez.
+    /// 0 is not a pid: a file that says it is read as if there were no pid. It is decided so (and not
+    /// by distinguishing "zero" from "unreadable") because `pid_vivo(0)` is false by definition and
+    /// `escribir_pid` never writes it: distinguishing it would force every caller to filter it again.
     #[test]
     fn un_pid_cero_en_el_fichero_no_cuenta_como_pid() {
         let nombre = nombre("cero");
@@ -692,7 +692,7 @@ mod tests {
         assert_eq!(pid_de(&nombre), None, "el 0 no es un pid utilizable");
         assert_eq!(estado(&servidor(&nombre, PUERTO_SORDO)), Estado::SinArrancar);
 
-        // Y con el puerto contestando, un `.pid` que dice 0 tampoco nos hace dueños del puerto.
+        // And with the port answering, a `.pid` that says 0 does not make us the owners of the port either.
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let ocupado = servidor(&nombre, l.local_addr().unwrap().port());
         let visto = estado(&ocupado);
@@ -700,10 +700,10 @@ mod tests {
         borrar_pid(&nombre);
     }
 
-    /// La salida de `netstat -ano -p TCP` de esta máquina, con los puertos del registro en lugar de
-    /// los suyos: la cabecera es literal —en español, y `LISTENING` se queda en inglés— y las líneas
-    /// tienen la forma exacta que imprime. La última, entre corchetes, es de TCPv6: `-p TCP` no la
-    /// imprime hoy, pero el mismo formato aparece en cuanto alguien cambie de bandera o de máquina.
+    /// The output of `netstat -ano -p TCP` on this machine, with the registry's ports in place of
+    /// its own: the header is literal (in Spanish, and `LISTENING` stays in English) and the lines
+    /// have the exact form it prints. The last one, in brackets, is TCPv6: `-p TCP` does not
+    /// print it today, but the same format appears as soon as someone changes flag or machine.
     const NETSTAT: &str = "\
 Conexiones activas
 
@@ -718,21 +718,21 @@ Conexiones activas
     fn el_parseo_de_netstat_encuentra_a_quien_escucha() {
         assert_eq!(pid_en_netstat(NETSTAT, 8009), Some(4321));
         assert_eq!(pid_en_netstat(NETSTAT, 8021), Some(8765), "cada puerto, su proceso");
-        // Un puerto que solo aparece conectado, no escuchando, no es de nadie que espere ahí.
+        // A port that only appears connected, not listening, belongs to nobody who is waiting there.
         assert_eq!(pid_en_netstat(NETSTAT, 52000), None);
-        // Y un puerto que no está, tampoco.
+        // And a port that is not there, neither.
         assert_eq!(pid_en_netstat(NETSTAT, 1111), None);
-        // El cotejo es por el puerto entero, no por su cola: `:8021` no ha de valer por `:21`.
+        // Matching is by the whole port, not its tail: `:8021` must not count as `:21`.
         assert_eq!(pid_en_netstat(NETSTAT, 21), None);
         assert_eq!(pid_en_netstat(NETSTAT, 800), None);
-        // La cabecera y las líneas cortas se saltan sin romper nada.
+        // The header and short lines are skipped without breaking anything.
         assert_eq!(pid_en_netstat("Proto  Dirección local\n\n", 8009), None);
         assert_eq!(pid_en_netstat("", 8009), None);
     }
 
-    /// ¿`netstat` existe y contesta algo con sentido? Es la única forma de distinguir un `None` de
-    /// [`proceso_de_puerto`] que signifique «aquí no hay `netstat`» de uno que signifique «lo hay y
-    /// no supe leerlo», que sí sería un fallo nuestro.
+    /// Does `netstat` exist and answer something sensible? It is the only way to tell a `None` from
+    /// [`proceso_de_puerto`] meaning "there is no `netstat` here" from one meaning "there is one and
+    /// I could not read it", which would be a failure of ours.
     fn netstat_disponible() -> bool {
         std::process::Command::new("netstat")
             .args(["-ano", "-p", "TCP"])
@@ -740,11 +740,11 @@ Conexiones activas
             .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("LISTENING"))
     }
 
-    /// `proceso_de_puerto` de verdad: habla con `netstat`, que tarda cientos de milisegundos y puede
-    /// no estar en el PATH del proceso hijo. Por eso la prueba **no exige que `netstat` esté**: si no
-    /// está, lo dice y se conforma. Pero si está —y aquí está—, un `None` sobre un listener propio ya
-    /// no es «no se pudo»: es que no supimos leer su salida, y entonces la prueba ha de caer. Un
-    /// listener propio es determinista: el pid ha de ser el nuestro.
+    /// The real `proceso_de_puerto`: talks to `netstat`, which takes hundreds of milliseconds and may
+    /// not be on the child process's PATH. That is why the test **does not require `netstat` to be there**: if it is not
+    /// there, it says so and settles. But if it is (and here it is), a `None` on our own listener is
+    /// no longer "could not": it is that we did not know how to read its output, and then the test must fail. Our own
+    /// listener is deterministic: the pid must be ours.
     #[test]
     fn el_pid_de_un_puerto_lo_dice_netstat_si_esta() {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -754,7 +754,7 @@ Conexiones activas
             (None, false) => eprintln!("netstat no está en el PATH: no se pudo afirmar el pid de {puerto}"),
             (None, true) => panic!("netstat contesta, pero no supo decir el pid de {puerto}"),
         }
-        // Y en un puerto sordo no hay nadie a quien atribuirlo.
+        // And on a deaf port there is nobody to attribute it to.
         assert_eq!(proceso_de_puerto(PUERTO_SORDO), None);
     }
 
@@ -762,15 +762,15 @@ Conexiones activas
     // Arrancar, esperar y parar (tarea 3)
     // ------------------------------------------------------------------------------------------
 
-    /// El plan decía «si el puerto ya contesta, no lanzo nada», y eso dejó de bastar cuando la tarea
-    /// 2 hizo que un puerto sin `.pid` nuestro fuera [`Estado::PuertoAjeno`]: hay que mirar **de
-    /// quién** es. Si es de otro, no se lanza —lanzar sería pelearse por el puerto— y no se dice «ya
-    /// estaba» —sería mentir sobre un proceso que no arrancamos—. Si es nuestro, ya estaba de verdad
-    /// y no hay nada que hacer. Las dos mitades se prueban aquí porque el mismo puerto que contesta
-    /// ha de dar una respuesta distinta según de quién sea.
+    /// The plan said "if the port already answers, I launch nothing", and that stopped being enough when task
+    /// 2 made a port without a `.pid` of ours a [`Estado::PuertoAjeno`]: one has to look at **whose**
+    /// it is. If it is someone else's, nothing is launched (launching would be fighting over the port) and it is not said "it was
+    /// already there" (that would be lying about a process we did not start). If it is ours, it really was already there
+    /// and there is nothing to do. Both halves are tested here because the same port answering
+    /// must give a different response depending on whose it is.
     #[test]
     fn arrancar_no_lanza_nada_si_el_puerto_ya_contesta() {
-        // Ajeno: el listener de esta misma prueba, sin `.pid` que lo reclame.
+        // Foreign: this very test's listener, with no `.pid` claiming it.
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let ajeno = format!("ya-vivo-ajeno-{}", std::process::id());
         let _guardia_ajeno = Guardia::del_fichero(&ajeno);
@@ -780,13 +780,13 @@ Conexiones activas
         assert!(r.unwrap_err().contains("ajeno"), "y el motivo ha de ser que el puerto es de otro");
         assert!(pid_de(&ajeno).is_none(), "no se anota un pid que no hemos arrancado");
 
-        // Nuestro: `.pid` vivo y el puerto contestando. No se toca el `.pid`, que es la prueba de
-        // que no se ha lanzado nada: un lanzamiento lo habría sobrescrito con el suyo.
+        // Ours: live `.pid` and the port answering. The `.pid` is not touched, which is the proof
+        // that nothing was launched: a launch would have overwritten it with its own.
         let nuestro = format!("ya-vivo-nuestro-{}", std::process::id());
         let mut hijo = Hijo::new();
         escribir_pid(&nuestro, hijo.pid()).unwrap();
-        // Si una afirmación cae, ni el `.pid` ni un `ping` que `arrancar` hubiera lanzado de más han
-        // de quedarse: la guardia mira el fichero, que es quien sabría de ese segundo proceso.
+        // If an assertion fails, neither the `.pid` nor a `ping` that `arrancar` might have launched in excess
+        // may be left behind: the guard looks at the file, which is what would know about that second process.
         let _guardia_nuestro = Guardia::del_fichero(&nuestro);
         let s = Servidor { nombre: nuestro.clone(), ..servidor_que_escucha(&nuestro, l.local_addr().unwrap().port()) };
         assert!(arrancar(&s).is_ok(), "un servidor ya listo no se vuelve a lanzar");
@@ -796,8 +796,8 @@ Conexiones activas
         let _ = l;
     }
 
-    /// Un `cwd` que no existe se rechaza **antes** de lanzar nada: el `cmd` moriría al no poder
-    /// situarse en él, y el motivo que llegaría a la pantalla sería el de `spawn`, no el de verdad.
+    /// A `cwd` that does not exist is rejected **before** launching anything: the `cmd` would die on not being able to
+    /// settle in it, and the reason that would reach the screen would be `spawn`'s, not the real one.
     #[test]
     fn arrancar_rechaza_un_cwd_que_no_existe() {
         let nombre = format!("sin-cwd-{}", std::process::id());
@@ -818,17 +818,17 @@ Conexiones activas
         let s = servidor_que_escucha(&nombre, puerto_libre());
         arrancar(&s).expect("se lanza");
         let pid = pid_de(&nombre).expect("queda anotado");
-        // De aquí en adelante el hijo ha de morir pase lo que pase; `parar` lo hará antes, por la vía
-        // normal, y el `Drop` de la guardia es la red por si una afirmación cae antes.
+        // From here on the child must die no matter what; `parar` will do it first, the normal
+        // way, and the guard's `Drop` is the safety net in case an assertion fails before.
         let _guardia = Guardia::nueva(&nombre, pid);
         assert!(pid_vivo(pid), "y el proceso vive");
 
         assert!(parar(&s).unwrap(), "y se puede parar");
         assert!(pid_de(&nombre).is_none(), "el `.pid` se borra al parar");
-        // Dar un momento al sistema para recolectar el proceso. El plan dormía 500 ms y miraba una
-        // sola vez; con la máquina cargada —otra sesión compilando a la vez— ese único vistazo falla
-        // y la prueba se cae por el reloj, no por el código. Se concede un plazo y se sondea dentro
-        // de él: la afirmación es la misma —el proceso ha de morir—, pero deja de ser una carrera.
+        // Give the system a moment to reap the process. The plan slept 500 ms and looked
+        // once; with the machine loaded (another session compiling at the same time) that single glance fails
+        // and the test falls over because of the clock, not the code. A deadline is granted and it is polled within
+        // it: the assertion is the same (the process must die), but it stops being a race.
         let limite = std::time::Instant::now() + Duration::from_secs(5);
         while pid_vivo(pid) && std::time::Instant::now() < limite {
             std::thread::sleep(Duration::from_millis(100));
@@ -836,10 +836,10 @@ Conexiones activas
         assert!(!pid_vivo(pid), "y el proceso ya no está");
     }
 
-    /// La otra mitad del Review Focus 2: «arrancar dos veces seguidas». Con un servidor que tarda
-    /// —Kev tarda uno o dos minutos— el puerto está callado casi todo ese rato, así que el guardián
-    /// del puerto no basta: la segunda pulsación de «arrancar» ha de ver que **ya hay un proceso
-    /// nuestro vivo** y no lanzar otro que se pelee por el puerto y por la memoria de la máquina.
+    /// The other half of Review Focus 2: "starting twice in a row". With a server that takes a while
+    /// (Kev takes one or two minutes) the port is silent for most of that time, so the port
+    /// guard is not enough: the second press of "start" must see that **there is already a live
+    /// process of ours** and not launch another that fights for the port and for the machine's memory.
     #[test]
     fn arrancar_dos_veces_seguidas_no_lanza_un_segundo_proceso() {
         let nombre = format!("dos-veces-{}", std::process::id());
@@ -847,8 +847,8 @@ Conexiones activas
         arrancar(&s).expect("se lanza");
         let pid = pid_de(&nombre).expect("queda anotado");
         let _guardia = Guardia::nueva(&nombre, pid);
-        // El `ping` no abre puerto, así que el servidor está «cargando»: es justo la ventana en la
-        // que el plan solo miraba el puerto y lanzaba un segundo proceso.
+        // The `ping` opens no port, so the server is "loading": it is exactly the window in which
+        // the plan only looked at the port and launched a second process.
         assert_eq!(estado(&s), Estado::Cargando);
 
         arrancar(&s).expect("la segunda vez no ha de ser un error: ya está en marcha");
@@ -856,20 +856,20 @@ Conexiones activas
         assert!(parar(&s).unwrap(), "y el que estaba se puede parar");
     }
 
-    /// El ciclo entero sobre un proceso cuyo **hijo** sostiene el puerto, que es lo que hace un
-    /// `serve.bat` de verdad: `arrancar` anota el pid del `cmd.exe`, el socket lo abre su hijo, y
-    /// `estado` ha de decir `Listo` y `parar` ha de pararlo.
+    /// The whole cycle over a process whose **child** holds the port, which is what a real
+    /// `serve.bat` does: `arrancar` records the `cmd.exe`'s pid, the socket is opened by its child, and
+    /// `estado` must say `Listo` and `parar` must stop it.
     ///
-    /// Es la reproducción del Crítico C1 dentro de la suite, y sin ella el arreglo no queda
-    /// protegido: con `parar` comparando el pid del `.pid` con el dueño del socket, aquí sale un
-    /// `Err` «ajeno» y el servidor que nosotros mismos lanzamos se queda vivo. Es, además, lo que la
-    /// spec §8 pide de `down` («`up` + `estado` + `down` sobre un comando largo trivial»).
+    /// It is the reproduction of Critical C1 inside the suite, and without it the fix is not
+    /// protected: with `parar` comparing the `.pid`'s pid with the socket's owner, here a "foreign"
+    /// `Err` comes out and the server we launched ourselves stays alive. It is also what
+    /// spec §8 asks of `down` ("`up` + `estado` + `down` over a trivially long command").
     #[test]
     fn parar_mata_el_arbol_aunque_el_socket_lo_sostenga_su_hijo() {
         let nombre = format!("arbol-{}", std::process::id());
         let escucha = EscuchaDeVerdad::nueva("arbol");
-        // El puerto que `arrancar` mira antes de lanzar ha de estar libre; el de verdad lo elige el
-        // hijo, así que se empieza por el sordo y se corrige en cuanto el hijo lo dice.
+        // The port `arrancar` looks at before launching must be free; the real one is chosen by the
+        // child, so it starts with the deaf one and is corrected as soon as the child says it.
         let mut s = escucha.servidor(&nombre, puerto_libre());
         arrancar(&s).expect("el .bat se lanza");
         let pid_del_cmd = pid_de(&nombre).expect("queda anotado el pid del cmd");
@@ -878,10 +878,10 @@ Conexiones activas
         let puerto = escucha.puerto_abierto().expect("el hijo ha de decir qué puerto abrió");
         s.port = puerto;
 
-        // Las dos caras del mismo instante: `estado` lo da por listo y `parar` ha de poder pararlo.
+        // The two faces of the same instant: `estado` reports it as ready and `parar` must be able to stop it.
         assert_eq!(estado(&s), Estado::Listo, "el puerto contesta y el proceso es nuestro");
-        // Y el socket **no** es del `cmd.exe`: lo sostiene su hijo. Si esto dejara de ser cierto, la
-        // prueba estaría hablando de otro caso —el de la tarea 2— y conviene saberlo.
+        // And the socket is **not** the `cmd.exe`'s: its child holds it. If that stopped being true, the
+        // test would be talking about another case (task 2's) and it is worth knowing.
         match proceso_de_puerto(puerto) {
             Some(dueno) => assert_ne!(dueno, pid_del_cmd, "el socket ha de ser del hijo, no del cmd anotado"),
             None => eprintln!("netstat no dijo quién sostiene {puerto}: no se puede afirmar el reparto"),
@@ -896,9 +896,9 @@ Conexiones activas
         assert!(!puerto_contesta(puerto), "y el puerto queda libre");
     }
 
-    /// La mitad que le toca a [`parar`] de la limpieza del `.pid` caduco: un fichero que apunta a un
-    /// proceso muerto, y un puerto libre, no son un error ni un «no se toca» —no hay nada de nadie
-    /// que respetar—, sino un fichero que se retira y un «no estaba» dicho sin rodeos.
+    /// [`parar`]'s share of the stale `.pid` cleanup: a file that points to a
+    /// dead process, and a free port, are neither an error nor a "not touched" (there is nothing of anyone's
+    /// to respect) but a file that is removed and a "it was not there" said plainly.
     #[test]
     fn parar_retira_el_pid_caduco_y_dice_que_no_estaba() {
         let nombre = format!("parar-caduco-{}", std::process::id());
@@ -915,7 +915,7 @@ Conexiones activas
 
     #[test]
     fn parar_no_toca_un_puerto_ajeno() {
-        // El puerto lo ocupa un listener nuestro, pero el `.pid` no apunta a nada vivo.
+        // The port is occupied by a listener of ours, but the `.pid` points at nothing alive.
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let nombre = format!("ajeno-{}", std::process::id());
         escribir_pid(&nombre, u32::MAX).unwrap();
@@ -924,23 +924,23 @@ Conexiones activas
         let r = parar(&s);
         assert!(r.is_err(), "ha de negarse y decir por qué: {r:?}");
         assert!(r.unwrap_err().contains("ajeno"), "y el motivo ha de ser que el puerto es de otro");
-        // Y el `.pid` del muerto **se retira también aquí**: no hay ningún proceso que respetar —el
-        // que nombra ya no existe—, y dejarlo sería un dueño fantasma que nadie va a limpiar, porque
-        // el único momento en que se sabe que ese fichero no vale es este. (Menor M1 de la revisión.)
+        // And the dead one's `.pid` **is removed here too**: there is no process to respect (the
+        // one it names no longer exists), and leaving it would be a phantom owner that nobody will clean up, because
+        // the only moment at which it is known that this file is not valid is this one. (Minor M1 of the review.)
         assert!(pid_de(&nombre).is_none(), "el `.pid` caduco se retira aunque el puerto sea de otro");
         let _ = l;
     }
 
     #[test]
     fn esperar_se_rinde_cuando_vence_el_plazo() {
-        // Un puerto libre y un `ready_ms` corto: ha de devolver `Caido`/`SinArrancar` sin colgarse.
+        // A free port and a short `ready_ms`: it must return `Caido`/`SinArrancar` without hanging.
         let s = Servidor { ready_ms: 400, ..servidor_que_escucha("nunca", puerto_libre()) };
-        // No se mide el reloj de `esperar`, que sería una carrera con la máquina: se monta un
-        // **vigilante**. El defecto que esta prueba persigue es un cuelgue, y un cuelgue no se ve
-        // comparando un cronómetro —se ve porque el mensaje no llega nunca—. Así la prueba cae sola
-        // con un motivo, en vez de colgar la suite entera; y el plazo del vigilante es tan ancho
-        // —diez segundos para un `ready_ms` de cuatrocientos milisegundos— que una máquina cargada
-        // no lo roza.
+        // `esperar`'s clock is not measured, which would be a race with the machine: a
+        // **watchdog** is set up. The defect this test hunts is a hang, and a hang is not seen
+        // by comparing a stopwatch (it is seen because the message never arrives). This way the test fails by itself
+        // with a reason, instead of hanging the whole suite; and the watchdog's deadline is so wide
+        // (ten seconds for a `ready_ms` of four hundred milliseconds) that a loaded machine
+        // does not come near it.
         let (aviso, espera) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let _ = aviso.send(esperar(&s));
@@ -951,13 +951,13 @@ Conexiones activas
         }
     }
 
-    /// La mitad que le toca a [`esperar`] de la limpieza del `.pid` caduco: [`estado`] es puro y no
-    /// escribe (tarea 2), así que el fichero de un proceso muerto se retira aquí, en cuanto se sabe
-    /// que no hay nada que esperar. Sin esto, un `.pid` huérfano se queda en el disco para siempre.
+    /// [`esperar`]'s share of the stale `.pid` cleanup: [`estado`] is pure and writes nothing
+    /// (task 2), so a dead process's file is removed here, as soon as it is known
+    /// that there is nothing to wait for. Without this, an orphan `.pid` stays on disk forever.
     ///
-    /// La prueba **no** mira el reloj: lo que distingue a `esperar` dándose cuenta de la muerte de
-    /// agotar el plazo es el propio `.pid` —las dos ramas devuelven `Caido`, pero solo la primera
-    /// retira el fichero—, y esa es la propiedad que se afirma.
+    /// The test does **not** look at the clock: what distinguishes `esperar` noticing the death from
+    /// running out the deadline is the `.pid` itself (both branches return `Caido`, but only the first
+    /// removes the file), and that is the property asserted.
     #[test]
     fn esperar_retira_el_pid_caduco() {
         let nombre = format!("caduco-{}", std::process::id());
@@ -972,10 +972,10 @@ Conexiones activas
         assert!(pid_de(&nombre).is_none(), "y el `.pid` caduco se retira al saberlo");
     }
 
-    /// `Listo` exige `.pid` nuestro y vivo (tarea 2). [`esperar`] devuelve un [`Estado`], así que no
-    /// puede ser la puerta de atrás por la que un puerto ajeno se disfrace de servidor nuestro: el
-    /// plan devolvía `Listo` en cuanto el puerto contestaba, y eso era el mismo error que la tarea 2
-    /// quitó de [`estado`].
+    /// `Listo` requires a live `.pid` of ours (task 2). [`esperar`] returns an [`Estado`], so it
+    /// cannot be the back door through which a foreign port disguises itself as our server: the
+    /// plan returned `Listo` as soon as the port answered, and that was the same mistake that task 2
+    /// removed from [`estado`].
     #[test]
     fn esperar_no_da_por_listo_un_puerto_ajeno() {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -983,7 +983,7 @@ Conexiones activas
         let s = Servidor { ready_ms: 400, ..servidor_que_escucha(&nombre, l.local_addr().unwrap().port()) };
         let e = esperar(&s);
         assert!(!matches!(e, Estado::Listo), "un puerto ajeno no puede estar listo: {e:?}");
-        // Y sin `.pid` no se ha anotado nada por el camino: `esperar` no arranca ni reclama nada.
+        // And without a `.pid` nothing was recorded along the way: `esperar` neither starts nor claims anything.
         assert!(pid_de(&nombre).is_none());
         let _ = l;
     }

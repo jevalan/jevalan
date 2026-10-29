@@ -15,7 +15,7 @@ fn cost(c: Cost) -> String {
 
 const BINS: [&str; 5] = ["[0.0, 0.2)", "[0.2, 0.4)", "[0.4, 0.6)", "[0.6, 0.8)", "[0.8, 1.0]"];
 
-/// Sección Markdown de una capacidad: tabla comparada, fiabilidad y notas.
+/// Markdown section for a capability: comparison table, reliability and notes.
 pub fn render_capability(
     capability: &str,
     repeat: u32,

@@ -1,4 +1,4 @@
-//! Servidor MCP por stdio: expone las capacidades del hub como herramientas.
+//! MCP server over stdio: exposes the hub's capabilities as tools.
 
 mod daemon;
 mod protocol;
@@ -13,7 +13,7 @@ use std::process::ExitCode;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-/// Cada cuánto se comprueba si las herramientas cambiaron para avisar al cliente.
+/// How often to check whether the tools changed, in order to notify the client.
 const POLL: Duration = Duration::from_secs(5);
 
 pub struct McpOptions {
@@ -22,7 +22,7 @@ pub struct McpOptions {
     pub allow_live: bool,
 }
 
-/// Huella de la lista de herramientas: cambia si aparece, desaparece o muda de esquema alguna.
+/// Fingerprint of the tool list: changes if any tool appears, disappears or changes schema.
 fn signature(tools: &[Tool]) -> u64 {
     let mut h = DefaultHasher::new();
     for t in tools {
@@ -38,8 +38,8 @@ fn emit(line: &str) {
     let _ = out.flush();
 }
 
-/// Entrega cada línea de `reader` a `send` (que devuelve `false` para parar). Tolera bytes que no son UTF-8
-/// —se sustituyen— para que una línea rara no mate el servidor, y quita el `\r` de los finales CRLF.
+/// Hands each line of `reader` to `send` (which returns `false` to stop). Tolerates bytes that are not UTF-8
+/// (they are replaced) so that an odd line does not kill the server, and strips the `\r` of CRLF endings.
 const MAX_LINE: usize = 4 * 1024 * 1024;
 
 fn forward_lines<R: BufRead>(reader: R, send: impl FnMut(String) -> bool) {
@@ -78,8 +78,8 @@ fn forward_lines_capped<R: BufRead>(mut reader: R, max: usize, mut send: impl Fn
     }
 }
 
-/// Envuelve un `Daemon` y recuerda la huella de la última lista de herramientas que entregó, ya sea a un
-/// `tools/list` del cliente o a un sondeo: así un cambio posterior a cualquiera de los dos no se pierde.
+/// Wraps a `Daemon` and remembers the fingerprint of the last tool list it delivered, whether to a
+/// `tools/list` from the client or to a poll: this way a later change is not lost to either of them.
 struct Watching<D> {
     inner: D,
     last: Cell<Option<u64>>,
@@ -90,7 +90,7 @@ impl<D: Daemon> Watching<D> {
         Self { inner, last: Cell::new(None) }
     }
 
-    /// `true` si la lista cambió desde la última vez que se miró. La primera vez solo fija la línea base.
+    /// `true` if the list changed since the last time it was looked at. The first time it only sets the baseline.
     fn poll(&self) -> bool {
         let before = self.last.get();
         let now = signature(&self.list_tools());
@@ -110,13 +110,13 @@ impl<D: Daemon> Daemon for Watching<D> {
     }
 }
 
-/// Atiende MCP por stdin/stdout hasta que el cliente cierra la entrada. Stdout es solo protocolo.
-/// Un único hilo habla con el daemon; otro solo lee líneas y las pasa por un canal.
+/// Serves MCP over stdin/stdout until the client closes the input. Stdout is protocol only.
+/// A single thread talks to the daemon; another only reads lines and passes them through a channel.
 pub fn run(opts: McpOptions) -> ExitCode {
     let catalog = Watching::new(tools::Catalog::new(daemon::HttpDaemon::new(opts.addr, opts.token), opts.allow_live));
     let (tx, rx) = mpsc::channel::<String>();
     std::thread::spawn(move || forward_lines(std::io::stdin().lock(), |line| tx.send(line).is_ok()));
-    // El plazo del sondeo es fijo: con tráfico constante no se retrasa indefinidamente.
+    // The poll deadline is fixed: with constant traffic it is not delayed indefinitely.
     let mut next_poll = Instant::now() + POLL;
     loop {
         match rx.recv_timeout(next_poll.saturating_duration_since(Instant::now())) {
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn a_tools_list_fixes_the_baseline_so_a_change_right_after_is_not_lost() {
         let w = Watching::new(Changing(std::cell::RefCell::new(vec![tool("x", json!({}))])));
-        let _ = w.list_tools(); // lo que haría el cliente con tools/list
+        let _ = w.list_tools(); // what the client would do with tools/list
         w.inner.0.borrow_mut().push(tool("y", json!({})));
         assert!(w.poll());
     }

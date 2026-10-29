@@ -1,11 +1,11 @@
-//! Catálogo de señales con nombre: `config/signals/*.yaml`, leído del disco cada vez que se carga un flujo.
+//! Catalogue of named signals: `config/signals/*.yaml`, read from disk every time a flow is loaded.
 
 use crate::flows::flow_name;
 use jevalan_flow::{Signals, parse_signal};
 use std::path::Path;
 
-/// Las señales válidas de `dir` y, aparte, el motivo de cada fichero que no vale. Sin directorio, catálogo vacío.
-// ponytail: se relee entero en cada carga de flujo; son unos pocos ficheros pequeños. Cachear si deja de serlo.
+/// The valid signals in `dir` and, separately, the reason for each file that is not valid. Without a directory, an empty catalogue.
+// ponytail: it is re-read in full on every flow load; they are a few small files. Cache it if that stops being true.
 pub fn load_dir(dir: &Path) -> (Signals, Vec<(String, String)>) {
     let (mut signals, mut invalid) = (Signals::new(), Vec::new());
     let Ok(entries) = std::fs::read_dir(dir) else { return (signals, invalid) };

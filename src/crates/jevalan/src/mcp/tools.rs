@@ -1,4 +1,4 @@
-//! Catálogo de herramientas: las capacidades del hub, más cuatro herramientas para flujos.
+//! Tool catalogue: the hub's capabilities, plus four tools for flows.
 
 use super::daemon::Http;
 use super::protocol::{Daemon, ProtocolError, Tool, ToolOutcome};
@@ -12,12 +12,12 @@ const VALIDATE_FLOW: &str = "jevalan_validate_flow";
 const TRY_DRAFT: &str = "jevalan_try_draft";
 const STATIC: [&str; 4] = [RUN_FLOW, LIST_FLOWS, VALIDATE_FLOW, TRY_DRAFT];
 
-/// Nombre MCP de una capacidad: todo carácter fuera de `[A-Za-z0-9_-]` pasa a `_` (`tool.risk` → `tool_risk`).
+/// MCP name of a capability: every character outside `[A-Za-z0-9_-]` becomes `_` (`tool.risk` → `tool_risk`).
 pub fn tool_name(capability: &str) -> String {
     capability.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' }).collect()
 }
 
-/// Un nombre de flujo que cabe en una ruta sin escapar de ella.
+/// A flow name that fits in a path without escaping from it.
 fn valid_flow_name(name: &str) -> bool {
     !name.is_empty()
         && !name.starts_with('.')
@@ -60,7 +60,7 @@ impl<H: Http> Catalog<H> {
         self.warned.borrow_mut().insert(name.to_string())
     }
 
-    /// Una herramienta por capacidad cargada; si dos comparten nombre se queda la primera.
+    /// One tool per loaded capability; if two share a name the first is kept.
     fn capability_tools(&self) -> Result<Vec<CapTool>, String> {
         let listing = self.http.get("/v1/hub/capabilities")?;
         let Some(caps) = listing.get("capabilities").and_then(Value::as_object) else { return Ok(Vec::new()) };
@@ -212,7 +212,7 @@ impl<H: Http> Daemon for Catalog<H> {
             LIST_FLOWS => Ok(answered(self.http.get("/v1/flows"))),
             VALIDATE_FLOW => Ok(self.validate_flow(&args)),
             TRY_DRAFT => Ok(self.try_draft(&args)),
-            // Con el daemon caído no se sabe si la herramienta existe: se dice por qué, no «desconocida».
+            // With the daemon down it is not known whether the tool exists: the reason is given, not "unknown".
             _ => match self.capability_tools() {
                 Err(why) => Ok(failed(why)),
                 Ok(caps) => match caps.into_iter().find(|c| c.name == name) {

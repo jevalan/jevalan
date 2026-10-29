@@ -26,7 +26,7 @@ fn wakeup_yaml() -> String {
     std::fs::read_to_string(caps_dir().join("agent.wakeup.yaml")).unwrap()
 }
 
-/// `tool.risk` servida por el especialista de pega; el esquema de entrada admite `mode`.
+/// `tool.risk` served by the stand-in specialist; the input schema admits `mode`.
 fn exec_yaml(env: &[&str], deadline_ms: u64) -> String {
     let def = json!({
         "manifest_version": "2",
@@ -64,7 +64,7 @@ struct Daemon {
     _dir: TempDir,
 }
 
-/// Daemon con el flujo `agent-wakeup`, ambos backends en `backend` y las capacidades dadas (nombre, YAML).
+/// Daemon with the `agent-wakeup` flow, both backends at `backend` and the given capabilities (name, YAML).
 async fn start(backend: &str, allow_exec: bool, caps: &[(&str, String)]) -> Daemon {
     start_with(backend, allow_exec, &[], caps).await
 }
@@ -223,7 +223,7 @@ async fn exec_stdout_is_capped() {
 
     assert_eq!(code(&reply), Some("provider_failed"), "{reply}");
     assert!(reply["error"]["message"].as_str().unwrap().contains("1 MiB"));
-    // El daemon sigue en pie.
+    // The daemon is still standing.
     assert_eq!(risk(&daemon, json!({ "mode": "allow" }), None).await["status"], "ok");
 }
 
@@ -242,7 +242,7 @@ async fn exec_garbage_and_exit_code_fail() {
 
 #[tokio::test]
 async fn exec_env_is_not_inherited() {
-    // Los tests de este fichero solo leen estas variables desde el hijo, que las recibe por `Command::env`.
+    // The tests in this file only read these variables from the child, which receives them through `Command::env`.
     unsafe {
         std::env::set_var("TYPESAFE_API_KEY", "clave-de-prueba");
         std::env::set_var("JEVALAN_TOKEN", "token-de-prueba");
@@ -258,7 +258,7 @@ async fn exec_env_is_not_inherited() {
 
 #[tokio::test]
 async fn dotenv_values_reach_exec_only_when_listed() {
-    // La variable solo existe en el mapa del `.env`, no en el proceso.
+    // The variable only exists in the `.env` map, not in the process.
     let dotenv = [("SOLO_EN_DOTENV", "valor-del-dotenv")];
     let caps = |env: &[&str]| [("tool.risk", exec_yaml(env, 5000))];
     let source = SPECIALIST_ENV_PROBE;
@@ -376,7 +376,7 @@ async fn deadline_kills_the_whole_tree() {
     }
     let alive = pid_alive(pid);
     if alive {
-        // Que el test no deje huérfanos aunque falle.
+        // So that the test leaves no orphans even if it fails.
         let pid = pid.to_string();
         let (tool, flags) = if cfg!(windows) { ("taskkill", "/F") } else { ("kill", "-KILL") };
         let args = if cfg!(windows) { vec![flags, "/PID", &pid] } else { vec![flags, &pid] };
@@ -385,7 +385,7 @@ async fn deadline_kills_the_whole_tree() {
     assert!(!alive, "el nieto {pid} sigue vivo");
 }
 
-/// Especialista HTTP de prueba: `/ok` decide, `/bad` falla con 500.
+/// Test HTTP specialist: `/ok` decides, `/bad` fails with 500.
 async fn http_specialist() -> String {
     let allow = || async { axum::Json(json!({ "verdict": "allow", "reason": "ok", "source": "model" })) };
     let app = Router::new()
@@ -492,7 +492,7 @@ async fn hub_events_never_contain_input_or_decision() {
             assert!(!line.contains(forbidden), "{forbidden} en {line}");
         }
     }
-    // Los eventos del flujo comparten traza con la petición al hub.
+    // The flow's events share a trace with the request to the hub.
     let trace_of = |kind: &str| events.iter().rev().find(|e| e["type"] == kind).map(|e| e["trace_id"].clone());
     assert_eq!(trace_of("HUB_REQUEST"), trace_of("NODE_START"));
     assert!(kinds.contains(&"BACKEND_REQUEST"));

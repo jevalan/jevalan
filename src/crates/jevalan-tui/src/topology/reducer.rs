@@ -8,7 +8,7 @@ use serde_json::Value;
 use std::time::Instant;
 
 impl Topology {
-    /// Aplica un evento nuevo. Misma secuencia de (evento, now) → mismo modelo y mismos `Cue`.
+    /// Applies a new event. Same sequence of (event, now) → same model and same `Cue`s.
     pub fn reduce(&mut self, e: &Event, now: Instant) -> Vec<Cue> {
         let mut cues = Vec::new();
         match &e.kind {
@@ -53,7 +53,7 @@ impl Topology {
                     }
                 }
             }
-            // En una traza del hub la respuesta cierra la traza; el flujo solo delata a quién sirve.
+            // In a hub trace the response closes the trace; the flow only gives away whom it serves.
             EventKind::DecisionMade { flow, .. } | EventKind::NodeStart { flow, .. }
                 if self.is_hub_trace(&e.trace_id) =>
             {
@@ -97,7 +97,7 @@ impl Topology {
                 if provider_type != "flow" {
                     self.ensure_backend(provider);
                 }
-                // El flujo anunciado manda; solo sin él se conserva lo aprendido del tráfico.
+                // The announced flow rules; only without it is what was learned from traffic kept.
                 match flow {
                     Some(f) => {
                         self.served.insert(capability.clone(), f.clone());
@@ -181,14 +181,14 @@ impl Topology {
         cues
     }
 
-    /// Olvida los puertos de flujo; `passthrough` y las capacidades se quedan.
+    /// Forgets the flow ports; `passthrough` and the capabilities stay.
     pub fn clear_flow_ports(&mut self) {
         self.loaded_flows.clear();
         self.last_status.retain(|p, _| p == PASSTHROUGH || self.capabilities.contains_key(p));
         self.rebuild_ports();
     }
 
-    /// Olvida las capacidades y los chips de sus especialistas; lo aprendido de a quién sirve cada flujo se conserva.
+    /// Forgets the capabilities and their specialists' chips; what was learned about whom each flow serves is kept.
     pub fn clear_capabilities(&mut self) {
         self.invalid_caps.clear();
         for old in std::mem::take(&mut self.capabilities).values() {
@@ -198,7 +198,7 @@ impl Topology {
         self.rebuild_ports();
     }
 
-    /// Caduca paquetes y despide a los clientes que llevan `CLIENT_GONE` sin hacer nada.
+    /// Expires packets and dismisses clients that have had `CLIENT_GONE` without doing anything.
     pub fn tick(&mut self, now: Instant) -> Vec<Cue> {
         self.packets.retain(|p| progress(p, now) < 1.0);
         let gone: Vec<String> = self
@@ -220,14 +220,14 @@ impl Topology {
         self.backends.entry(name.to_string()).or_insert(BackendState::Up);
     }
 
-    /// Registra la traza; si ya hay `MAX_OPEN_TRACES`, expulsa las más antiguas.
+    /// Registers the trace; if there are already `MAX_OPEN_TRACES`, evicts the oldest.
     fn open_trace(&mut self, trace_id: &str, client: &str, port: String, hub: bool) {
         if !self.trace_routes.contains_key(trace_id) {
             while self.trace_routes.len() >= MAX_OPEN_TRACES {
                 let Some(old) = self.route_order.pop_front() else { break };
                 self.trace_routes.remove(&old);
             }
-            // ponytail: las trazas cerradas dejan su id en el orden; se purga en bloque, no en cada cierre
+            // ponytail: closed traces leave their id in the order; it is purged in bulk, not at each close
             if self.route_order.len() >= 2 * MAX_OPEN_TRACES {
                 self.route_order.retain(|id| self.trace_routes.contains_key(id));
             }
@@ -244,7 +244,7 @@ impl Topology {
         self.trace_routes.get(trace_id).is_some_and(|r| r.hub)
     }
 
-    /// La capacidad de una traza del hub la sirve `flow`: el flujo deja de tener puerto propio.
+    /// A hub trace's capability is served by `flow`: the flow stops having a port of its own.
     fn learn_served(&mut self, trace_id: &str, flow: &str) {
         let Some(cap) = self.trace_port(trace_id) else { return };
         let Some(info) = self.capabilities.get_mut(&cap) else { return };
@@ -255,7 +255,7 @@ impl Topology {
         }
     }
 
-    /// Retira el chip del especialista de una capacidad que se va, si nadie más lo usa.
+    /// Removes the chip of the specialist of a capability that goes away, if nobody else uses it.
     fn drop_orphan_provider(&mut self, old: &CapabilityInfo) {
         if old.kind == "flow" || self.is_provider(&old.provider) {
             return;
@@ -265,7 +265,7 @@ impl Topology {
         self.port_backend_edges.retain(|(_, b)| *b != old.provider);
     }
 
-    /// Cierra la traza: devuelve el resultado al cliente que preguntó, si se le conoce.
+    /// Closes the trace: returns the result to the client that asked, if known.
     fn finish(&mut self, e: &Event, status: PacketStatus, now: Instant) {
         if let Some(route) = self.trace_routes.remove(&e.trace_id) {
             self.send(e, NodeId::Hub, NodeId::Client(route.client), status, now);
@@ -685,12 +685,12 @@ mod tests {
         t.reduce(&cap_loaded("agent.wakeup", "jevalan-flow", "flow"), now);
         assert_eq!(t.capabilities().count(), 2, "repetirlo no duplica");
         assert_eq!(t.ports(), ["agent.wakeup", "tool.risk", "agent-guard", "agent-wakeup", PASSTHROUGH]);
-        // El primer tráfico revela qué flujo sirve a la capacidad: deja de tener puerto propio.
+        // The first traffic reveals which flow serves the capability: it stops having a port of its own.
         t.reduce(&hub_req("h", "agent.wakeup", "jevalan-flow", "crush"), now);
         t.reduce(&node_start("h", "agent-wakeup"), now);
         assert_eq!(t.ports(), ["agent.wakeup", "tool.risk", "agent-guard", PASSTHROUGH]);
         assert_eq!(t.capability("agent.wakeup").and_then(|c| c.flow.as_deref()), Some("agent-wakeup"));
-        // Recargar el flujo o la capacidad no le devuelve el puerto.
+        // Reloading the flow or the capability does not give the port back.
         t.reduce(&loaded("agent-wakeup", &["typesafe"]), now);
         t.reduce(&cap_loaded("agent.wakeup", "jevalan-flow", "flow"), now);
         assert_eq!(t.ports(), ["agent.wakeup", "tool.risk", "agent-guard", PASSTHROUGH]);
@@ -729,7 +729,7 @@ mod tests {
         t.reduce(&cap_served_by("agent.wakeup", "agent-wakeup"), now);
         assert_eq!(t.ports(), ["agent.wakeup", PASSTHROUGH], "sin tráfico previo");
         assert_eq!(t.capability("agent.wakeup").and_then(|c| c.flow.as_deref()), Some("agent-wakeup"));
-        // El orden de llegada no importa: el flujo puede cargarse después.
+        // The order of arrival does not matter: the flow may load later.
         let mut u = Topology::new();
         u.reduce(&cap_served_by("agent.wakeup", "agent-wakeup"), now);
         u.reduce(&loaded("agent-wakeup", &["typesafe"]), now);

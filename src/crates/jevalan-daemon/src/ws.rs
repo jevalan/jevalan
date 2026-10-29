@@ -1,4 +1,4 @@
-//! `GET /events`: un mensaje JSON de texto por evento del bus.
+//! `GET /events`: one JSON text message per bus event.
 
 use crate::AppState;
 use crate::bus::lagged_event;
@@ -9,7 +9,7 @@ use jevalan_events::v2::{Event, EventKind, new_event};
 use tokio::sync::broadcast::{Receiver, error::RecvError};
 
 pub async fn events(State(state): State<AppState>, upgrade: WebSocketUpgrade) -> Response {
-    // Suscribirse antes de aceptar evita perder lo ocurrido durante el handshake.
+    // Subscribing before accepting avoids losing what happened during the handshake.
     let rx = state.bus.subscribe();
     upgrade.on_upgrade(move |socket| pump(socket, state, rx))
 }
@@ -36,8 +36,8 @@ async fn pump(mut socket: WebSocket, state: AppState, mut rx: Receiver<Event>) {
     }
 }
 
-/// Anuncia los backends configurados (solo nombres) y reproduce los `FLOW_LOADED` y `CAPABILITY_LOADED` vigentes;
-/// devuelve `false` si el cliente ya no está.
+/// Announces the configured backends (names only) and replays the current `FLOW_LOADED` and `CAPABILITY_LOADED`;
+/// returns `false` if the client is gone.
 async fn send_initial(socket: &mut WebSocket, state: &AppState) -> bool {
     let names = state.cfg.backends.keys().cloned().collect();
     let backends = new_event(&format!("backends:{}", state.boot), 1, "daemon", EventKind::Backends { backends: names });

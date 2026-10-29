@@ -1,5 +1,5 @@
-//! Lectura incremental de `shadow.jsonl` y agregación de sus decisiones.
-//! Cabe señalar que cuanto aquí figura es puro salvo la lectura del fichero, y que jamás conserva `tool_input`.
+//! Incremental reading of `shadow.jsonl` and aggregation of its decisions.
+//! Note that everything here is pure except the reading of the file, and that it never keeps `tool_input`.
 
 use jevalan_hub::lab::metrics::percentile;
 use jevalan_hub::shadow::{Entry, HIGH_THRESHOLD, RISK_THRESHOLD, parse_line, suspicious};
@@ -8,26 +8,26 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-/// Decisiones que se retienen para la lista; las más antiguas se descartan.
+/// Decisions retained for the list; the oldest are dropped.
 pub const MAX_ENTRIES: usize = 500;
 
-/// Lo que devuelve cada sondeo del fichero.
+/// What each probe of the file returns.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Poll {
-    /// El fichero se truncó, rotó o desapareció: lo acumulado hasta ahora ya no vale.
+    /// The file was truncated, rotated or vanished: what has accumulated so far is no longer valid.
     pub reset: bool,
-    /// Líneas completas añadidas desde el sondeo anterior.
+    /// Complete lines appended since the previous probe.
     pub lines: Vec<String>,
-    /// El fichero existe.
+    /// The file exists.
     pub exists: bool,
 }
 
-/// Seguidor de un fichero que solo crece (`tail -f` sin bloqueo).
+/// Follower of a file that only grows (a non-blocking `tail -f`).
 #[derive(Debug)]
 pub struct Tail {
     path: PathBuf,
     offset: u64,
-    /// Resto sin salto de línea final: una línea a medio escribir.
+    /// Remainder without a trailing newline: a half-written line.
     partial: Vec<u8>,
 }
 
@@ -40,7 +40,7 @@ impl Tail {
         &self.path
     }
 
-    /// Lee lo añadido desde la última vez; si el fichero encoge, empieza de nuevo desde el principio.
+    /// Reads what was added since the last time; if the file shrinks, it starts over from the beginning.
     pub fn poll(&mut self) -> Poll {
         let Ok(mut file) = File::open(&self.path) else {
             let reset = self.offset > 0;
@@ -76,7 +76,7 @@ impl Tail {
     }
 }
 
-/// Clase de una decisión a efectos de color y de cuenta.
+/// Class of a decision, for colour and counting purposes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Allow,
@@ -84,7 +84,7 @@ pub enum Kind {
     Deny,
     Abstain,
     Error,
-    /// `passthrough` u otro veredicto sin color propio.
+    /// `passthrough` or another verdict with no colour of its own.
     Other,
 }
 
@@ -112,7 +112,7 @@ impl Kind {
     }
 }
 
-/// Contadores y latencias de todo el registro leído.
+/// Counters and latencies of the whole log read.
 #[derive(Debug, Default)]
 pub struct Summary {
     pub total: usize,
@@ -123,7 +123,7 @@ pub struct Summary {
     pub error: usize,
     pub suspicious: usize,
     pub ignored: usize,
-    /// Latencias de las llamadas con respuesta, ordenadas.
+    /// Latencies of the calls with a response, sorted.
     latencies: Vec<u64>,
 }
 
@@ -158,7 +158,7 @@ impl Summary {
     }
 }
 
-/// Tramo de una probabilidad de riesgo respecto de los umbrales 0.55 y 0.85.
+/// Band of a risk probability relative to the 0.55 and 0.85 thresholds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
     Low,
@@ -176,18 +176,18 @@ pub fn level(p: f64) -> Level {
     }
 }
 
-/// Geometría de una barra de `width` celdas: celdas llenas y posiciones de las marcas 0.55 y 0.85.
+/// Geometry of a bar `width` cells wide: filled cells and positions of the 0.55 and 0.85 marks.
 pub fn bar_geometry(p: f64, width: usize) -> (usize, [usize; 2]) {
     let tick = |x: f64| ((x * width as f64).round() as usize).min(width.saturating_sub(1));
     let filled = (p.clamp(0.0, 1.0) * width as f64).round() as usize;
     (filled.min(width), [tick(RISK_THRESHOLD), tick(HIGH_THRESHOLD)])
 }
 
-/// Estado vivo del registro: seguidor, decisiones más recientes y resumen.
+/// Live state of the log: follower, most recent decisions and summary.
 #[derive(Debug)]
 pub struct HookLog {
     tail: Tail,
-    /// La más antigua primero.
+    /// Oldest first.
     pub entries: VecDeque<Entry>,
     pub summary: Summary,
     pub exists: bool,
@@ -202,7 +202,7 @@ impl HookLog {
         self.tail.path()
     }
 
-    /// Sondea el fichero y devuelve cuántas decisiones nuevas llegaron; `None` si nada cambió.
+    /// Probes the file and returns how many new decisions arrived; `None` if nothing changed.
     pub fn refresh(&mut self) -> Option<usize> {
         let poll = self.tail.poll();
         let changed = poll.reset || poll.exists != self.exists || !poll.lines.is_empty();
@@ -215,7 +215,7 @@ impl HookLog {
         for line in &poll.lines {
             match parse_line(line) {
                 Some(mut e) => {
-                    // La entrada de la herramienta no se conserva: las capturas acaban en un blog público.
+                    // The tool's input is not kept: screenshots end up on a public blog.
                     e.tool_input = None;
                     self.summary.add(&e);
                     if self.entries.len() == MAX_ENTRIES {
@@ -307,7 +307,7 @@ mod tests {
         let s = &log.summary;
         assert_eq!((s.total, s.allow, s.ask, s.deny, s.abstain, s.error), (7, 2, 2, 1, 1, 1));
         assert_eq!((s.suspicious, s.ignored), (1, 1));
-        // El error no entra en las latencias: quedan seis muestras, de 100 a 600.
+        // The error does not enter the latencies: six samples remain, from 100 to 600.
         assert_eq!((s.p50(), s.p95()), (Some(300), Some(600)));
         assert!(log.entries.iter().all(|e| e.tool_input.is_none()));
         assert_eq!(log.refresh(), None);

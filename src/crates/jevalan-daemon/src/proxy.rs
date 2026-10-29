@@ -1,4 +1,4 @@
-//! Passthrough transparente de System One hacia el backend elegido.
+//! Transparent System One passthrough to the chosen backend.
 
 use crate::AppState;
 use crate::bus::new_trace_id;
@@ -25,7 +25,7 @@ pub async fn default(State(state): State<AppState>, headers: HeaderMap, body: By
 }
 
 async fn passthrough(state: AppState, backend: String, headers: HeaderMap, body: Bytes) -> Response {
-    // El nombre solo sirve de clave en la tabla configurada; jamás se interpreta como URL.
+    // The name only serves as a key in the configured table; it is never interpreted as a URL.
     if !state.cfg.backends.contains_key(&backend) {
         return error_response(StatusCode::NOT_FOUND, &format!("backend desconocido: {backend}"));
     }
@@ -71,7 +71,7 @@ async fn passthrough(state: AppState, backend: String, headers: HeaderMap, body:
     reply
 }
 
-/// Envía `body` sin tocarlo a `<url><path>` (por defecto `/v1/systemone`). Solo viajan `Content-Type` y, si la hay, la clave configurada.
+/// Sends `body` untouched to `<url><path>` (by default `/v1/systemone`). Only `Content-Type` and, if present, the configured key travel.
 pub async fn call_backend(state: &AppState, backend: &str, body: Bytes) -> Result<(u16, Bytes), String> {
     let cfg = state.cfg.backends.get(backend).ok_or_else(|| format!("backend desconocido: {backend}"))?;
     let mut req = state

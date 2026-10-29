@@ -19,7 +19,7 @@ pub struct Constraints {
     pub max_cost_usd: Option<f64>,
 }
 
-/// Envoltura legible y en la versión del protocolo; si no, el motivo (será un 400).
+/// Envelope readable and in the protocol version; otherwise, the reason (it will be a 400).
 pub fn parse_request(body: &[u8]) -> Result<HubRequest, String> {
     let req: HubRequest = serde_json::from_slice(body).map_err(|e| format!("envoltura inválida: {e}"))?;
     if req.protocol_version != PROTOCOL {
@@ -31,7 +31,7 @@ pub fn parse_request(body: &[u8]) -> Result<HubRequest, String> {
     Ok(req)
 }
 
-/// El plazo pedido nunca amplía el de la capacidad.
+/// The requested deadline never extends the capability's.
 pub fn effective_deadline(requested: Option<u64>, default: u64) -> u64 {
     requested.map_or(default, |r| r.min(default))
 }

@@ -1,4 +1,4 @@
-//! Estado del editor: el foco, el documento abierto, su grafo y lo que se está confirmando.
+//! Editor state: the focus, the open document, its graph and what is being confirmed.
 
 use crate::edicion::{Borrador, TIPOS};
 use crate::grafo::Grafo;
@@ -12,7 +12,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use std::path::PathBuf;
 use std::time::Instant;
 
-/// Las tres zonas de la pantalla, en el orden en que las recorre `tab`.
+/// The three zones of the screen, in the order `tab` walks them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Foco {
     Grafo,
@@ -20,29 +20,29 @@ pub enum Foco {
     Banda,
 }
 
-/// Lo que el editor está pidiendo confirmar.
+/// What the editor is asking to confirm.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Aviso {
-    /// Salir con cambios sin guardar.
+    /// Quit with unsaved changes.
     Salir,
-    /// Recargar desde el disco, descartando el borrador.
+    /// Reload from disk, discarding the draft.
     Recargar,
     /// Borrar el nodo nombrado.
     Borrar(String),
-    /// El fichero cambió por debajo: recargar con `r` o guardar aparte con `g`.
+    /// The file changed underneath: reload with `r` or save aside with `g`.
     Ajena { ruta: PathBuf },
 }
 
-/// Qué se hace con la opción elegida en el menú de una línea.
+/// What is done with the option chosen in the one-line menu.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Fin {
-    /// Añadir un nodo del tipo elegido, por el orden de `TIPOS`.
+    /// Add a node of the chosen type, in the order of `TIPOS`.
     AnadirTipo,
-    /// Recablear este puerto al destino elegido.
+    /// Rewire this port to the chosen destination.
     Cablear { nodo: String, puerto: String },
 }
 
-/// Menú de una línea: lo que se elige con las flechas y se confirma con `enter`.
+/// One-line menu: what is chosen with the arrows and confirmed with `enter`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Menu {
     pub titulo: String,
@@ -57,19 +57,19 @@ impl Menu {
     }
 }
 
-/// El estado entero del editor.
+/// The editor's whole state.
 pub struct App {
     pub borrador: Borrador,
     pub grafo: Grafo,
     pub inspector: Inspector,
     pub telemetria: Telemetria,
-    /// El pintor del grafo, que se reutiliza tal cual del dashboard.
+    /// The graph painter, reused as is from the dashboard.
     pub pintor: FlowGraph,
     pub foco: Foco,
-    /// El menú de una línea abierto (`a` tipos, `c` destinos).
+    /// The open one-line menu (`a` types, `c` destinations).
     pub menu: Option<Menu>,
     pub aviso: Option<Aviso>,
-    /// Aviso efímero de la banda inferior.
+    /// Ephemeral notice in the bottom band.
     pub aviso_banda: Option<String>,
     pub salir: bool,
     pub redibujar: bool,
@@ -77,7 +77,7 @@ pub struct App {
 }
 
 impl App {
-    /// Arma el editor con el documento ya abierto y su telemetría.
+    /// Builds the editor with the document already open and its telemetry.
     pub fn nuevo(mut borrador: Borrador, telemetria: Telemetria) -> Self {
         borrador.revisar();
         let mut grafo = Grafo::nuevo();
@@ -98,31 +98,31 @@ impl App {
         }
     }
 
-    /// El nombre y la definición del nodo seleccionado, si la parada es un nodo.
+    /// The name and definition of the selected node, if the stop is a node.
     pub fn nodo(&self) -> Option<(&str, &NodeDef)> {
         let nombre = self.grafo.nodo()?;
         self.borrador.doc.def().nodes.get(nombre).map(|d| (nombre, d))
     }
 
-    /// Las filas del inspector para el nodo seleccionado.
+    /// The inspector rows for the selected node.
     pub fn filas(&self) -> Vec<Fila> {
         self.nodo().map_or_else(Vec::new, |(_, d)| crate::inspector::filas(d))
     }
 
-    /// Rehace el grafo con el borrador y ajusta el cursor del inspector.
+    /// Rebuilds the graph from the draft and adjusts the inspector cursor.
     pub fn rehacer(&mut self) {
         self.grafo.rehacer(&self.borrador.nombre(), self.borrador.doc.def());
         self.inspector.ajustar(self.filas().len());
         self.redibujar = true;
     }
 
-    /// Una tecla. Las teclas de la casa valen desde cualquier zona, como en la TUI.
+    /// A key. The house keys work from any zone, as in the TUI.
     pub fn tecla(&mut self, k: KeyEvent) {
         if !matches!(k.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
             return;
         }
         self.redibujar = true;
-        // El orden manda: primero lo que se está escribiendo, luego el menú, luego lo que se confirma.
+        // Order matters: first what is being typed, then the menu, then what is being confirmed.
         if self.inspector.texto().is_some() {
             return self.tecla_edicion(k.code);
         }
@@ -149,7 +149,7 @@ impl App {
         }
     }
 
-    /// Las teclas mientras se escribe un campo: `enter` lo confirma en el borrador, `esc` lo cancela.
+    /// Keys while a field is being typed: `enter` confirms it in the draft, `esc` cancels it.
     fn tecla_edicion(&mut self, code: KeyCode) {
         match code {
             KeyCode::Enter => self.confirmar_campo(),
@@ -160,7 +160,7 @@ impl App {
         }
     }
 
-    /// Confirma el texto en curso en el borrador, nunca en el disco.
+    /// Confirms the text in progress in the draft, never on disk.
     fn confirmar_campo(&mut self) {
         let Some(texto) = self.inspector.texto().map(str::to_string) else { return };
         let Some((nodo, _)) = self.nodo() else { return };
@@ -172,12 +172,12 @@ impl App {
                 self.aviso_banda = None;
                 self.rehacer();
             }
-            // Un valor que no vale deja la edición abierta para poder corregirlo.
+            // A value that is not valid leaves the edit open so it can be corrected.
             Err(e) => self.aviso_banda = Some(e),
         }
     }
 
-    /// En el grafo, las flechas mueven la selección por nodos y por aristas.
+    /// In the graph, the arrows move the selection across nodes and edges.
     fn tecla_grafo(&mut self, code: KeyCode) {
         match code {
             KeyCode::Down | KeyCode::Right | KeyCode::Char('j') | KeyCode::Char('l') => self.grafo.siguiente(),
@@ -187,7 +187,7 @@ impl App {
         self.inspector.ajustar(self.filas().len());
     }
 
-    /// En el inspector, las flechas recorren sus filas y `e` entra en el campo seleccionado.
+    /// In the inspector, the arrows walk its rows and `e` enters the selected field.
     fn tecla_inspector(&mut self, code: KeyCode) {
         let filas = self.filas().len();
         match code {
@@ -201,7 +201,7 @@ impl App {
         }
     }
 
-    /// `s`: guarda si el fichero no cambió por debajo; si cambió, ofrece recargar o guardar aparte.
+    /// `s`: saves if the file did not change underneath; if it did, offers to reload or save aside.
     fn pedir_guardar(&mut self) {
         match self.borrador.doc.cambio_por_debajo() {
             Ok(false) => match self.borrador.guardar() {
@@ -216,18 +216,18 @@ impl App {
         }
     }
 
-    /// Pide una confirmación sencilla.
+    /// Asks for a simple confirmation.
     fn solo_pedir(&mut self, aviso: Aviso) {
         self.aviso = Some(aviso);
     }
 
-    /// `a`: añade un nodo; abre el menú de tipos.
+    /// `a`: adds a node; opens the type menu.
     fn pedir_anadir(&mut self) {
         let opciones: Vec<String> = TIPOS.iter().map(|t| t.as_str().to_string()).collect();
         self.menu = Some(Menu::nuevo("añadir nodo".into(), opciones, Fin::AnadirTipo));
     }
 
-    /// `d`: borra el nodo seleccionado, con confirmación.
+    /// `d`: deletes the selected node, with confirmation.
     fn pedir_borrar(&mut self) {
         match self.grafo.nodo() {
             Some(nodo) => self.aviso = Some(Aviso::Borrar(nodo.to_string())),
@@ -235,7 +235,7 @@ impl App {
         }
     }
 
-    /// `c`: recablea el puerto seleccionado; abre el menú de destinos.
+    /// `c`: rewires the selected port; opens the destination menu.
     fn pedir_cablear(&mut self) {
         let Some((nodo, puerto)) = self.grafo.puerto().map(|(n, p)| (n.to_string(), p.to_string())) else {
             self.aviso_banda = Some("selecciona un puerto del grafo para recablearlo".into());
@@ -249,8 +249,8 @@ impl App {
         self.menu = Some(Menu::nuevo(format!("recablear {nodo}.{puerto}"), destinos, Fin::Cablear { nodo, puerto }));
     }
 
-    /// Las teclas del menú de una línea. `esc` lo cierra sin elegir nada: un menú que no se pudiera
-    /// soltar dejaría al usuario encerrado en él.
+    /// The keys of the one-line menu. `esc` closes it without choosing anything: a menu that could not be
+    /// dropped would leave the user locked inside it.
     fn tecla_menu(&mut self, code: KeyCode) {
         let Some(mut menu) = self.menu.take() else { return };
         match code {
@@ -273,7 +273,7 @@ impl App {
         self.menu = Some(menu);
     }
 
-    /// Aplica la opción elegida en el menú.
+    /// Applies the option chosen in the menu.
     fn elegir(&mut self, fin: &Fin, elegida: &str) {
         match fin {
             Fin::AnadirTipo => {
@@ -299,7 +299,7 @@ impl App {
         }
     }
 
-    /// `tab` recorre las tres zonas: grafo, inspector y banda.
+    /// `tab` walks the three zones: graph, inspector and band.
     fn cambiar_foco(&mut self) {
         self.foco = match self.foco {
             Foco::Grafo => Foco::Inspector,
@@ -308,7 +308,7 @@ impl App {
         };
     }
 
-    /// `q`: se sale, avisando si hay cambios sin guardar (D5).
+    /// `q`: quits, warning if there are unsaved changes (D5).
     fn pedir_salir(&mut self) {
         let hay_cambios = !self.borrador.doc.cambios().vacio() && self.borrador.doc.solo_lectura().is_none();
         if hay_cambios {
@@ -318,13 +318,13 @@ impl App {
         }
     }
 
-    /// Una tecla con confirmación pendiente. `esc` cancela siempre; `enter` o `s` confirman las que
-    /// se confirman así; el cambio por debajo se atiende con `r` o con `g`.
+    /// A key with a confirmation pending. `esc` always cancels; `enter` or `s` confirm those
+    /// that are confirmed that way; the change underneath is handled with `r` or `g`.
     fn confirmar(&mut self, code: KeyCode) {
         let Some(aviso) = self.aviso.take() else { return };
         match (aviso, code) {
-            // `esc` cancela siempre: el aviso se suelta sin hacer nada. Sin esta rama, el comodín de
-            // abajo volvería a armarlo y la confirmación no se podría abandonar.
+            // `esc` always cancels: the notice is dropped and nothing is done. Without this branch, the wildcard
+            // below would arm it again and the confirmation could not be abandoned.
             (_, KeyCode::Esc) => {}
             (Aviso::Salir, KeyCode::Enter) => self.salir = true,
             (Aviso::Recargar, KeyCode::Enter) => match self.borrador.recargar() {
@@ -341,7 +341,7 @@ impl App {
                 }
                 Err(e) => self.aviso_banda = Some(e),
             },
-            // El fichero cambió por debajo: `r` recarga, `g` guarda aparte, y nada se escribe solo.
+            // The file changed underneath: `r` reloads, `g` saves aside, and nothing is written on its own.
             (Aviso::Ajena { .. }, KeyCode::Char('r')) => match self.borrador.recargar() {
                 Ok(()) => {
                     self.aviso_banda = Some("recargado del disco; el borrador se descartó".into());
@@ -351,8 +351,8 @@ impl App {
             },
             (Aviso::Ajena { ruta }, KeyCode::Char('g')) => {
                 let aparte = editado(&ruta);
-                // El veto de D5 vive en el borrador, no aquí: un flujo inválido no se escribe aparte
-                // ni se escribe solo. Si se niega, el aviso sigue puesto para poder pulsar `r`.
+                // D5's veto lives in the draft, not here: an invalid flow is neither written aside
+                // nor written on its own. If it is refused, the notice stays up so `r` can be pressed.
                 match self.borrador.guardar_como(&aparte) {
                     Ok(()) => self.aviso_banda = Some(format!("guardado en {}", aparte.display())),
                     Err(e) => {
@@ -365,15 +365,15 @@ impl App {
         }
     }
 
-    /// Recoge lo que llegue del bus y, si el catálogo de backends cambió, revalida.
+    /// Collects whatever arrives from the bus and, if the backend catalogue changed, revalidates.
     pub fn latir(&mut self) {
         self.ahora = Instant::now();
         let antes = self.telemetria.backends.clone();
         if self.telemetria.latir(self.ahora) {
             self.redibujar = true;
             if self.telemetria.backends != antes {
-                // El backend por defecto del daemon no viaja en el evento, así que no se finge uno:
-                // sin él la validación local no comprueba los backends, y lo dice (spec §8).
+                // The daemon's default backend does not travel in the event, so none is faked:
+                // without it local validation does not check the backends, and says so (spec §8).
                 self.borrador.catalogo(self.telemetria.backends.clone(), String::new());
                 self.borrador.revisar();
             }
@@ -387,13 +387,13 @@ impl App {
     }
 }
 
-/// El fichero aparte que se ofrece cuando el original cambió por debajo: `<nombre>.editado.yaml`.
+/// The separate file offered when the original changed underneath: `<name>.editado.yaml`.
 fn editado(ruta: &std::path::Path) -> PathBuf {
     let tallo = ruta.file_stem().and_then(|n| n.to_str()).unwrap_or("flujo");
     ruta.with_file_name(format!("{tallo}.editado.yaml"))
 }
 
-// crates/jevalan-edit/src/app.rs — al final del fichero (las pruebas de la pantalla van aquí: usan el editor entero)
+// crates/jevalan-edit/src/app.rs — at the end of the file (the screen tests go here: they use the whole editor)
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,13 +408,13 @@ mod tests {
 
     const LOCAL: &str = include_str!("../../jevalan-flow/fixtures/tool-risk-local-v1.yaml");
 
-    /// Directorio temporal que se borra al soltarse.
+    /// Temporary directory that is deleted when dropped.
     struct Tmp(PathBuf);
 
     impl Tmp {
         fn new() -> Self {
-            // Cada directorio necesita nombre propio: las pruebas corren en paralelo y comparten
-            // `temp_dir()`; con un nombre fijo, el `remove_dir_all` de una borra el de otra.
+            // Each directory needs its own name: the tests run in parallel and share
+            // `temp_dir()`; with a fixed name, one test's `remove_dir_all` deletes another's.
             static SIGUIENTE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
             let unico = SIGUIENTE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let nombre = format!("jevalan-app-{}-{}", std::process::id(), crate::documento::huella(&unico.to_string()));
@@ -437,7 +437,7 @@ mod tests {
         }
     }
 
-    /// Un editor con el flujo local abierto y sin bus.
+    /// An editor with the local flow open and no bus.
     fn editor(texto: &str) -> (Tmp, App) {
         let tmp = Tmp::new();
         let ruta = tmp.put("tool-risk-local.yaml", texto);
@@ -471,7 +471,7 @@ mod tests {
         assert_eq!(app.grafo.parada(), Some(&Parada::Nodo("rm_root".into())));
         tecla(&mut app, KeyCode::Right);
         assert_eq!(app.grafo.puerto(), Some(("rm_root", "true")));
-        // El inspector sigue mirando el mismo nodo, porque la parada es un puerto suyo.
+        // The inspector keeps looking at the same node, because the stop is one of its ports.
         assert_eq!(app.nodo().map(|(n, _)| n), Some("rm_root"));
         let texto = pinta(&mut app, 100, 30);
         assert!(texto.contains("puerto rm_root.true"), "{texto}");
@@ -537,7 +537,7 @@ mod tests {
         tecla(&mut app, KeyCode::Char('e'));
         assert!(app.inspector.texto().is_some(), "la edición está abierta");
 
-        // El editor escribe al final: se borra la expresión y se escribe otra.
+        // The editor writes at the end: the expression is deleted and another one written.
         for _ in 0..200 {
             tecla(&mut app, KeyCode::Backspace);
         }
@@ -569,7 +569,7 @@ mod tests {
     #[test]
     fn un_valor_que_no_vale_deja_la_edicion_abierta_y_lo_dice() {
         let (_tmp, mut app) = editor(LOCAL);
-        // Se baja hasta `min_confidence` del nodo `rm_root`… que es un `rule` y no tiene: se usa `risks`.
+        // It goes down to the `min_confidence` of the `rm_root` node… which is a `rule` and has none: `risks` is used.
         for _ in 0..64 {
             if app.grafo.parada() == Some(&Parada::Nodo("risks".into())) {
                 break;
@@ -621,7 +621,7 @@ mod tests {
             "no se escribe nada mientras haya duda"
         );
 
-        // `g`: se guarda aparte, y el original queda como estaba.
+        // `g`: saves aside, and the original stays as it was.
         tecla(&mut app, KeyCode::Char('g'));
         let aparte = app.borrador.doc.ruta().with_file_name("tool-risk-local.editado.yaml");
         assert!(aparte.exists(), "se ofrece <nombre>.editado.yaml");
@@ -694,9 +694,9 @@ mod tests {
         assert!(app.aviso_banda.as_deref().unwrap().contains("selecciona un puerto"), "{:?}", app.aviso_banda);
     }
 
-    /// La `s` solo guarda: las confirmaciones destructivas las confirma `enter`, que es lo que la
-    /// banda anuncia. Con `s` confirmando también, pulsar «guardar» delante de «¿borrar risks?»
-    /// borraba el nodo sin querer.
+    /// `s` only saves: destructive confirmations are confirmed by `enter`, which is what the
+    /// band announces. With `s` confirming too, pressing "save" in front of "delete risks?"
+    /// deleted the node by accident.
     #[test]
     fn la_s_no_confirma_lo_destructivo() {
         let (_tmp, mut app) = editor(LOCAL);
@@ -707,23 +707,23 @@ mod tests {
             assert!(!app.salir, "y menos aún salir");
             assert!(app.borrador.doc.def().nodes.contains_key("rm_root"), "ni borrar el nodo");
         }
-        // Y `enter` sí confirma: se sigue pudiendo salir.
+        // And `enter` does confirm: it is still possible to quit.
         app.aviso = Some(Aviso::Salir);
         tecla(&mut app, KeyCode::Enter);
         assert!(app.salir, "enter sí confirma la salida");
     }
 
-    /// Guardar aparte no puede ser la puerta de atrás de D5: un borrador inválido no va al disco, y
-    /// el aviso sigue pendiente para que el usuario pueda recargar.
+    /// Saving aside cannot be D5's back door: an invalid draft does not go to disk, and
+    /// the notice stays pending so the user can reload.
     #[test]
     fn guardar_aparte_no_escribe_un_borrador_invalido() {
         let (tmp, mut app) = editor(LOCAL);
-        // Con el catálogo del daemon, la CEL rota deja el borrador inválido de verdad.
+        // With the daemon's catalogue, the broken CEL really leaves the draft invalid.
         app.borrador.catalogo(vec!["kev".into()], "kev".into());
         app.borrador.campo("risks", &Campo::RouteWhen(1), "answers.risks.destructive >=").unwrap();
         assert!(!app.borrador.validez.ok, "la CEL quedó rota: {:?}", app.borrador.validez);
 
-        // El fichero cambió por debajo: `s` avisa, no escribe.
+        // The file changed underneath: `s` warns, it does not write.
         let ruta = app.borrador.doc.ruta().to_path_buf();
         std::fs::write(&ruta, LOCAL.replace("pipe_sh", "pipe_sh2")).unwrap();
         tecla(&mut app, KeyCode::Char('s'));
@@ -749,7 +749,7 @@ mod tests {
         tecla(&mut app, KeyCode::Esc);
         assert_eq!(app.aviso, None, "el aviso se suelta");
         assert_eq!(app.borrador.doc.def().nodes["rm_root"].instructions, "otra", "y el borrador sigue donde estaba");
-        // Y la casa vuelve a responder: el aviso no deja el editor encerrado.
+        // And the house responds again: the notice does not leave the editor locked in.
         tecla(&mut app, KeyCode::Tab);
         assert_eq!(app.foco, Foco::Inspector);
 

@@ -1,4 +1,4 @@
-//! Bucle de ejecución de un flujo, compartido por `/v1/decide` y por el proveedor `flow` del hub.
+//! Execution loop of a flow, shared by `/v1/decide` and the hub's `flow` provider.
 
 use crate::AppState;
 use crate::bus::Tracer;
@@ -19,7 +19,7 @@ pub struct Ran {
     pub path: Vec<PathStep>,
 }
 
-/// Conduce `flow` nodo a nodo contra sus backends, emitiendo los eventos de la traza.
+/// Drives `flow` node by node against its backends, emitting the trace's events.
 pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, tracer: &Tracer, io: &Io<'_>) -> Ran {
     let started = Instant::now();
     let mut run = Run::new(flow, input.clone());
@@ -60,7 +60,7 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
                 let duration_ms = asked.elapsed().as_millis() as u64;
                 let (reply, given) = judge(tracer, backend, flow, node, result, duration_ms);
                 if let Some(step) = run.answer(reply, duration_ms) {
-                    // Un fallo de backend no aporta confianza: jamás se inventa una.
+                    // A backend failure contributes no confidence: none is ever made up.
                     if let (Some(_), Some(p)) = (step.confidence, given) {
                         io.note_confidence(p);
                     }
@@ -81,8 +81,8 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
                     backend: backend.into(),
                     model: model.into(),
                 });
-                // D3: cada pregunta viaja con el nombre del nodo por delante, para que dos nodos `batch`
-                // del mismo flujo no puedan pisarse las claves en una misma petición.
+                // D3: each question travels with the node name in front, so that two `batch` nodes
+                // of the same flow cannot overwrite each other's keys within one request.
                 let named: Map<String, Value> = questions
                     .as_object()
                     .into_iter()
@@ -90,7 +90,7 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
                     .map(|(question, body)| (format!("{node}.{question}"), body.clone()))
                     .collect();
                 let body = request_body_many(model, input, named.clone()).to_string();
-                // Una sola petición al backend para todas las preguntas del nodo: solo viaja su cuenta.
+                // A single request to the backend for all of the node's questions: only their count travels.
                 tracer.emit(EventKind::BackendRequest {
                     backend: backend.into(),
                     model: model.into(),
@@ -102,7 +102,7 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
                 let duration_ms = asked.elapsed().as_millis() as u64;
                 let (replies, given) = judge_many(tracer, backend, flow, node, result, duration_ms);
                 if let Some(step) = run.answer_batch(replies, duration_ms) {
-                    // La confianza que se anota es la media de las dadas a cada pregunta (ver `answer_batch`).
+                    // The confidence recorded is the mean of those given to each question (see `answer_batch`).
                     if let (Some(_), Some(p)) = (step.confidence, given) {
                         io.note_confidence(p);
                     }
@@ -130,7 +130,7 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
             }
             Next::Failed { node, error, rule } => {
                 let message = format!("{node}: {error}");
-                // El error de una regla puede citar la entrada: al bus solo llega una frase genérica.
+                // A rule's error may quote the input: only a generic sentence reaches the bus.
                 let (stage, public) = if rule {
                     ("rule", format!("la regla {node} no pudo evaluarse"))
                 } else {
@@ -143,8 +143,8 @@ pub async fn run_flow(state: &AppState, name: &str, flow: &Flow, input: &Value, 
     }
 }
 
-/// Probabilidad que el modelo dio a la respuesta que dio (no la concentración de su distribución):
-/// `max(p, 1 − p)` en noul; `probabilities[choice]` en choice si vinieron, y si no la `confidence`; la `confidence` en score.
+/// Probability the model gave to the answer it gave (not the concentration of its distribution):
+/// `max(p, 1 − p)` for noul; `probabilities[choice]` for choice if they came, otherwise the `confidence`; the `confidence` for score.
 fn given_probability(ty: &str, entry: &Value, reply: &Reply) -> f64 {
     match ty {
         "noul" => reply.answer.as_f64().map_or(reply.confidence, |p| p.max(1.0 - p)),
@@ -153,8 +153,8 @@ fn given_probability(ty: &str, entry: &Value, reply: &Reply) -> f64 {
     }
 }
 
-/// Emite `BACKEND_RESPONSE` y traduce lo recibido en la respuesta del nodo, o en un fallo; la segunda pieza
-/// es la probabilidad de la respuesta dada (ver `given_probability`).
+/// Emits `BACKEND_RESPONSE` and translates what was received into the node's answer, or into a failure; the second
+/// element is the probability of the answer given (see `given_probability`).
 fn judge(
     tracer: &Tracer,
     backend: &str,
@@ -177,8 +177,8 @@ fn judge(
     }
 }
 
-/// Traduce una respuesta con **todas** las preguntas de un nodo `batch` en los cuerpos de cada una; la
-/// segunda pieza es la media de las probabilidades dadas, que es la confianza que se anota.
+/// Translates a response carrying **all** the questions of a `batch` node into the bodies of each one; the
+/// second element is the mean of the probabilities given, which is the confidence that is recorded.
 fn judge_many(
     tracer: &Tracer,
     backend: &str,
@@ -199,7 +199,7 @@ fn judge_many(
         let Some(entry) = value["answers"].get(&key).cloned() else {
             return (Err(format!("la respuesta no trae {key}")), None);
         };
-        // La probabilidad se mide por pregunta, con el mismo criterio que un nodo suelto.
+        // The probability is measured per question, by the same criterion as a standalone node.
         let single = json!({ "answers": { question: entry.clone() } });
         match reply_from_response(question, &n.questions[question], &single) {
             Ok(reply) => total += given_probability(n.questions[question].ty.as_str(), &entry, &reply),
@@ -211,7 +211,7 @@ fn judge_many(
     (Ok(bodies), Some(mean))
 }
 
-/// Emite `BACKEND_RESPONSE` con lo que haga falta saber de la respuesta y devuelve el JSON ya leído.
+/// Emits `BACKEND_RESPONSE` with whatever needs to be known about the response and returns the JSON already read.
 fn judge_value(
     tracer: &Tracer,
     backend: &str,
@@ -242,7 +242,7 @@ fn judge_value(
     parsed.map_err(|e| format!("respuesta no JSON: {e}"))
 }
 
-/// `NODE_AUDIT` de un paso que leyó heurísticas o ganó por una regla `route`; nada si no hay qué contar.
+/// `NODE_AUDIT` for a step that read heuristics or won through a `route` rule; nothing if there is nothing to report.
 fn audit(flow: &str, step: &PathStep) -> Option<EventKind> {
     (!step.signals.is_empty() || step.rule.is_some()).then(|| EventKind::NodeAudit {
         flow: flow.into(),

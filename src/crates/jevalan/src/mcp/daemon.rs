@@ -1,4 +1,4 @@
-//! Cliente HTTP del daemon: localiza la dirección como el hook y traduce los fallos a motivos legibles.
+//! The daemon's HTTP client: locates the address like the hook and turns failures into readable reasons.
 
 use jevalan_daemon::config::DEFAULT_ADDR;
 use jevalan_daemon::discovery;
@@ -8,14 +8,14 @@ use std::time::Duration;
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(35);
 
-/// Lo que el catálogo necesita del daemon; las pruebas lo sustituyen por un simulacro.
+/// What the catalogue needs from the daemon; tests replace it with a stand-in.
 pub trait Http {
     fn get(&self, path: &str) -> Result<Value, String>;
     fn post(&self, path: &str, body: &Value) -> Result<Value, String>;
 }
 
-/// A quién se llama, por orden: la dirección explícita (y solo ella), o la que anuncia `daemon.json`
-/// y después la de por defecto. Un token explícito manda sobre el anunciado.
+/// Whom to call, in order: the explicit address (and only it), or the one announced by `daemon.json`
+/// and then the default. An explicit token overrides the announced one.
 pub fn candidates(
     addr: Option<&str>,
     token: Option<&str>,
@@ -50,7 +50,7 @@ impl HttpDaemon {
         Self::with_timeout(addr, token, TOTAL_TIMEOUT)
     }
 
-    /// Como `new`, con otro plazo total por petición (las pruebas lo acortan).
+    /// Like `new`, with a different total deadline per request (tests shorten it).
     pub fn with_timeout(addr: Option<String>, token: Option<String>, total: Duration) -> Self {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("runtime de tokio");
         let http =
@@ -63,8 +63,8 @@ impl HttpDaemon {
         self.send_to(&list, method, path, body)
     }
 
-    /// Prueba cada candidato por orden. Solo un fallo al *conectar* pasa al siguiente: si el daemon llegó a
-    /// recibir la petición y no contestó a tiempo, repetirla en otro lado duplicaría sus efectos.
+    /// Tries each candidate in order. Only a failure to *connect* moves on to the next: if the daemon did
+    /// receive the request and did not answer in time, repeating it elsewhere would duplicate its effects.
     fn send_to(
         &self,
         list: &[(String, Option<String>)],
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn a_timeout_after_connecting_is_not_retried_on_the_next_candidate() {
-        // El primero acepta la conexión (el SO la completa) pero jamás responde; el segundo vigila.
+        // The first accepts the connection (the OS completes it) but never answers; the second keeps watch.
         let silent = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let second = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         second.set_nonblocking(true).unwrap();

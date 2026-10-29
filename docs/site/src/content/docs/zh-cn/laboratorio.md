@@ -96,3 +96,28 @@ jevalan lab offline
 ```
 
 两者都在自带的 fixture 上运行，无需密钥和网络，所以这是检查你的安装是否正常的最快方式。
+
+## 用真实模型试一试
+
+同样的 fixture 可以针对真实后端运行。这次运行使用本地模型，因此零成本，也没有任何数据离开本机。六个 fixture 各运行两次共 12 次调用，远在预算之内：
+
+```yaml
+targets:
+  kev-small: { backend: kev-small, model: kev-latest, local: true }
+budget: { max_calls: 40, max_cost_usd: 1.0 }
+repeat: 2
+```
+
+```sh
+jevalan lab live tool.risk --config config.yaml --lab-dir lab --yes
+```
+
+| target | 通过 | 稳定 | abstain | error | 成本 | Brier |
+|---|---|---|---|---|---|---|
+| kev-small | 11/12 | 5/6 | 0% | 8% | $0 (local) | 0.062 |
+
+![`jevalan lab live` 的终端截图：本地目标的通过率、稳定性、错误率、成本与校准报告。](../../../assets/lab-live.png)
+
+同一命令的第二次运行得到 12 次中通过 11 次，并有一个不稳定的 fixture `cat-readme`：小模型并不总是给出相同的回答，`稳定` 列和报告的详情部分正是为此而设。
+
+这次运行有两点值得一提。标有 `modes: [offline]` 的 fixture（模拟弃权或故障的那些）在 `live` 中会被跳过。而 `replay` 若指向该能力并不使用的提供方（例如能力由流程提供时的 `toolgate`），则会被拒绝：想在线运行的 fixture 请去掉 `replay`，让后端来回答。

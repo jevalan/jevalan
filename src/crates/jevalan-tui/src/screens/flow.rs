@@ -1,4 +1,4 @@
-//! Pantalla de flujo: el grafo de un flujo con sus ramas transitadas.
+//! Flow screen: a flow's graph with its travelled branches.
 
 use crate::screen::{Ctx, KeyHint, Msg, Nav, Screen};
 use crate::screens::dashboard::footer;
@@ -111,7 +111,7 @@ mod tests {
                 ctx.activity.on_event(&flows, &node_end(node, answer.clone(), conf, port), t0);
             }
         }
-        // El último paquete va a medio camino de la arista kind -> risk.
+        // The last packet is halfway along the kind -> risk edge.
         ctx.activity.on_event(&flows, &node_end("kind", json!("shell"), 0.88, "shell"), t0);
         ctx.now = t0 + Duration::from_millis(300);
         insta::assert_snapshot!(render(&mut FlowScreen::new("agent-guard".into()), &ctx, 100, 24));
@@ -133,7 +133,7 @@ mod tests {
         ctx.flows.insert(batch.name.clone(), std::sync::Arc::new(batch));
         let out = render(&mut FlowScreen::new("tool-risk".into()), &ctx, 100, 24);
         assert!(out.contains("batch · risks"), "falta el nodo batch en\n{out}");
-        // Los destinos de `route` no son aristas de `out`: el dibujo solo cablea lo que el YAML cablea.
+        // `route` destinations are not `out` edges: the drawing only wires what the YAML wires.
         assert!(out.contains("abstain"), "falta la salida del puerto de error en\n{out}");
         assert!(out.contains("⠤error"), "falta la arista del puerto de error en\n{out}");
     }

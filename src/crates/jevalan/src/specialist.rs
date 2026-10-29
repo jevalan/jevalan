@@ -1,11 +1,11 @@
-//! Especialista de pega `tool.risk`, con la forma de Toolgate: reglas tontas sobre `tool_input`.
+//! Stand-in `tool.risk` specialist, shaped like Toolgate: silly rules over `tool_input`.
 
 use serde_json::{Value, json};
 use std::io::Read;
 use std::path::Path;
 use std::process::ExitCode;
 
-/// FNV-1a: determinista entre ejecuciones, que es lo que importa aquí.
+/// FNV-1a: deterministic across runs, which is what matters here.
 fn hash(text: &str) -> u64 {
     text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
 }

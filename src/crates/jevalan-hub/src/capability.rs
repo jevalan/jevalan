@@ -39,9 +39,9 @@ pub enum Platform {
     Windows,
 }
 
-/// Necesidades declaradas, nunca bindings: el comando y las variables efectivas
-/// viven en `provider`, que no se publica. Declarar `platform: unix` en Windows
-/// no invalida nada; negarse a usarla es decision del consumidor.
+/// Declared needs, never bindings: the effective command and variables
+/// live in `provider`, which is not published. Declaring `platform: unix` on Windows
+/// invalidates nothing; refusing to use it is the consumer's decision.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RequiresDef {
@@ -110,7 +110,7 @@ impl Provider {
     }
 }
 
-/// Capacidad validada. Los validadores JSON Schema se comparten entre clones.
+/// Validated capability. The JSON Schema validators are shared between clones.
 #[derive(Clone)]
 pub struct Capability {
     pub name: String,
@@ -146,7 +146,7 @@ impl Capability {
         first_error(&self.decision, v)
     }
 
-    /// Lo que `/v1/hub/capabilities` publica: nunca comando, entorno ni URL.
+    /// What `/v1/hub/capabilities` publishes: never the command, environment or URL.
     pub fn summary(&self) -> Value {
         json!({
             "version": self.version,
@@ -201,7 +201,7 @@ pub fn valid_capability_name(s: &str) -> bool {
             .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
 }
 
-/// Sin variables: un `${NAME}` en `exec.command` queda tal cual.
+/// Without variables: a `${NAME}` in `exec.command` stays as it is.
 pub fn parse_capability(
     name: &str,
     yaml: &str,
@@ -211,9 +211,9 @@ pub fn parse_capability(
     parse_capability_with(name, yaml, base_dir, flow_exists, &|_| None, false)
 }
 
-/// Como `parse_capability`, pero resuelve `${NAME}` en `exec.command` con `vars` al cargar (jamás con datos de
-/// una petición). Con `strict`, una variable sin definir o vacía invalida la capacidad; sin él, se deja el
-/// literal y la capacidad sigue siendo válida (aunque inservible, pues su anfitrión no ejecuta `exec`).
+/// Like `parse_capability`, but resolves `${NAME}` in `exec.command` with `vars` at load time (never with data from
+/// a request). With `strict`, an undefined or empty variable invalidates the capability; without it, the
+/// literal is left and the capability is still valid (though useless, since its host does not run `exec`).
 pub fn parse_capability_with(
     name: &str,
     yaml: &str,
@@ -284,7 +284,7 @@ pub fn parse_capability_with(
     })
 }
 
-/// Sustituye cada `${NAME}` (`[A-Z_][A-Z0-9_]*`) de `arg`; ver `parse_capability_with`.
+/// Substitutes each `${NAME}` (`[A-Z_][A-Z0-9_]*`) in `arg`; see `parse_capability_with`.
 fn expand(arg: &str, vars: &dyn Fn(&str) -> Option<String>, strict: bool) -> Result<String, CapError> {
     let bad = |m: String| CapError::BadProvider(m);
     let (mut out, mut rest) = (String::new(), arg);
@@ -310,13 +310,13 @@ fn expand(arg: &str, vars: &dyn Fn(&str) -> Option<String>, strict: bool) -> Res
     Ok(out)
 }
 
-/// Un `.cmd` / `.bat` haría pasar el lanzamiento por `cmd.exe`, es decir, por un intérprete de órdenes.
+/// A `.cmd` / `.bat` would route the launch through `cmd.exe`, that is, through a command interpreter.
 pub fn is_batch(program: &str) -> bool {
     let lower = program.to_ascii_lowercase();
     lower.ends_with(".cmd") || lower.ends_with(".bat")
 }
 
-/// `{ $file: "ruta" }` → el JSON de ese fichero, relativo a `base_dir` y sin salir de él.
+/// `{ $file: "path" }` → the JSON of that file, relative to `base_dir` and never leaving it.
 fn resolve_file(v: Value, base_dir: &Path) -> Result<Value, CapError> {
     let Some(rel) = v.as_object().filter(|o| o.len() == 1).and_then(|o| o.get("$file")).and_then(Value::as_str) else {
         return Ok(v);

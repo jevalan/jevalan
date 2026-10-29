@@ -1,4 +1,4 @@
-//! Núcleo de `POST /v1/hub` sin HTTP: lo comparten la ruta y el laboratorio.
+//! Core of `POST /v1/hub` without HTTP: shared by the route and the laboratory.
 
 use crate::AppState;
 use crate::bus::{Tracer, new_trace_id};
@@ -18,22 +18,22 @@ pub struct Measure {
     pub elapsed_ms: u64,
     pub input_tokens: Option<u64>,
     pub output_tokens: Option<u64>,
-    /// Probabilidad que el modelo dio a la respuesta que dio en el último nodo Jev: `max(p, 1 − p)` en noul,
-    /// `probabilities[choice]` en choice (o la `confidence` si no las envió) y la `confidence` en score.
+    /// Probability the model gave to the answer it gave in the last Jev node: `max(p, 1 − p)` for noul,
+    /// `probabilities[choice]` for choice (or the `confidence` if it sent none) and the `confidence` for score.
     pub confidence: Option<f64>,
-    /// Llamadas a backends y, de ellas, las que no trajeron `usage` completo.
+    /// Calls to backends and, of those, the ones that did not bring complete `usage`.
     pub backend_calls: u32,
     pub unmetered_calls: u32,
     /// Llamadas a proveedores `exec`/`http`.
     pub specialist_calls: u32,
-    /// Suma de `usage.cost` (USD) si todas las llamadas lo declararon.
+    /// Sum of `usage.cost` (USD) if all the calls declared it.
     pub reported_cost_usd: Option<f64>,
 }
 
 pub struct Executed {
     pub response: Value,
     pub measure: Measure,
-    /// Clave de la primera grabación que faltó en `Replay`.
+    /// Key of the first recording missing in `Replay`.
     pub missing: Option<String>,
 }
 
@@ -47,7 +47,7 @@ pub async fn execute(
     execute_as(state, req, cap, flow_override, transport, "lab").await
 }
 
-/// Como `execute`, con el cliente que firma el evento `HUB_REQUEST`.
+/// Like `execute`, with the client that signs the `HUB_REQUEST` event.
 pub async fn execute_as(
     state: &AppState,
     req: &HubRequest,
@@ -59,7 +59,7 @@ pub async fn execute_as(
     let started = Instant::now();
     let provider_id = cap.map_or("-", |c| c.provider_id.as_str()).to_string();
     let tracer = state.bus.tracer(new_trace_id());
-    // Al bus solo llegan nombres con forma de capacidad: nada de cadenas arbitrarias del cliente.
+    // Only capability-shaped names reach the bus: no arbitrary client strings.
     let label = if req.capability.len() <= 128 && valid_capability_name(&req.capability) {
         req.capability.as_str()
     } else {
@@ -81,7 +81,7 @@ pub async fn execute_as(
         }
     };
 
-    // Una grabación ausente corta la ejecución aunque el flujo la hubiera absorbido por su puerto de error.
+    // A missing recording cuts the run even if the flow would have absorbed it through its error port.
     let status = match io.missing() {
         Some(key) if !matches!(status, Status::Error { .. }) => {
             Status::error(ErrorCode::ProviderFailed, format!("missing_recording:{key}"))
@@ -122,7 +122,7 @@ pub async fn execute_as(
     Executed { response, measure, missing: io.missing() }
 }
 
-/// Versión, entrada, plazo, proveedor y decisión, por ese orden.
+/// Version, input, deadline, provider and decision, in that order.
 async fn resolve(
     state: &AppState,
     req: &HubRequest,

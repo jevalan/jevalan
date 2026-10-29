@@ -1,4 +1,4 @@
-//! Laboratorio Jev: carga `config/lab/`, ejecuta los fixtures y escribe `.local/runs/`.
+//! Jev laboratory: loads `config/lab/`, runs the fixtures and writes `.local/runs/`.
 
 mod budget;
 pub mod import;
@@ -28,11 +28,11 @@ pub(crate) struct Case {
 pub struct Lab {
     pub(crate) state: AppState,
     pub(crate) root: PathBuf,
-    /// Por defecto, `.local/runs/` desde el directorio del proyecto.
+    /// By default, `.local/runs/` from the project directory.
     pub runs_dir: PathBuf,
     pub(crate) yaml: String,
     pub(crate) config: LabConfig,
-    /// Targets en el orden de `lab.yaml`.
+    /// Targets in the order of `lab.yaml`.
     pub(crate) order: Vec<String>,
     pub(crate) cases: Vec<Case>,
 }
@@ -44,7 +44,7 @@ pub struct FailedAssert {
     pub reason: Option<String>,
 }
 
-/// Una línea de `results.jsonl` (spec §5.1).
+/// A line of `results.jsonl` (spec §5.1).
 #[derive(Debug, Clone, Serialize)]
 pub struct ResultLine {
     pub fixture: String,
@@ -56,7 +56,7 @@ pub struct ResultLine {
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
-    /// Texto del error cuando la ejecución termina en `error` (p. ej. «node not found»).
+    /// Error text when the run ends in `error` (e.g. "node not found").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
     pub passed: bool,
@@ -64,7 +64,7 @@ pub struct ResultLine {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skipped: Option<String>,
     pub elapsed_ms: u64,
-    /// ¿Hizo alguna llamada a un backend o especialista? No se vuelca a `results.jsonl`.
+    /// Did it make any call to a backend or specialist? It is not dumped to `results.jsonl`.
     #[serde(skip)]
     pub called: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,12 +83,12 @@ pub struct RunOutcome {
     pub report: String,
     pub run_dir: Option<PathBuf>,
     pub write_error: Option<String>,
-    /// El presupuesto cortó la ejecución a medias.
+    /// The budget cut the run short.
     pub stopped: bool,
 }
 
 impl ResultLine {
-    /// Línea vacía de un fixture para un target; la ejecución la va rellenando.
+    /// Empty line of a fixture for a target; the run fills it in.
     pub(crate) fn blank(case: &Case, target: &str, repeat: u32, source: &str) -> Self {
         Self {
             fixture: case.fixture.id.clone(),
@@ -118,9 +118,9 @@ impl Lab {
         self.cases.len()
     }
 
-    /// Preguntas Jev (no `rule`) del flujo de la capacidad, con su tipo. Un nodo suelto da una entrada con
-    /// su nombre; un nodo `batch`, una por pregunta, nombrada `"<nodo>.<pregunta>"`: esa es la clave con la
-    /// que el daemon pide y graba cada respuesta (D3).
+    /// Jev questions (non-`rule`) of the capability's flow, with their type. A standalone node gives one entry with
+    /// its name; a `batch` node, one per question, named `"<node>.<question>"`: that is the key with
+    /// which the daemon asks for and records each answer (D3).
     pub(crate) fn jev_questions(&self, cap: &Capability) -> Vec<(String, NodeType)> {
         let Provider::Flow { flow } = &cap.provider else { return Vec::new() };
         let Some(flow) = self.state.flows.get(flow) else { return Vec::new() };
@@ -136,7 +136,7 @@ impl Lab {
             .collect()
     }
 
-    /// El flujo de la capacidad con `backend`/`model` del target; el registro no se toca.
+    /// The capability's flow with the target's `backend`/`model`; the registry is not touched.
     pub(crate) fn target_flow(&self, cap: &Capability, target: &Target) -> Option<Arc<Flow>> {
         let Provider::Flow { flow } = &cap.provider else { return None };
         let mut flow = (*self.state.flows.get(flow)?).clone();
@@ -147,22 +147,22 @@ impl Lab {
         Some(Arc::new(flow))
     }
 
-    /// ¿Puede ejecutarse el target? Los que no figuran en `lab.yaml` (fixtures de otros proveedores) cuentan que sí.
+    /// Can the target run? Those not in `lab.yaml` (fixtures of other providers) count as yes.
     pub(crate) fn has_backend(&self, target: &str) -> bool {
         self.config.targets.get(target).is_none_or(|t| self.state.cfg.backends.contains_key(&t.backend))
     }
 
-    /// Targets que se saltan porque su backend no está en la configuración del daemon: aviso, no error.
+    /// Targets that are skipped because their backend is not in the daemon's configuration: a warning, not an error.
     pub fn notes(&self) -> Vec<String> {
         let skipped = self.order.iter().filter(|n| !self.has_backend(n));
         skipped.map(|n| format!("target {n}: backend no configurado en esta config")).collect()
     }
 
-    /// Validaciones de spec §3 sin red; vacío si todo está en orden.
+    /// Spec §3 validations without network; empty if everything is in order.
     pub fn check(&self) -> Vec<String> {
         let mut problems = Vec::new();
         for Case { cap, fixture } in &self.cases {
-            // Un nodo `batch` responde por preguntas: las claves del replay son `"<nodo>.<pregunta>"` (D3).
+            // A `batch` node answers per question: the replay keys are `"<node>.<question>"` (D3).
             let questions = self.jev_questions(cap);
             let is_flow = matches!(cap.provider, Provider::Flow { .. });
             let key_ok = |k: &str| {

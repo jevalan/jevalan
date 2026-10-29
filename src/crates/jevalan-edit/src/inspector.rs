@@ -1,31 +1,31 @@
-//! Inspector: las filas editables del nodo seleccionado y el campo que se está escribiendo.
+//! Inspector: the editable rows of the selected node and the field being typed.
 
 use jevalan_flow::{Criteria, NodeDef, NodeType};
 
-/// Campo editable de un nodo, tal como lo recorre el inspector.
+/// Editable field of a node, as the inspector walks it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Campo {
     Instructions,
-    /// La expresión CEL de un `rule`.
+    /// A `rule`'s CEL expression.
     When,
-    /// El umbral de un `noul`.
+    /// A `noul`'s threshold.
     Threshold,
     MinConfidence,
     Backend,
     Model,
-    /// La `when` de la regla `route` número `indice`.
+    /// The `when` of `route` rule number `indice`.
     RouteWhen(usize),
-    /// El destino de la regla `route` número `indice`.
+    /// The destination of `route` rule number `indice`.
     RouteTo(usize),
-    /// El destino del `else` de un `batch`.
+    /// The destination of a `batch`'s `else`.
     Else,
-    /// La descripción de la opción `clave` de un `choice` (o de un criterio de un `noul`).
+    /// The description of option `clave` of a `choice` (or of a criterion of a `noul`).
     Opcion(String),
-    /// El nombre del nivel `indice` de un `score`.
+    /// The name of level `indice` of a `score`.
     Nivel(usize),
 }
 
-/// Una fila del inspector: su campo, su etiqueta y el valor que hoy tiene.
+/// An inspector row: its field, its label and the value it has today.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Fila {
     pub campo: Campo,
@@ -33,7 +33,7 @@ pub struct Fila {
     pub valor: String,
 }
 
-/// Las filas que el inspector ofrece para `def`, en el orden en que se recorren.
+/// The rows the inspector offers for `def`, in the order they are walked.
 pub fn filas(def: &NodeDef) -> Vec<Fila> {
     let fila = |campo, etiqueta: String, valor: String| Fila { campo, etiqueta, valor };
     let mut filas = vec![fila(Campo::Instructions, "instructions".into(), def.instructions.clone())];
@@ -59,7 +59,7 @@ pub fn filas(def: &NodeDef) -> Vec<Fila> {
             filas.push(fila(Campo::Else, "else".into(), def.else_branch.clone().unwrap_or_default()));
         }
     }
-    // Un `rule` no lleva backend, modelo ni umbral de confianza: los pone el motor.
+    // A `rule` carries no backend, model or confidence threshold: the engine sets them.
     if !matches!(def.ty, NodeType::Rule) {
         filas.push(fila(Campo::MinConfidence, "min_confidence".into(), numero(def.min_confidence)));
         filas.push(fila(Campo::Backend, "backend".into(), def.backend.clone().unwrap_or_default()));
@@ -68,7 +68,7 @@ pub fn filas(def: &NodeDef) -> Vec<Fila> {
     filas
 }
 
-/// Las filas de los criterios de un `choice` o de un `noul`.
+/// The rows for the criteria of a `choice` or a `noul`.
 fn criterios(criteria: &Option<Criteria>) -> Vec<Fila> {
     match criteria {
         Some(Criteria::Options(m)) => m
@@ -83,17 +83,17 @@ fn criterios(criteria: &Option<Criteria>) -> Vec<Fila> {
     }
 }
 
-/// Un número como texto; vacío si no lo hay.
+/// A number as text; empty if there is none.
 fn numero(valor: Option<f64>) -> String {
     valor.map_or(String::new(), |v| v.to_string())
 }
 
-/// El cursor del inspector y el texto que se está escribiendo.
+/// The inspector's cursor and the text being typed.
 #[derive(Debug, Default)]
 pub struct Inspector {
     /// Fila seleccionada.
     pub cursor: usize,
-    /// Texto en curso del campo que se edita; `None` si no se está editando.
+    /// Text in progress of the field being edited; `None` if nothing is being edited.
     pub edicion: Option<String>,
 }
 
@@ -102,7 +102,7 @@ impl Inspector {
         Self::default()
     }
 
-    /// Mantiene el cursor dentro de las filas que hay.
+    /// Keeps the cursor within the rows that exist.
     pub fn ajustar(&mut self, filas: usize) {
         self.cursor = self.cursor.min(filas.saturating_sub(1));
     }
@@ -117,7 +117,7 @@ impl Inspector {
         self.cursor = self.cursor.saturating_sub(1);
     }
 
-    /// Empieza a editar el valor que se le da, que es el de la fila seleccionada.
+    /// Starts editing the value it is given, which is that of the selected row.
     pub fn empezar(&mut self, valor: &str) {
         self.edicion = Some(valor.to_string());
     }
@@ -126,27 +126,27 @@ impl Inspector {
         self.edicion = None;
     }
 
-    /// Escribe un carácter al final del texto en curso; sin edición, no hace nada.
+    /// Writes a character at the end of the text in progress; without an edit, it does nothing.
     pub fn escribir(&mut self, c: char) {
         if let Some(texto) = &mut self.edicion {
             texto.push(c);
         }
     }
 
-    /// Borra el último carácter del texto en curso.
+    /// Deletes the last character of the text in progress.
     pub fn borrar(&mut self) {
         if let Some(texto) = &mut self.edicion {
             texto.pop();
         }
     }
 
-    /// El texto en curso, si se está editando.
+    /// The text in progress, if editing.
     pub fn texto(&self) -> Option<&str> {
         self.edicion.as_deref()
     }
 }
 
-// crates/jevalan-edit/src/inspector.rs — al final del fichero
+// crates/jevalan-edit/src/inspector.rs — at the end of the file
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,7 +162,7 @@ mod tests {
         let filas = filas(&defs().nodes["rm_root"]);
         assert_eq!(filas[0].campo, Campo::Instructions);
         assert_eq!(filas[1].campo, Campo::When);
-        // Un `rule` no tiene backend ni modelo propios: los pone el motor.
+        // A `rule` has no backend or model of its own: the engine sets them.
         assert!(!filas.iter().any(|f| f.campo == Campo::Backend), "{filas:?}");
         assert_eq!(filas.len(), 2);
     }
@@ -192,7 +192,7 @@ mod tests {
     fn las_filas_de_un_noul_llevan_su_umbral_y_sus_criterios() {
         let filas = filas(&defs().nodes["risks"].questions["privilege"]);
         let etiquetas: Vec<&str> = filas.iter().map(|f| f.etiqueta.as_str()).collect();
-        // Los criterios `true`/`false` son un `BTreeMap`: `false` va antes que `true`.
+        // The `true`/`false` criteria are a `BTreeMap`: `false` comes before `true`.
         assert_eq!(
             etiquetas,
             ["instructions", "threshold", "criterio false", "criterio true", "min_confidence", "backend", "model"]

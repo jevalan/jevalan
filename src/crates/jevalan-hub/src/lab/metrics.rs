@@ -8,7 +8,7 @@ pub enum Cost {
     Local,
 }
 
-/// Una ejecución de un fixture para un target.
+/// One run of a fixture for a target.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sample {
     pub fixture: String,
@@ -16,9 +16,9 @@ pub struct Sample {
     pub passed: bool,
     pub status: String,
     pub elapsed_ms: u64,
-    /// ¿Llamó a algún backend o especialista? Las que no, solo aplican reglas y no cuentan en la latencia.
+    /// Did it call any backend or specialist? Those that did not only apply rules and do not count towards latency.
     pub called: bool,
-    /// Confianza del último nodo Jev, si la hubo.
+    /// Confidence of the last Jev node, if there was one.
     pub confidence: Option<f64>,
     pub cost: Cost,
 }
@@ -44,8 +44,8 @@ pub struct Summary {
     pub brier: Option<f64>,
 }
 
-/// Coste en USD de una ejecución con `calls` llamadas a backends, `unmetered` de ellas sin `usage`.
-/// Sin llamadas no hay gasto (0 exacto); con alguna sin tokens o sin precio es `Unknown`, nunca una estimación.
+/// Cost in USD of a run with `calls` backend calls, `unmetered` of them without `usage`.
+/// Without calls there is no spend (exactly 0); with any lacking tokens or price it is `Unknown`, never an estimate.
 pub fn cost_of(
     calls: u32,
     unmetered: u32,
@@ -68,7 +68,7 @@ pub fn cost_of(
     }
 }
 
-/// Percentil por el método del rango más cercano sobre valores ordenados.
+/// Percentile by the nearest-rank method over sorted values.
 pub fn percentile(sorted: &[u64], p: f64) -> Option<u64> {
     if sorted.is_empty() {
         return None;
@@ -81,7 +81,7 @@ fn live(samples: &[Sample]) -> impl Iterator<Item = &Sample> {
     samples.iter().filter(|s| !s.skipped)
 }
 
-/// Una confianza NaN no es una confianza.
+/// A NaN confidence is not a confidence.
 fn confidence(s: &Sample) -> Option<f64> {
     s.confidence.filter(|c| !c.is_nan())
 }
@@ -92,7 +92,7 @@ pub fn brier(samples: &[Sample]) -> Option<f64> {
     (!scored.is_empty()).then(|| scored.iter().sum::<f64>() / scored.len() as f64)
 }
 
-/// Cinco tramos `[0,0.2) … [0.8,1]` con ejecuciones y aciertos.
+/// Five buckets `[0,0.2) … [0.8,1]` with runs and hits.
 pub fn reliability(samples: &[Sample]) -> [Bin; 5] {
     let mut bins = [Bin::default(); 5];
     for s in live(samples) {
@@ -105,7 +105,7 @@ pub fn reliability(samples: &[Sample]) -> [Bin; 5] {
     bins
 }
 
-/// (fixtures con el mismo resultado en todas sus repeticiones, fixtures).
+/// (fixtures with the same result across all their repetitions, fixtures).
 pub fn stability(samples: &[Sample]) -> (u32, u32) {
     let mut by: BTreeMap<&str, (bool, bool)> = BTreeMap::new();
     for s in live(samples) {
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn a_response_without_usage_makes_the_cost_unknown() {
         let p = Price { input_per_mtok: 1.0, output_per_mtok: 1.0 };
-        // Sumar solo las llamadas medidas daría un coste parcial: se declara desconocido.
+        // Summing only the metered calls would give a partial cost: it is declared unknown.
         assert_eq!(cost_of(2, 1, Some(10), Some(10), Some(&p), false), Cost::Unknown);
     }
 

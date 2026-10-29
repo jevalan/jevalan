@@ -1,4 +1,4 @@
-//! Ventanilla del hub de decisiones: registro de capacidades, proveedores y `POST /v1/hub`.
+//! Hub of decisions front desk: capability registry, providers and `POST /v1/hub`.
 
 mod exec;
 pub mod execute;
@@ -17,13 +17,13 @@ use std::sync::{Arc, PoisonError, RwLock};
 struct Inner {
     caps: BTreeMap<String, Arc<Capability>>,
     invalid: BTreeMap<String, String>,
-    /// Sube en cada carga válida y sobrevive al borrado.
+    /// Increases on every valid load and survives deletion.
     versions: BTreeMap<String, u64>,
-    /// YAML más esquemas resueltos con que se cargó cada capacidad vigente: una relectura idéntica es un no-op.
+    /// YAML plus resolved schemas with which each current capability was loaded: an identical re-read is a no-op.
     texts: BTreeMap<String, String>,
 }
 
-/// Registro de capacidades; la carga desde disco y la recarga viven en `registry.rs`.
+/// Capability registry; loading from disk and reloading live in `registry.rs`.
 #[derive(Default)]
 pub struct CapRegistry {
     inner: RwLock<Inner>,
@@ -48,12 +48,12 @@ impl CapRegistry {
         inner.invalid.insert(name.into(), reason);
     }
 
-    /// Se clona el `Arc`: una recarga a mitad de petición no altera esa petición.
+    /// The `Arc` is cloned: a reload halfway through a request does not alter that request.
     pub fn get(&self, name: &str) -> Option<Arc<Capability>> {
         self.inner.read().unwrap_or_else(PoisonError::into_inner).caps.get(name).cloned()
     }
 
-    /// Resumen público de cada capacidad (jamás comando, entorno ni URL) y motivo de cada inválida.
+    /// Public summary of each capability (never command, environment or URL) and the reason for each invalid one.
     pub fn list(&self) -> Value {
         let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
         let caps: BTreeMap<_, _> = inner.caps.iter().map(|(n, c)| (n, c.summary())).collect();

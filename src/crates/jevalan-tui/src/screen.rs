@@ -1,4 +1,4 @@
-//! Contrato de pantalla y contexto compartido.
+//! Screen contract and shared context.
 
 use crate::flow_activity::FlowActivity;
 use crate::fx::FxMode;
@@ -23,15 +23,15 @@ pub enum Msg {
     Status(SourceStatus),
 }
 
-/// Lo que una fuente de eventos entrega a la TUI.
+/// What an event source hands to the TUI.
 #[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::large_enum_variant)] // viaja por el canal tal cual, sin acumularse
+#[allow(clippy::large_enum_variant)] // travels through the channel as is, without accumulating
 pub enum Feed {
     Event(Event),
     Status(SourceStatus),
 }
 
-/// Estado de la conexión con una fuente en vivo.
+/// State of the connection to a live source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceStatus {
     Connecting,
@@ -50,31 +50,31 @@ pub struct KeyHint {
     pub desc: &'static str,
 }
 
-/// Interruptor de backends de la demo: recibe el nombre y devuelve si queda apagado; `None` si no lo conoce.
+/// Demo backend switch: receives the name and returns whether it ends up off; `None` if it does not know it.
 pub type BackendToggle = Box<dyn Fn(&str) -> Option<bool> + Send>;
 
-/// Estado compartido por todas las pantallas.
+/// State shared by all the screens.
 pub struct Ctx {
     pub store: Store,
     pub topo: Topology,
-    /// Flujos conocidos por `FLOW_LOADED`, por nombre.
+    /// Flows known through `FLOW_LOADED`, by name.
     pub flows: BTreeMap<String, Arc<Flow>>,
-    /// Recorridos de las aristas y paquetes en vuelo de cada flujo.
+    /// Edge traversals and in-flight packets of each flow.
     pub activity: FlowActivity,
     pub fx: FxMode,
     pub now: Instant,
     pub paused: bool,
     pub source: &'static str,
     pub source_closed: bool,
-    /// Estado de la conexión; `None` con la fuente ficticia.
+    /// Connection state; `None` with the fake source.
     pub source_status: Option<SourceStatus>,
-    /// Cues del último tick; caducan al terminar el tick.
+    /// Cues of the last tick; they expire when the tick ends.
     pub cues: Vec<Cue>,
-    /// Solo existe en la demo con daemon propio.
+    /// Only exists in the demo with its own daemon.
     pub toggle: Option<BackendToggle>,
-    /// Aviso efímero para la cabecera, con la hora en que nació.
+    /// Ephemeral notice for the header, with the time it was born.
     pub notice: Option<(String, Instant)>,
-    /// Ruta local de `shadow.jsonl`, si se conoce; la vista del hook la sigue.
+    /// Local path of `shadow.jsonl`, if known; the hook view follows it.
     pub shadow_log: Option<std::path::PathBuf>,
 }
 
@@ -104,7 +104,7 @@ pub trait Screen {
     fn draw(&mut self, ctx: &Ctx, f: &mut Frame, area: Rect);
     fn keys(&self) -> &'static [KeyHint];
 
-    /// `true` mientras la pantalla tenga una animación propia en curso (efectos).
+    /// `true` while the screen has an animation of its own in progress (effects).
     fn animating(&self) -> bool {
         false
     }

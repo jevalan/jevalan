@@ -29,6 +29,8 @@ La demo integra el daemon, backends falsos y tráfico simulado. No necesita conf
 ./target/release/jevalan tui --demo
 ```
 
+![Captura de la terminal con `jevalan tui --demo`: los clientes a la izquierda, el hub con sus capacidades arriba, los backends con su latencia abajo y el feed de decisiones en vivo.](../../assets/tui-topologia.png)
+
 ## Arrancar con tus backends
 
 Desde la carpeta extraída, copia la configuración de ejemplo y revisa sus endpoints:

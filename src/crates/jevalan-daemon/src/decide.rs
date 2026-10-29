@@ -1,4 +1,4 @@
-//! `POST /v1/decide/{flow}` y `GET /v1/flows`: conduce un flujo nodo a nodo contra sus backends.
+//! `POST /v1/decide/{flow}` and `GET /v1/flows`: drives a flow node by node against its backends.
 
 use crate::AppState;
 use crate::bus::{Tracer, new_trace_id};
@@ -21,7 +21,7 @@ pub async fn flows(State(state): State<AppState>) -> Json<Value> {
 }
 
 pub async fn decide(State(state): State<AppState>, Path(name): Path<String>, body: Bytes) -> Response {
-    // Se clona el `Arc`: una recarga a mitad de camino no altera esta ejecución.
+    // The `Arc` is cloned: a reload halfway through does not alter this run.
     let Some(flow) = state.flows.get(&name) else {
         return error_response(StatusCode::NOT_FOUND, &format!("flujo desconocido: {name}"));
     };
@@ -33,7 +33,7 @@ pub async fn decide(State(state): State<AppState>, Path(name): Path<String>, bod
         return error_response(StatusCode::BAD_REQUEST, "falta «state»");
     };
     let client = req["client"].as_str().unwrap_or("unknown").to_string();
-    // La traza es siempre propia; el identificador del cliente solo se devuelve, jamás entra en los eventos.
+    // The trace is always our own; the client's identifier is only returned, never enters the events.
     let client_trace_id = match req.get("client_trace_id") {
         None => None,
         Some(Value::String(t)) if t.chars().count() <= MAX_CLIENT_TRACE_ID => Some(t.clone()),

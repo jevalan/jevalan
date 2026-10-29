@@ -1,5 +1,5 @@
-//! Pantalla del hook: las decisiones de Claude Code, leídas en vivo de `shadow.jsonl`.
-//! Cabe señalar que jamás se muestra `tool_input`: las capturas de esta vista acaban en un blog público.
+//! Hook screen: Claude Code's decisions, read live from `shadow.jsonl`.
+//! Note that `tool_input` is never shown: screenshots of this view end up on a public blog.
 
 use crate::fx::FxState;
 use crate::hook_log::{HookLog, Kind, Summary, bar_geometry, level};
@@ -21,11 +21,11 @@ const KEYS: &[KeyHint] = &[
     KeyHint { key: "esc", desc: "volver" },
 ];
 
-/// Cada cuánto se sondea el fichero.
+/// How often the file is probed.
 const POLL_EVERY: Duration = Duration::from_millis(500);
-/// Anchura mínima para repartir lista y detalle en horizontal.
+/// Minimum width to split list and detail horizontally.
 const WIDE: u16 = 110;
-/// Anchura de una fila de la lista, sin el marcador de selección.
+/// Width of a list row, without the selection marker.
 const ROW_WIDTH: u16 = 76;
 const LABEL_WIDTH: usize = 19;
 const VALUE_WIDTH: usize = 5;
@@ -33,10 +33,10 @@ const VALUE_WIDTH: usize = 5;
 pub struct HookScreen {
     log: Option<HookLog>,
     last_poll: Option<Instant>,
-    /// Posición en la lista; 0 es la decisión más reciente.
+    /// Position in the list; 0 is the most recent decision.
     selected: usize,
     fx: FxState,
-    /// Han llegado datos y falta pintarlos con su destello.
+    /// Data has arrived and still needs painting with its flash.
     fresh: bool,
 }
 
@@ -53,7 +53,7 @@ impl HookScreen {
         let Some(log) = &mut self.log else { return };
         let Some(fresh) = log.refresh() else { return };
         if self.selected > 0 {
-            // Quien lee una decisión antigua no quiere que se la muevan de debajo.
+            // Whoever is reading an old decision does not want it moved from under them.
             self.selected += fresh;
         }
         self.selected = self.selected.min(self.len().saturating_sub(1));
@@ -178,7 +178,7 @@ fn panel(title: &str) -> Block<'static> {
     Block::bordered().border_style(theme::dim()).title(Span::styled(format!(" {title} "), theme::title()))
 }
 
-/// Dos líneas: veredictos con su porcentaje y, debajo, latencias y sospechosos.
+/// Two lines: verdicts with their percentage and, below, latencies and suspicious ones.
 fn counter_lines(s: &Summary) -> Vec<Line<'static>> {
     let pct = |n: usize| jevalan_hub::shadow::pct(n, s.total);
     let mut top = vec![Span::styled(format!("total {}", s.total), theme::title())];
@@ -207,18 +207,18 @@ fn counter_lines(s: &Summary) -> Vec<Line<'static>> {
     vec![Line::from(top), Line::from(bottom)]
 }
 
-/// `HH:MM:SS` de la marca de tiempo RFC 3339 (UTC).
+/// `HH:MM:SS` of the RFC 3339 timestamp (UTC).
 fn clock(e: &Entry) -> &str {
     e.ts.get(11..19).unwrap_or("--:--:--")
 }
 
-/// Recorta a `n` caracteres con puntos suspensivos y rellena hasta `n`.
+/// Trims to `n` characters with an ellipsis and pads up to `n`.
 fn fit(s: &str, n: usize) -> String {
     let len = s.chars().count();
     if len <= n { format!("{s:<n$}") } else { s.chars().take(n.saturating_sub(1)).collect::<String>() + "…" }
 }
 
-/// Mayor riesgo con el color de su tramo.
+/// Highest risk with the colour of its band.
 fn risk_span(e: &Entry, width: usize) -> Span<'static> {
     match e.max_risk() {
         Some((name, p)) => Span::styled(
@@ -232,7 +232,7 @@ fn risk_span(e: &Entry, width: usize) -> Span<'static> {
 fn row(e: &Entry) -> Line<'static> {
     let kind = Kind::of(e);
     let category = if matches!(kind, Kind::Ask | Kind::Deny) {
-        // El riesgo dominante ya figura en su columna; aquí basta la clase.
+        // The dominant risk already appears in its column; the class is enough here.
         let full = category(e);
         Span::styled(fit(full.split(':').next().unwrap_or(&full), 17), theme::text())
     } else {
@@ -287,7 +287,7 @@ fn render_detail(e: &Entry, area: Rect, f: &mut Frame) {
     f.render_widget(Paragraph::new(text).style(theme::dim()).wrap(Wrap { trim: true }), reason);
 }
 
-/// Una barra horizontal con marcas en 0.55 y 0.85; `authorized` no es un riesgo y va aparte, sin marcas.
+/// A horizontal bar with marks at 0.55 and 0.85; `authorized` is not a risk and goes apart, without marks.
 fn bar_line(name: &str, p: Option<f64>, width: usize) -> Line<'static> {
     let authorized = name == "authorized";
     let label_style = if authorized { theme::accent().add_modifier(Modifier::ITALIC) } else { theme::text() };
@@ -376,7 +376,7 @@ mod tests {
                 assert!(out.contains(want), "falta {want:?} en\n{out}");
             }
         }
-        // La seleccionada por defecto es la más reciente: el error, con su texto.
+        // The one selected by default is the most recent: the error, with its text.
         assert!(render(&mut screen, &ctx, 120, 30).contains("daemon inalcanzable"));
         let _ = std::fs::remove_file(&path);
     }

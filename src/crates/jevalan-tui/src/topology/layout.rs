@@ -1,6 +1,6 @@
 use super::model::{NodeId, Topology};
 
-/// Caja de un nodo en celdas, relativa al área de la topología.
+/// A node's box in cells, relative to the topology area.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Placed {
     pub x: u16,
@@ -10,33 +10,33 @@ pub struct Placed {
 }
 
 const CLIENT_W: u16 = 14;
-/// Tope de la columna de clientes: más ancha deja al hub sin sitio.
+/// Cap on the clients column: wider leaves the hub with no room.
 const CLIENT_MAX_W: u16 = 24;
 const ENGINE_W: u16 = 20;
-/// Ancho natural máximo y mínimo de un puerto, margen interior del switch y aire mínimo tras los clientes.
+/// Natural maximum and minimum width of a port, the switch's inner margin and minimum air after the clients.
 const PORT_W: u16 = 15;
 const PORT_MIN_W: u16 = 8;
 const PAD: u16 = 2;
 const MIN_GAP: u16 = 6;
 const HUB_H: u16 = 5;
 const ENGINE_GAP: u16 = 2;
-/// Aire mínimo entre chips contiguos.
+/// Minimum air between adjacent chips.
 const CHIP_GAP: u16 = 4;
 const BOX_H: u16 = 3;
 
-/// Alto del hub dibujado como switch: marco, tres filas de puertos, marco y patas.
+/// Height of the hub drawn as a switch: frame, three rows of ports, frame and legs.
 pub const SWITCH_H: u16 = 6;
-/// Alto de un motor dibujado como chip DIP: patitas, cuerpo de tres filas, patitas.
+/// Height of an engine drawn as a DIP chip: pins, three-row body, pins.
 pub const CHIP_H: u16 = 5;
-/// Fila de la crónica de latencia, justo bajo el chip; solo se reserva si sobra alto.
+/// Row of the latency history, just under the chip; only reserved if height is to spare.
 pub const SPARK_H: u16 = 1;
-/// Columnas reservadas a la izquierda del switch para los LED de PWR/ACT.
+/// Columns reserved to the left of the switch for the PWR/ACT LEDs.
 pub const LED_PANEL_W: u16 = 8;
 
-/// Posiciones fijas: clientes en columna a la izquierda, hub con los hooks en fila,
-/// motores debajo del hub. La columna de clientes se ensancha con el nombre más largo y,
-/// si aun así no cabe, la caja gana una segunda línea. Pensado para áreas de al menos
-/// 60×10; más pequeñas no entran en pánico, pero pueden solapar.
+/// Fixed positions: clients in a column on the left, hub with the hooks in a row,
+/// engines below the hub. The clients column widens to the longest name and,
+/// if it still does not fit, the box gains a second line. Designed for areas of at least
+/// 60×10; smaller ones do not panic, but may overlap.
 pub fn layout(t: &Topology, width: u16, height: u16) -> Vec<(NodeId, Placed)> {
     let mut out = Vec::new();
 
@@ -48,7 +48,7 @@ pub fn layout(t: &Topology, width: u16, height: u16) -> Vec<(NodeId, Placed)> {
     let client_w = client_width(longest, width);
     let n = slots.len() as u16;
     if n > 0 {
-        // Si el nombre no cabe a lo ancho y sobra alto, se le reserva una segunda línea.
+        // If the name does not fit across and there is height to spare, a second line is reserved for it.
         let want_h = if longest + 2 <= client_w { BOX_H } else { BOX_H + 1 };
         let h = if n * want_h <= height {
             want_h
@@ -69,7 +69,7 @@ pub fn layout(t: &Topology, width: u16, height: u16) -> Vec<(NodeId, Placed)> {
     let k = hooks.len() as u16;
     let m = t.backends().count() as u16;
 
-    // El switch mide lo que sus puertos; nunca más de 4/5 del hueco.
+    // The switch measures what its ports do; never more than 4/5 of the gap.
     let region_x = client_w + MIN_GAP;
     let avail = width.saturating_sub(region_x);
     let led = if hardware_mode { LED_PANEL_W } else { 0 };
@@ -77,10 +77,10 @@ pub fn layout(t: &Topology, width: u16, height: u16) -> Vec<(NodeId, Placed)> {
     let hub_w = content.min(avail * 9 / 10);
     let hub_x = region_x + (avail - hub_w) / 2;
 
-    // ponytail: por debajo de 13 filas no caben switch y chips; se vuelve a las cajas planas.
+    // ponytail: below 13 rows switch and chips do not fit; falls back to plain boxes.
     let (hub_h, engine_h) = if hardware_mode { (SWITCH_H, CHIP_H) } else { (HUB_H, BOX_H) };
 
-    // Con altura de sobra, el hueco se reparte en tercios: margen, aire entre switch y chips, margen.
+    // With height to spare, the gap is split in thirds: margin, air between switch and chips, margin.
     let (hub_y, engine_gap) = if hardware_mode {
         let spark = u16::from(height > SWITCH_H + ENGINE_GAP + CHIP_H);
         let free = height - SWITCH_H - CHIP_H - spark * SPARK_H;
@@ -102,7 +102,7 @@ pub fn layout(t: &Topology, width: u16, height: u16) -> Vec<(NodeId, Placed)> {
         }
     }
 
-    // Los chips se reparten por toda la región; si no caben con aire, se apiñan centrados.
+    // Chips are spread across the whole region; if they do not fit with air, they are crowded together, centred.
     let engines: Vec<&str> = t.backends().map(|(name, _)| name).collect();
     let engine_y = hub_y + hub_h + engine_gap;
     let spread = m > 0 && avail / (m + 1) > ENGINE_W + CHIP_GAP;
@@ -128,15 +128,15 @@ pub fn layout(t: &Topology, width: u16, height: u16) -> Vec<(NodeId, Placed)> {
     out
 }
 
-/// Ancho de la columna de clientes: lo que pida el nombre más largo (más los dos bordes),
-/// nunca menos de `CLIENT_W` ni más de un tercio del área, que el hub necesita el resto.
+/// Width of the clients column: whatever the longest name asks for (plus the two borders),
+/// never less than `CLIENT_W` nor more than a third of the area, as the hub needs the rest.
 fn client_width(longest: u16, width: u16) -> u16 {
     let cap = (width / 3).clamp(CLIENT_W, CLIENT_MAX_W);
     (longest + 2).clamp(CLIENT_W, cap).min(width)
 }
 
-/// Anchos de los puertos: `PORT_W` cada uno; si no caben en `room`, se recortan de uno en uno los más anchos,
-/// primero los que les sobra sitio sobre su etiqueta y luego, ya sin remedio, cualquiera.
+/// Port widths: `PORT_W` each; if they do not fit in `room`, the widest are trimmed one at a time,
+/// first those with room to spare over their label and then, with no remedy left, any.
 fn fit_widths(names: &[String], room: u16) -> Vec<u16> {
     let need: Vec<u16> = names.iter().map(|n| (n.chars().count() as u16 + 2).max(PORT_MIN_W)).collect();
     let mut widths = vec![PORT_W; names.len()];
@@ -151,7 +151,7 @@ fn fit_widths(names: &[String], room: u16) -> Vec<u16> {
     widths
 }
 
-/// Fila de la sparkline bajo un chip, si el chip es de hardware y queda sitio en `height`.
+/// Sparkline row under a chip, if the chip is hardware and there is room in `height`.
 pub fn sparkline_row(chip: Placed, height: u16) -> Option<Placed> {
     let y = chip.y + chip.h;
     (chip.h == CHIP_H && y + SPARK_H <= height).then_some(Placed { x: chip.x, y, w: chip.w, h: SPARK_H })
@@ -204,7 +204,7 @@ mod tests {
         placed.iter().find(|(n, _)| n == id).map(|(_, p)| *p).expect("nodo colocado")
     }
 
-    /// Topología con un único cliente de nombre a medida: es el nombre el que manda en el ancho.
+    /// Topology with a single client with a custom name: it is the name that rules the width.
     fn topo_with_named_client(name: &str) -> Topology {
         let mut t = Topology::new();
         let e = Event {

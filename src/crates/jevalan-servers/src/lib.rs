@@ -1,5 +1,5 @@
-//! Servidores de modelos locales: qué existe, cómo se arranca y con qué config corre el daemon.
-//! Lógica pura y sin UI: la TUI y el subcomando `jevalan servers` la usan por igual.
+//! Local model servers: what exists, how it is started and with what config the daemon runs.
+//! Pure logic and no UI: the TUI and the `jevalan servers` subcommand use it equally.
 
 pub mod borrador;
 pub mod proceso;

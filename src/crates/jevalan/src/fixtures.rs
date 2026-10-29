@@ -1,5 +1,5 @@
-//! Subcomando `jevalan shadow fixtures`: convierte decisiones reales del registro en fixtures del
-//! laboratorio. Cabe señalar que la lectura del registro es la misma que la del informe.
+//! `jevalan shadow fixtures` subcommand: turns real decisions from the log into laboratory fixtures.
+//! Note that reading the log works exactly as it does for the report.
 
 use crate::shadow::{default_log, since_filter};
 use jevalan_hub::shadow::parse;

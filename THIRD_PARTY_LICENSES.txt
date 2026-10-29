@@ -6,7 +6,7 @@ enlazadas en los binarios de jevalan. Se genera con `cargo about generate about.
 
 Resumen de licencias
 --------------------
-- MIT License (MIT): 251 paquete(s)
+- MIT License (MIT): 246 paquete(s)
 - ISC License (ISC): 25 paquete(s)
 - Unicode License v3 (Unicode-3.0): 19 paquete(s)
 - Apache License 2.0 (Apache-2.0): 5 paquete(s)
@@ -904,7 +904,7 @@ Creative Commons Zero v1.0 Universal
 ================================================================================
 
 Usada por:
-- notify 8.2.0 (https://github.com/notify-rs/notify.git)
+- notify 8.2.1 (https://github.com/notify-rs/notify.git)
 
 Creative Commons CC0 1.0 Universal
 
@@ -2928,7 +2928,6 @@ MIT License
 ================================================================================
 
 Usada por:
-- tungstenite 0.27.0 (https://github.com/snapview/tungstenite-rs)
 - tungstenite 0.29.0 (https://github.com/snapview/tungstenite-rs)
 
 Copyright (c) 2017 Alexey Galakhov
@@ -4814,8 +4813,8 @@ MIT License
 ================================================================================
 
 Usada por:
-- jsonschema 0.58.6 (https://github.com/Stranger6667/jsonschema)
-- referencing 0.58.6 (https://github.com/Stranger6667/jsonschema)
+- jsonschema 0.60.2 (https://github.com/Stranger6667/jsonschema)
+- referencing 0.60.2 (https://github.com/Stranger6667/jsonschema)
 
 MIT License
 
@@ -5125,9 +5124,11 @@ Usada por:
 - cel 0.15.0 (https://github.com/cel-rust/cel-rust)
 - chrono-tz 0.10.4 (https://github.com/chronotope/chrono-tz)
 - chrono 0.4.45 (https://github.com/chronotope/chrono)
-- jsonschema-regex 0.58.6 (https://github.com/Stranger6667/jsonschema)
-- jsonschema-value 0.58.6 (https://github.com/Stranger6667/jsonschema)
+- jsonschema-regex 0.60.2 (https://github.com/Stranger6667/jsonschema)
+- jsonschema-value 0.60.2 (https://github.com/Stranger6667/jsonschema)
 - num-cmp 0.1.0 (https://github.com/lifthrasiir/num-cmp)
+- objc2-core-foundation 0.3.2 (https://github.com/madsmtm/objc2)
+- objc2-core-services 0.3.2 (https://github.com/madsmtm/objc2)
 - uuid-simd 0.8.0 (https://github.com/Nugine/simd)
 - vsimd 0.8.0 (https://github.com/Nugine/simd)
 - windows-core 0.62.2 (https://github.com/microsoft/windows-rs)
@@ -5136,11 +5137,7 @@ Usada por:
 - windows-link 0.2.1 (https://github.com/microsoft/windows-rs)
 - windows-result 0.4.1 (https://github.com/microsoft/windows-rs)
 - windows-strings 0.5.1 (https://github.com/microsoft/windows-rs)
-- windows-sys 0.60.2 (https://github.com/microsoft/windows-rs)
 - windows-sys 0.61.2 (https://github.com/microsoft/windows-rs)
-- windows-targets 0.53.5 (https://github.com/microsoft/windows-rs)
-- windows_x86_64_gnu 0.53.1 (https://github.com/microsoft/windows-rs)
-- windows_x86_64_msvc 0.53.1 (https://github.com/microsoft/windows-rs)
 
 MIT License
 
@@ -5306,7 +5303,7 @@ Usada por:
 - serde 1.0.229 (https://github.com/serde-rs/serde)
 - serde_core 1.0.229 (https://github.com/serde-rs/serde)
 - serde_derive 1.0.229 (https://github.com/serde-rs/serde)
-- serde_json 1.0.151 (https://github.com/serde-rs/json)
+- serde_json 1.0.154 (https://github.com/serde-rs/json)
 - serde_path_to_error 0.1.20 (https://github.com/dtolnay/path-to-error)
 - serde_yaml 0.9.34+deprecated (https://github.com/dtolnay/serde-yaml)
 - syn 2.0.119 (https://github.com/dtolnay/syn)
@@ -5315,7 +5312,6 @@ Usada por:
 - thiserror 2.0.21 (https://github.com/dtolnay/thiserror)
 - unicode-ident 1.0.26 (https://github.com/dtolnay/unicode-ident)
 - unsafe-libyaml 0.2.11 (https://github.com/dtolnay/unsafe-libyaml)
-- utf-8 0.7.6 (https://github.com/SimonSapin/rust-utf8)
 - zmij 1.0.23 (https://github.com/dtolnay/zmij)
 
 Permission is hereby granted, free of charge, to any
@@ -5614,37 +5610,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-
-================================================================================
-MIT License
-================================================================================
-
-Usada por:
-- fsevent-sys 4.1.0 (https://github.com/octplane/fsevent-rust/tree/master/fsevent-sys)
-
-The MIT License (MIT)
-
-Copyright (c) 2015 Pierre Baillet
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
 
 
 ================================================================================

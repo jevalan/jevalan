@@ -1,4 +1,4 @@
-//! Carga de capacidades desde disco: versiones, recarga en caliente y su rastro en el bus.
+//! Loading capabilities from disk: versions, hot reload and its trail on the bus.
 
 use super::CapRegistry;
 use crate::bus::Bus;
@@ -23,21 +23,21 @@ impl CapRegistry {
         }
     }
 
-    /// Un fichero ilegible cuenta como inválido; la versión vigente se respeta.
+    /// An unreadable file counts as invalid; the current version is respected.
     pub fn load_file(&self, path: &Path, dir: &Path, flows: &flows::Registry, hub: &Hub, bus: &Bus) {
         let Some(name) = cap_name(path) else { return };
         let read = std::fs::read_to_string(path).map_err(|e| format!("no se puede leer {}: {e}", path.display()));
         let parsed = read.and_then(|text| {
-            // Primero el entorno del proceso; si falta, el `.env`. Sin `allow_exec` una variable ausente no invalida.
+            // First the process environment; if missing, the `.env`. Without `allow_exec` an absent variable does not invalidate.
             let vars = |n: &str| std::env::var(n).ok().or_else(|| hub.dotenv.get(n).cloned());
             let cap = parse_capability_with(&name, &text, dir, &|f| flows.get(f).is_some(), &vars, hub.allow_exec)
                 .map_err(|e| e.to_string())?;
-            // Además del YAML cuentan los esquemas ya resueltos: un `$file` editado también es un cambio.
+            // Besides the YAML, the already-resolved schemas count: an edited `$file` is also a change.
             let key = format!("{text}\n@@\n{}\n@@\n{}", cap.input_schema, cap.decision_schema);
             Ok((cap, key))
         });
 
-        // Se publica con el cerrojo tomado: quien se suscribe antes de leer la instantánea no pierde nada.
+        // It is published with the lock held: whoever subscribes before reading the snapshot loses nothing.
         let mut inner = self.write();
         match parsed {
             Ok((cap, key)) => {
@@ -72,7 +72,7 @@ impl CapRegistry {
         }
     }
 
-    /// Cambió el conjunto de flujos: las capacidades `flow` huérfanas caen y las que recuperan su flujo vuelven.
+    /// The set of flows changed: orphaned `flow` capabilities drop out and those whose flow returns come back.
     pub fn revalidate(&self, dir: &Path, flows: &flows::Registry, hub: &Hub, bus: &Bus) {
         {
             let mut inner = self.write();
@@ -89,7 +89,7 @@ impl CapRegistry {
                 inner.texts.remove(&name);
                 let reason = CapError::BadProvider(format!("flujo desconocido: {flow}")).to_string();
                 inner.invalid.insert(name.clone(), reason.clone());
-                // Ya no se sirve: tras explicar el motivo, el puerto debe desaparecer del tablero.
+                // No longer served: after explaining the reason, the port must disappear from the board.
                 let removed = format!("capability:{name}:removed:{}", self.tick());
                 bus.publish(self.invalid_event(name.clone(), reason));
                 bus.publish(new_event(&removed, 1, SOURCE, EventKind::CapabilityRemoved { capability: name }));
@@ -98,13 +98,13 @@ impl CapRegistry {
         self.load_dir(dir, flows, hub, bus);
     }
 
-    /// Un `CAPABILITY_LOADED` por capacidad vigente, para quien acaba de conectarse.
+    /// One `CAPABILITY_LOADED` per current capability, for whoever has just connected.
     pub fn loaded_events(&self) -> Vec<Event> {
         let inner = self.read();
         inner.caps.iter().map(|(name, cap)| loaded_event(name, inner.versions[name], cap)).collect()
     }
 
-    /// El vigilante deja de actuar al soltarse el valor devuelto.
+    /// The watcher stops acting when the returned value is dropped.
     pub fn watch(
         self: Arc<Self>,
         dir: PathBuf,
@@ -119,7 +119,7 @@ impl CapRegistry {
                 return;
             }
             for path in &event.paths {
-                // Cualquier cambio bajo `schemas/` puede afectar a varias capacidades: se relee todo.
+                // Any change under `schemas/` may affect several capabilities: everything is re-read.
                 if path.parent().is_some_and(|p| p != base) {
                     self.load_dir(&base, &flows, &hub, &bus);
                     continue;
@@ -150,7 +150,7 @@ impl CapRegistry {
     }
 }
 
-/// Nombre de la capacidad si `path` es un `*.yaml` / `*.yml`.
+/// Capability name if `path` is a `*.yaml` / `*.yml`.
 fn cap_name(path: &Path) -> Option<String> {
     let ext = path.extension()?.to_str()?;
     if ext != "yaml" && ext != "yml" {
@@ -159,7 +159,7 @@ fn cap_name(path: &Path) -> Option<String> {
     path.file_stem()?.to_str().map(str::to_string)
 }
 
-/// Sin comando, entorno ni URL: solo el tipo y el identificador del proveedor.
+/// No command, environment or URL: only the provider's type and identifier.
 fn loaded_event(name: &str, version: u64, cap: &Capability) -> Event {
     let kind = EventKind::CapabilityLoaded {
         capability: name.into(),
@@ -177,7 +177,7 @@ fn loaded_event(name: &str, version: u64, cap: &Capability) -> Event {
     new_event(&format!("capability:{name}:{version}"), 1, SOURCE, kind)
 }
 
-/// Claves de primer nivel de `properties`, ordenadas; vacío si el esquema no las declara.
+/// Top-level keys of `properties`, sorted; empty if the schema declares none.
 fn fields(schema: &serde_json::Value) -> Vec<String> {
     let mut keys: Vec<String> = schema["properties"].as_object().map_or_else(Vec::new, |p| p.keys().cloned().collect());
     keys.sort();

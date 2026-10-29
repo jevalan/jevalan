@@ -1,4 +1,4 @@
-//! Custodia por token: todo salvo `/healthz` exige `Authorization: Bearer`; `/events` admite también `?token=`.
+//! Token custody: everything except `/healthz` requires `Authorization: Bearer`; `/events` also accepts `?token=`.
 
 use crate::AppState;
 use axum::extract::{Request, State};
@@ -26,7 +26,7 @@ fn query_token(query: Option<&str>) -> Option<&str> {
     query?.split('&').find_map(|kv| kv.strip_prefix("token="))
 }
 
-/// Comparación que no se detiene en la primera discrepancia.
+/// Comparison that does not stop at the first mismatch.
 fn same(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }

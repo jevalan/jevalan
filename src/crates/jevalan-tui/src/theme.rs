@@ -1,4 +1,4 @@
-//! Paleta y estilos: la única fuente de colores de la TUI.
+//! Palette and styles: the TUI's only source of colours.
 
 use crate::hook_log::{Kind, Level};
 use crate::topology::PacketStatus;
@@ -13,7 +13,7 @@ pub const ACCENT: Color = Color::Cyan;
 pub const TEXT: Color = Color::Gray;
 pub const BACKDROP: Color = Color::Black;
 
-/// Color de un outcome de flujo; los desconocidos toman el acento.
+/// Colour of a flow outcome; unknown ones take the accent.
 pub fn outcome(o: &str) -> Style {
     match o {
         "allow" | "ok" => Style::new().fg(ALLOW),
@@ -25,7 +25,7 @@ pub fn outcome(o: &str) -> Style {
     }
 }
 
-/// Color del `status` de una respuesta del hub: `ok`, `abstain` o `error`.
+/// Colour of the `status` of a hub response: `ok`, `abstain` or `error`.
 pub fn hub_status(s: &str) -> Style {
     match s {
         "ok" => Style::new().fg(ALLOW),
@@ -35,7 +35,7 @@ pub fn hub_status(s: &str) -> Style {
     }
 }
 
-/// Etiqueta de un especialista `exec`/`http`, para distinguirlo de los backends de System One.
+/// Label of an `exec`/`http` specialist, to tell it apart from System One backends.
 pub fn provider() -> Style {
     accent()
 }
@@ -49,7 +49,7 @@ pub fn packet(s: &PacketStatus) -> Style {
     }
 }
 
-/// Color de relleno de la etiqueta de un veredicto del hook.
+/// Fill colour of a hook verdict's label.
 pub fn verdict_color(kind: Kind) -> Color {
     match kind {
         Kind::Allow => ALLOW,
@@ -61,13 +61,13 @@ pub fn verdict_color(kind: Kind) -> Color {
     }
 }
 
-/// Etiqueta con fondo de color, como un chip del rack.
+/// Label with a coloured background, like a rack chip.
 pub fn chip(kind: Kind) -> Style {
     let fg = if kind == Kind::Abstain { TEXT } else { BACKDROP };
     Style::new().fg(fg).bg(verdict_color(kind)).add_modifier(Modifier::BOLD)
 }
 
-/// Color de una barra de probabilidad según su tramo.
+/// Colour of a probability bar according to its band.
 pub fn level_color(level: Level) -> Color {
     match level {
         Level::Low => ALLOW,
@@ -92,7 +92,7 @@ pub fn accent() -> Style {
     Style::new().fg(ACCENT)
 }
 
-/// Crónica de latencia bajo cada backend.
+/// Latency history under each backend.
 pub fn spark() -> Style {
     accent()
 }

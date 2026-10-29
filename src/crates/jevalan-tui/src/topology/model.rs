@@ -16,9 +16,9 @@ pub enum NodeId {
     Backend(String),
 }
 
-/// Puerto fijo del tráfico que no pasa por ningún flujo.
+/// Fixed port for traffic that goes through no flow.
 pub const PASSTHROUGH: &str = "passthrough";
-/// Fallos consecutivos de un backend para darlo por caído.
+/// Consecutive failures of a backend to consider it down.
 pub const DOWN_AFTER: u32 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,25 +26,25 @@ pub enum PacketStatus {
     Ok,
     Failed,
     Outcome(String),
-    /// Resultado del hub: `ok`, `abstain` o `error`.
+    /// Hub result: `ok`, `abstain` or `error`.
     Hub(String),
 }
 
-/// Lo que se sabe de una capacidad por su `CAPABILITY_LOADED`.
+/// What is known about a capability from its `CAPABILITY_LOADED`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityInfo {
     pub version: String,
     pub provider: String,
     /// `flow`, `exec` o `http`.
     pub kind: String,
-    /// Flujo que la sirve: lo anuncia el evento de carga; si faltara, se aprende del tráfico.
+    /// Flow that serves it: the load event announces it; if missing, it is learned from traffic.
     pub flow: Option<String>,
     pub description: String,
     pub input_fields: Vec<String>,
     pub decision_fields: Vec<String>,
 }
 
-/// Camino de una traza abierta: quién preguntó, por qué puerto entró y si es del hub.
+/// Path of an open trace: who asked, through which port it entered and whether it belongs to the hub.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Route {
     pub client: String,
@@ -73,7 +73,7 @@ pub enum BackendState {
     Down,
 }
 
-/// Algo digno de mención para la capa de efectos.
+/// Something worth mentioning for the effects layer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cue {
     ClientJoined(String),
@@ -83,7 +83,7 @@ pub enum Cue {
     Error(String),
 }
 
-/// Progreso de un paquete en [0, 1]; se calcula, no se almacena.
+/// Progress of a packet in [0, 1]; it is computed, not stored.
 pub fn progress(p: &Packet, now: Instant) -> f64 {
     (now.saturating_duration_since(p.started).as_secs_f64() / PACKET_TTL.as_secs_f64()).clamp(0.0, 1.0)
 }
@@ -91,27 +91,27 @@ pub fn progress(p: &Packet, now: Instant) -> f64 {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Topology {
     pub(super) ports: Vec<String>,
-    /// Cliente → última actividad.
+    /// Client → last activity.
     pub(super) clients: BTreeMap<String, Instant>,
     pub(super) visible: Vec<String>,
     pub(super) backends: BTreeMap<String, BackendState>,
     /// Fallos consecutivos por backend.
     pub(super) failures: HashMap<String, u32>,
-    /// Pares (puerto, backend) vistos en algún BACKEND_REQUEST.
+    /// (port, backend) pairs seen in some BACKEND_REQUEST.
     pub(super) port_backend_edges: BTreeSet<(String, String)>,
-    /// trace_id → camino, para devolver la decisión a quien preguntó. Acotado por `MAX_OPEN_TRACES`.
+    /// trace_id → path, to return the decision to whoever asked. Bounded by `MAX_OPEN_TRACES`.
     pub(super) trace_routes: HashMap<String, Route>,
-    /// Orden de llegada de las trazas; puede contener ids ya cerrados.
+    /// Order of arrival of the traces; may contain already-closed ids.
     pub(super) route_order: VecDeque<String>,
     pub(super) packets: Vec<Packet>,
-    /// Color del último resultado de cada puerto; el LED lo conserva hasta el siguiente.
+    /// Colour of each port's last result; the LED keeps it until the next one.
     pub(super) last_status: BTreeMap<String, PacketStatus>,
-    /// Flujos cargados; los que sirven a una capacidad no tienen puerto propio.
+    /// Loaded flows; those that serve a capability have no port of their own.
     pub(super) loaded_flows: BTreeSet<String>,
     pub(super) capabilities: BTreeMap<String, CapabilityInfo>,
-    /// Capacidades conocidas cuya última edición no valió: se siguen sirviendo, pero se pintan apagadas.
+    /// Known capabilities whose last edit was not valid: they are still served, but painted dimmed.
     pub(super) invalid_caps: BTreeSet<String>,
-    /// Capacidad → flujo que la sirve; sobrevive a recargas y reconexiones.
+    /// Capability → flow that serves it; survives reloads and reconnections.
     pub(super) served: BTreeMap<String, String>,
 }
 
@@ -141,17 +141,17 @@ impl Topology {
         }
     }
 
-    /// Puertos: capacidades, flujos que no sirven a ninguna (ambos por orden alfabético) y `passthrough` al final.
+    /// Ports: capabilities, flows that serve none (both in alphabetical order) and `passthrough` at the end.
     pub fn ports(&self) -> &[String] {
         &self.ports
     }
 
-    /// Clientes visibles, de la actividad más reciente a la más antigua.
+    /// Visible clients, from the most recent activity to the oldest.
     pub fn visible_clients(&self) -> &[String] {
         &self.visible
     }
 
-    /// Clientes presentes que no caben (el nodo `+N`).
+    /// Present clients that do not fit (the `+N` node).
     pub fn overflow(&self) -> usize {
         self.clients.len() - self.visible.len()
     }
@@ -170,7 +170,7 @@ impl Topology {
         self.port_backend_edges.iter().map(|(p, b)| (p.as_str(), b.as_str()))
     }
 
-    /// Último resultado visto en el puerto, si lo hubo.
+    /// Last result seen on the port, if any.
     pub fn port_status(&self, port: &str) -> Option<&PacketStatus> {
         self.last_status.get(port)
     }
@@ -183,7 +183,7 @@ impl Topology {
         !self.packets.is_empty()
     }
 
-    /// Nodo donde se dibuja `id`: un cliente que no cabe se dibuja en `Overflow`.
+    /// Node where `id` is drawn: a client that does not fit is drawn in `Overflow`.
     pub fn display(&self, id: &NodeId) -> NodeId {
         match id {
             NodeId::Client(name) if !self.visible.contains(name) => NodeId::Overflow,
@@ -195,7 +195,7 @@ impl Topology {
         self.capabilities.iter().map(|(n, c)| (n.as_str(), c))
     }
 
-    /// La última edición de la capacidad fue inválida (el daemon sigue sirviendo la versión anterior).
+    /// The capability's last edit was invalid (the daemon keeps serving the previous version).
     pub fn is_invalid(&self, name: &str) -> bool {
         self.invalid_caps.contains(name)
     }
@@ -204,12 +204,12 @@ impl Topology {
         self.capabilities.get(name)
     }
 
-    /// `true` si `backend` es el especialista `exec`/`http` de alguna capacidad.
+    /// `true` if `backend` is the `exec`/`http` specialist of some capability.
     pub fn is_provider(&self, backend: &str) -> bool {
         self.capabilities.values().any(|c| c.kind != "flow" && c.provider == backend)
     }
 
-    /// Recalcula los puertos: capacidades, flujos libres y `passthrough`.
+    /// Recomputes the ports: capabilities, free flows and `passthrough`.
     pub(super) fn rebuild_ports(&mut self) {
         let serving: BTreeSet<&str> =
             self.served.iter().filter(|(c, _)| self.capabilities.contains_key(*c)).map(|(_, f)| f.as_str()).collect();

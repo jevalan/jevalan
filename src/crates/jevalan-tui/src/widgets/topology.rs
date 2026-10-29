@@ -1,4 +1,4 @@
-//! Dibujo de la topología sobre rataflow.
+//! Drawing of the topology on rataflow.
 
 use crate::fx::FxMode;
 use crate::screen::Msg;
@@ -22,12 +22,12 @@ use ratatui::widgets::{Block, BorderType, Paragraph, Widget};
 use std::collections::BTreeMap;
 use std::time::Instant;
 
-/// Paso de las flechas, en celdas.
+/// Arrow step, in cells.
 const PAN_STEP: f64 = 2.0;
-/// Separación entre los puntos de la estela, en fracción de arista.
+/// Spacing between the points of the trail, as a fraction of the edge.
 const TRAIL_STEP: f64 = 0.05;
 
-/// Clave estable de un nodo en rataflow: "client:crush", "overflow", "hub", "port:x", "backend:x".
+/// Stable key of a node in rataflow: "client:crush", "overflow", "hub", "port:x", "backend:x".
 fn key(id: &NodeId) -> String {
     match id {
         NodeId::Client(n) => format!("client:{n}"),
@@ -42,17 +42,17 @@ fn edge_id(from: &NodeId, to: &NodeId) -> String {
     format!("{}->{}", key(from), key(to))
 }
 
-/// Aspecto de un nodo: caja lisa, marco con título, switch de rack, chip DIP o puerto con LED de puerto.
+/// Look of a node: plain box, framed box with title, rack switch, DIP chip or port with port LED.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NodeKind {
     Plain,
-    /// El hub plano lleva la etiqueta como título del marco, para no pisar a sus puertos.
+    /// The flat hub carries the label as the frame's title, so as not to overlap its ports.
     Titled,
     Switch {
         act: bool,
     },
     Chip,
-    /// Especialista `exec`/`http` de una capacidad: chip con la muesca a la derecha.
+    /// `exec`/`http` specialist of a capability: chip with the notch on the right.
     ProviderChip,
     Port,
 }
@@ -62,22 +62,22 @@ struct NodeBox {
     label: String,
     style: Style,
     kind: NodeKind,
-    /// LED del puerto de un puerto: `Some` si hay un paquete vivo que lo toca.
+    /// A port's LED: `Some` if a live packet touches it.
     led: Option<Style>,
-    /// El nombre de un cliente se parte en líneas en vez de recortarse.
+    /// A client's name is split into lines instead of being trimmed.
     wrap: bool,
 }
 
-/// Escribe `s` en (x, y) solo si la celda cae dentro de `area` y del búfer.
+/// Writes `s` at (x, y) only if the cell falls inside `area` and the buffer.
 fn put(buf: &mut Buffer, area: Rect, x: u16, y: u16, s: &str, style: Style) {
     if area.contains((x, y).into()) && buf.area.contains((x, y).into()) {
         buf[(x, y)].set_symbol(s).set_style(style);
     }
 }
 
-/// Parte un nombre de cliente en trozos de a lo más `width` columnas, prefiriendo cortar
-/// justo después de `/` o `:` para no partir el cliente ni el proyecto; si no hay separador
-/// a mano, corta a lo ancho.
+/// Splits a client name into pieces of at most `width` columns, preferring to cut
+/// right after `/` or `:` so as not to split the client or the project; if there is no separator
+/// at hand, it cuts across.
 fn wrap_name(name: &str, width: u16) -> Vec<String> {
     let width = usize::from(width).max(1);
     let chars: Vec<char> = name.chars().collect();
@@ -177,7 +177,7 @@ impl NodeContent for NodeBox {
             Paragraph::new(Span::styled(self.label.as_str(), self.style)).render(area, buf);
             return;
         }
-        // Si el rect dibujado no da para el aparato completo (zoom, recorte), se cae a la caja lisa.
+        // If the drawn rect is not enough for the complete apparatus (zoom, clipping), it falls back to the plain box.
         let fits = area == ctx.area;
         match self.kind {
             NodeKind::Switch { act } if fits && area.height >= SWITCH_H && area.width >= 12 => {
@@ -194,7 +194,7 @@ impl NodeContent for NodeBox {
 
 #[derive(Debug, Default)]
 struct PacketEdge {
-    /// (progreso 0..=1 en el sentido de la arista, +1 si viaja a favor y -1 si en contra, estilo)
+    /// (progress 0..=1 in the edge's direction, +1 if it travels with it and -1 if against, style)
     packets: Vec<(f64, f64, Style)>,
     trail: bool,
 }
@@ -231,7 +231,7 @@ impl EdgeContent for PacketEdge {
     }
 }
 
-/// Posición de un nodo en el mundo de rataflow: los puertos son relativos al hub.
+/// Position of a node in rataflow's world: the ports are relative to the hub.
 fn world_position(id: &NodeId, p: Placed, hub: Option<Placed>) -> (f64, f64) {
     match (id, hub) {
         (NodeId::Port(_), Some(h)) => (f64::from(p.x) - f64::from(h.x), f64::from(p.y) - f64::from(h.y)),
@@ -239,7 +239,7 @@ fn world_position(id: &NodeId, p: Placed, hub: Option<Placed>) -> (f64, f64) {
     }
 }
 
-/// Un nodo sin asas visibles ni interactivas: aquí nada se conecta ni se arrastra.
+/// A node with no visible or interactive handles: nothing is connected or dragged here.
 fn new_node(id: &NodeId, p: Placed, hub: Option<Placed>) -> Node<NodeBox> {
     let handles = vec![
         Handle::source(HandlePosition::Right).with_id("right"),
@@ -272,22 +272,22 @@ pub struct TopologyView {
     boxes: BTreeMap<NodeId, Rect>,
     last_layout: Vec<(NodeId, Placed)>,
     drag_from: Option<(u16, u16)>,
-    /// Última posición puesta a cada nodo, y las recolocaciones que están en vuelo.
+    /// Last position set for each node, and the relocations in flight.
     at: BTreeMap<NodeId, (f64, f64)>,
     moves: BTreeMap<NodeId, Move>,
 }
 
-/// Cuánto dura una recolocación, en milisegundos.
+/// How long a relocation lasts, in milliseconds.
 const MOVE_MS: f64 = 240.0;
 
-/// Un nodo que se recoloca: de dónde viene, a dónde va y desde cuándo.
+/// A node being relocated: where it comes from, where it is going and since when.
 struct Move {
     from: (f64, f64),
     to: (f64, f64),
     start: Instant,
 }
 
-/// Arranca rápido y frena al llegar; en celdas se nota más que una recta.
+/// Starts fast and brakes on arrival; in cells it shows more than a straight line.
 fn eased(t: f64) -> f64 {
     1.0 - (1.0 - t).powi(3)
 }
@@ -311,7 +311,7 @@ impl TopologyView {
         }
     }
 
-    /// `true` mientras algún nodo va de camino a su sitio.
+    /// `true` while some node is on its way to its place.
     pub fn is_moving(&self) -> bool {
         !self.moves.is_empty()
     }
@@ -320,12 +320,12 @@ impl TopologyView {
         self.selected.as_ref()
     }
 
-    /// Caja en pantalla de un nodo según el último `render`.
+    /// A node's box on screen according to the last `render`.
     pub fn node_area(&self, id: &NodeId) -> Option<Rect> {
         self.boxes.get(id).copied()
     }
 
-    /// Dibuja la topología en `area`. Con `fx == FxMode::Full`, cada paquete deja una estela de dos `·` tenues.
+    /// Draws the topology in `area`. With `fx == FxMode::Full`, each packet leaves a trail of two faint `·`.
     pub fn render(&mut self, topo: &Topology, now: Instant, fx: FxMode, area: Rect, buf: &mut Buffer) {
         let placed = layout(topo, area.width, area.height);
         self.sync_nodes(&placed, now);
@@ -345,8 +345,8 @@ impl TopologyView {
             self.last_layout.iter().filter_map(|(id, _)| Some((id.clone(), self.screen_box(id, area)?))).collect();
     }
 
-    /// Bajo cada chip, la crónica de latencia del backend: sparkline escalada al máximo y la última medida.
-    /// Los cubos con fallo (y sin respuesta buena) se marcan con `×` en rojo.
+    /// Under each chip, the backend's latency history: sparkline scaled to the maximum and the last measurement.
+    /// Buckets with a failure (and without a good response) are marked with a red `×`.
     pub fn render_latency(&self, store: &Store, now: Instant, area: Rect, buf: &mut Buffer) {
         const GLYPHS: [&str; 8] = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
         for (id, p) in &self.last_layout {
@@ -369,7 +369,7 @@ impl TopologyView {
                     None if *f => ("×", theme::error()),
                     None => (" ", theme::dim()),
                 };
-                // Alineada a la derecha: si hay menos cubos que ancho, sobra aire a la izquierda.
+                // Right-aligned: if there are fewer buckets than width, there is air on the left.
                 put(buf, area, b.x + spark_w - (series.len() - from) as u16 + i as u16, y, glyph, style);
             }
             for (i, c) in tail.chars().enumerate() {
@@ -407,7 +407,7 @@ impl TopologyView {
                 self.flow.set_node_dimensions(&k, f64::from(p.w), f64::from(p.h));
                 let to = world_position(id, *p, hub);
                 match self.at.get(id) {
-                    // Se mueve de verdad: se le da un viaje desde donde está ahora hasta su sitio nuevo.
+                    // It really moves: it is given a trip from where it is now to its new place.
                     Some(from) if *from != to => {
                         let from = *from;
                         self.moves.insert(id.clone(), Move { from, to, start: now });
@@ -421,7 +421,7 @@ impl TopologyView {
             }
             self.last_layout = placed.to_vec();
         }
-        // Cada fotograma, los que van de camino avanzan hacia su sitio.
+        // On each frame, those on their way advance towards their place.
         let mut en_vuelo: Vec<(NodeId, (f64, f64), bool)> = Vec::with_capacity(self.moves.len());
         for (id, m) in &self.moves {
             let t = (now.saturating_duration_since(m.start).as_secs_f64() * 1000.0 / MOVE_MS).clamp(0.0, 1.0);
@@ -444,7 +444,7 @@ impl TopologyView {
         let port_led = |name: &str| {
             let port = NodeId::Port(name.into());
             let touches = |p: &&Packet| topo.display(&p.from) == port || topo.display(&p.to) == port;
-            // El paquete en vuelo destella; si no lo hay, manda el último resultado del puerto.
+            // The packet in flight flashes; if there is none, the port's last result rules.
             let live = topo.packets().iter().filter(touches).rfind(|p| progress(p, now) < 1.0).map(|p| &p.status);
             live.or_else(|| topo.port_status(name)).map(theme::packet)
         };
@@ -540,7 +540,7 @@ impl TopologyView {
         }
     }
 
-    /// Pan/zoom/ajustar/seleccionar. Devuelve `true` si la vista cambió.
+    /// Pan/zoom/fit/select. Returns `true` if the view changed.
     pub fn handle(&mut self, msg: &Msg, area: Rect) -> bool {
         match msg {
             Msg::Key(k) if matches!(k.kind, KeyEventKind::Press | KeyEventKind::Repeat) => self.handle_key(k.code),
@@ -593,7 +593,7 @@ impl TopologyView {
             KeyCode::Down | KeyCode::Char('j') => self.flow.pan(0.0, -1.0),
             KeyCode::Char('+' | '=') => self.flow.zoom_in(),
             KeyCode::Char('-') => self.flow.zoom_out(),
-            // El layout ya se calcula para caber en el área: ajustar es volver a la vista neutra.
+            // The layout is already computed to fit the area: fitting is returning to the neutral view.
             KeyCode::Char('0') => self.flow.viewport = Viewport::default_view(),
             KeyCode::Char('n') => return self.step_selection(1),
             KeyCode::Char('N') => return self.step_selection(-1),
@@ -656,7 +656,7 @@ mod tests {
         }
     }
 
-    /// Topología con los flujos de ejemplo cargados: tres puertos y dos chips.
+    /// Topology with the example flows loaded: three ports and two chips.
     fn loaded_topo(now: Instant) -> Topology {
         let mut topo = Topology::new();
         for e in loaded_events(&flows()) {
@@ -665,8 +665,8 @@ mod tests {
         topo
     }
 
-    /// Como `loaded_topo`, más el flujo de `agent.wakeup` y las dos capacidades de ejemplo, ya con un primer
-    /// tráfico que revela qué flujo sirve a `agent.wakeup` (y le quita el puerto propio).
+    /// Like `loaded_topo`, plus the `agent.wakeup` flow and the two example capabilities, already with a first
+    /// traffic that reveals which flow serves `agent.wakeup` (and takes its own port away).
     fn hub_topo(now: Instant) -> Topology {
         let mut topo = loaded_topo(now);
         for e in loaded_events(&[crate::fake::wakeup_flow()]).into_iter().chain(crate::fake::capability_events()) {
@@ -992,7 +992,7 @@ mod tests {
         assert!(row.contains('—'), "sin datos: {row:?}");
     }
 
-    /// El nombre del hook es `<cliente>/<proyecto>:<sesión>`: hay que poder leerlo entero.
+    /// The hook's name is `<client>/<project>:<session>`: it must be possible to read it in full.
     #[test]
     fn a_long_client_name_is_drawn_whole_when_the_window_allows() {
         let now = Instant::now();
@@ -1016,7 +1016,7 @@ mod tests {
         let mut buf = Buffer::empty(area);
         TopologyView::new().render(&topo, now, FxMode::Events, area, &mut buf);
         let out = text(&buf, area);
-        // En una sola línea de 22 columnas no caben las dos mitades: que aparezcan prueba el corte.
+        // On a single 22-column line the two halves do not fit: their appearing proves the cut.
         assert!(out.contains("claude-code/") && out.contains("mi-proyecto-largo:1a2b"), "{out}");
     }
 

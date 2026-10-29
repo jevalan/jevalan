@@ -4,11 +4,11 @@ use serde_json::{Value, json};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Failure {
     pub why: String,
-    /// Motivo cuando la expresión no pudo evaluarse o no devolvió un booleano.
+    /// Reason when the expression could not be evaluated or did not return a boolean.
     pub reason: Option<String>,
 }
 
-/// Aserciones no cumplidas. Una expresión que no se puede evaluar cuenta como fallida.
+/// Assertions not met. An expression that cannot be evaluated counts as failed.
 pub fn assert(f: &Fixture, response: &Value) -> Vec<Failure> {
     let section = |k: &str| response.get(k).filter(|v| v.is_object()).cloned().unwrap_or_else(|| json!({}));
     let status = response.get("status").cloned().unwrap_or(Value::Null);

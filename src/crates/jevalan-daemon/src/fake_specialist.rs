@@ -1,4 +1,4 @@
-//! Especialista de pega para los tests de `exec`: responde según `input.mode`.
+//! Stand-in specialist for the `exec` tests: answers according to `input.mode`.
 
 use std::io::{Read, Write};
 
@@ -15,9 +15,9 @@ fn main() {
         "maybe" => verdict("maybe", "dudoso", "model"),
         "sleep" => std::thread::sleep(std::time::Duration::from_secs(10)),
         "spawn-grandchild" => {
-            // Un nieto de larga vida que hereda stdout; su PID queda en `input.pid_file`.
+            // A long-lived grandchild that inherits stdout; its PID is left in `input.pid_file`.
             let exe = std::env::current_exe().expect("current_exe");
-            #[allow(clippy::zombie_processes)] // el nieto debe sobrevivir al padre
+            #[allow(clippy::zombie_processes)] // the grandchild must outlive its parent
             let mut child =
                 std::process::Command::new(exe).stdin(std::process::Stdio::piped()).spawn().expect("grandchild");
             let _ = child.stdin.take().expect("stdin").write_all(br#"{"mode":"sleep"}"#);

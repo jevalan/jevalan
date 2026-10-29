@@ -62,7 +62,7 @@ pub enum FxKind {
     Blink,
 }
 
-/// Qué efecto toca para un cue en un modo dado; `Events` y `Full` coinciden.
+/// Which effect applies for a cue in a given mode; `Events` and `Full` coincide.
 pub fn effect_for(cue: &Cue, mode: FxMode) -> Option<(FxKind, NodeId)> {
     if mode == FxMode::Off {
         return None;
@@ -89,7 +89,7 @@ fn build(kind: FxKind, area: Rect) -> Effect {
     effect.with_area(area)
 }
 
-/// Efectos en curso y último instante procesado.
+/// Running effects and last instant processed.
 pub struct FxState {
     manager: EffectManager<String>,
     last: Option<Instant>,
@@ -115,21 +115,21 @@ impl FxState {
         }
     }
 
-    /// Destello suave de la fila que acaba de llegar a la lista de decisiones del hook.
+    /// Soft flash of the row that has just arrived in the hook's decision list.
     pub fn on_arrival(&mut self, mode: FxMode, area: Rect) {
         if mode != FxMode::Off {
             self.manager.add_effect(fx::fade_from_fg(theme::ACCENT, (700, Interpolation::QuadOut)).with_area(area));
         }
     }
 
-    /// Transición de entrada del dashboard: `coalesce` en `Events` y `Full`.
+    /// Dashboard entry transition: `coalesce` in `Events` and `Full`.
     pub fn on_start(&mut self, mode: FxMode, area: Rect) {
         if mode != FxMode::Off {
             self.manager.add_effect(fx::coalesce((600, Interpolation::QuadOut)).with_area(area));
         }
     }
 
-    /// Transición al cambiar de pantalla, solo en `Full`.
+    /// Transition when changing screen, only in `Full`.
     pub fn on_enter_screen(&mut self, mode: FxMode, area: Rect) {
         if mode == FxMode::Full {
             let sweep = fx::sweep_in(Motion::LeftToRight, 10, 0, theme::ACCENT, (400, Interpolation::QuadOut));
@@ -137,7 +137,7 @@ impl FxState {
         }
     }
 
-    /// Fondo ambiental sobre `area`: solo en `Full`; en otro modo se cancela.
+    /// Ambient background over `area`: only in `Full`; in any other mode it is cancelled.
     pub fn sync_ambient(&mut self, mode: FxMode, area: Rect) {
         match (mode == FxMode::Full, self.ambient) {
             (true, false) => {

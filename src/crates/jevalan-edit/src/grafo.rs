@@ -1,4 +1,4 @@
-//! Grafo del editor: el flujo que se pinta, las paradas del cursor y la selección.
+//! Editor graph: the flow being painted, the cursor stops and the selection.
 
 use jevalan_flow::{
     DEFAULT_MIN_CONFIDENCE, DEFAULT_THRESHOLD, Defaults, ERROR, Flow, FlowDef, LOW_CONFIDENCE, Node, NodeDef, NodeType,
@@ -9,19 +9,19 @@ use jevalan_tui::widgets::flow_graph;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// Una parada del cursor: una caja o una arista del dibujo.
+/// A cursor stop: a box or an edge of the drawing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Parada {
-    /// La caja de un nodo.
+    /// A node's box.
     Nodo(String),
-    /// La caja de una salida.
+    /// An output's box.
     Salida(String),
-    /// La arista de un puerto de un nodo.
+    /// The edge of a node's port.
     Puerto { nodo: String, puerto: String },
 }
 
 impl Parada {
-    /// El nodo al que pertenece la parada, si es de un nodo.
+    /// The node the stop belongs to, if it belongs to a node.
     pub fn nodo(&self) -> Option<&str> {
         match self {
             Parada::Nodo(n) | Parada::Puerto { nodo: n, .. } => Some(n),
@@ -29,7 +29,7 @@ impl Parada {
         }
     }
 
-    /// El identificador con el que el pintor resalta esta parada; un puerto sin cablear no tiene.
+    /// The identifier with which the painter highlights this stop; an unwired port has none.
     pub fn resaltado(&self, def: &FlowDef) -> Option<String> {
         match self {
             Parada::Nodo(n) => Some(flow_graph::caja(&FlowNodeId::Node(n.clone()))),
@@ -43,11 +43,11 @@ impl Parada {
     }
 }
 
-/// El grafo del borrador: sus paradas en el orden del dibujo y la que está seleccionada.
+/// The draft's graph: its stops in drawing order and the one that is selected.
 pub struct Grafo {
     paradas: Vec<Parada>,
     cursor: usize,
-    /// El flujo de dibujo, en un `Arc` estable: el pintor solo rehace su grafo si cambia el puntero.
+    /// The drawing flow, in a stable `Arc`: the painter only rebuilds its graph if the pointer changes.
     pub flujo: Arc<Flow>,
 }
 
@@ -58,24 +58,24 @@ impl Default for Grafo {
 }
 
 impl Grafo {
-    /// Un grafo sin nada que pintar.
+    /// A graph with nothing to paint.
     pub fn nuevo() -> Self {
         Self { paradas: Vec::new(), cursor: 0, flujo: Arc::new(flujo_vacio()) }
     }
 
-    /// Rehace las paradas con el borrador y guarda su flujo de dibujo.
+    /// Rebuilds the stops from the draft and stores its drawing flow.
     pub fn rehacer(&mut self, nombre: &str, def: &FlowDef) {
         let antes = self.parada().cloned();
         self.paradas = paradas(def);
         self.flujo = Arc::new(dibujo(nombre, def));
-        // Si la parada de antes sigue existiendo, el cursor se queda en ella: editar un campo no debe
-        // mover al usuario de sitio.
+        // If the previous stop still exists, the cursor stays on it: editing a field must not
+        // move the user around.
         self.cursor = antes
             .and_then(|p| self.paradas.iter().position(|q| *q == p))
             .unwrap_or_else(|| self.cursor.min(self.paradas.len().saturating_sub(1)));
     }
 
-    /// ¿No hay nada que pintar? Un YAML que no se pudo leer, o un flujo sin `start`.
+    /// Nothing to paint? A YAML that could not be read, or a flow without `start`.
     pub fn vacio(&self) -> bool {
         self.paradas.is_empty()
     }
@@ -84,12 +84,12 @@ impl Grafo {
         self.paradas.get(self.cursor)
     }
 
-    /// El nodo al que mira el inspector.
+    /// The node the inspector looks at.
     pub fn nodo(&self) -> Option<&str> {
         self.parada().and_then(Parada::nodo)
     }
 
-    /// El puerto seleccionado, si la parada es un puerto.
+    /// The selected port, if the stop is a port.
     pub fn puerto(&self) -> Option<(&str, &str)> {
         match self.parada()? {
             Parada::Puerto { nodo, puerto } => Some((nodo, puerto)),
@@ -106,8 +106,8 @@ impl Grafo {
         self.cursor = self.cursor.saturating_sub(1);
     }
 
-    /// Qué nodo ha de quedar marcado: el que el cursor señala, y si el cursor está en otro sitio, el
-    /// nodo culpable del error de validación (spec §3: «el nodo culpable se señala»).
+    /// Which node must be marked: the one the cursor points at, and if the cursor is elsewhere, the
+    /// node to blame for the validation error (spec §3: "the guilty node is pointed out").
     pub fn marcado(&self, def: &FlowDef, culpable: Option<&str>) -> Option<String> {
         match culpable {
             Some(n) if self.nodo() != Some(n) && def.nodes.contains_key(n) => Some(n.to_string()),
@@ -115,15 +115,15 @@ impl Grafo {
         }
     }
 
-    /// Las paradas en el orden del dibujo; el editor las recorre con el cursor.
+    /// The stops in drawing order; the editor walks them with the cursor.
     pub fn paradas(&self) -> &[Parada] {
         &self.paradas
     }
 }
 
-/// El flujo que se pinta, armado desde el borrador **sin juzgarlo**: mientras el flujo no valide, el
-/// grafo sigue enseñando lo que hay —y lo que se acaba de añadir—. Quien juzga es
-/// `jevalan_flow::parse` (D6), no esto.
+/// The flow that is painted, built from the draft **without judging it**: while the flow does not validate, the
+/// graph keeps showing what is there (and what has just been added). The judge is
+/// `jevalan_flow::parse` (D6), not this.
 pub fn dibujo(nombre: &str, def: &FlowDef) -> Flow {
     Flow {
         name: nombre.to_string(),
@@ -135,7 +135,7 @@ pub fn dibujo(nombre: &str, def: &FlowDef) -> Flow {
     }
 }
 
-/// Un `NodeDef` como nodo de dibujo, con los valores por defecto del flujo donde los haya.
+/// A `NodeDef` as a drawing node, with the flow's defaults where there are any.
 fn nodo(def: &NodeDef, defaults: &Defaults) -> Node {
     Node {
         ty: def.ty,
@@ -147,7 +147,7 @@ fn nodo(def: &NodeDef, defaults: &Defaults) -> Node {
         model: def.model.clone().or_else(|| defaults.model.clone()).unwrap_or_default(),
         min_confidence: def.min_confidence.or(defaults.min_confidence).unwrap_or(DEFAULT_MIN_CONFIDENCE),
         out: def.out.clone(),
-        // Los rangos y las reglas de `route` los calcula `validate`; para pintar no hacen falta.
+        // The ranges and `route` rules are computed by `validate`; painting does not need them.
         ranges: Vec::new(),
         questions: def.questions.iter().map(|(q, d)| (q.clone(), nodo(d, defaults))).collect(),
         route: def.route.iter().map(|r| (r.when.clone(), r.to.clone())).collect(),
@@ -155,8 +155,8 @@ fn nodo(def: &NodeDef, defaults: &Defaults) -> Node {
     }
 }
 
-/// Puertos que el editor ofrece cablear en un nodo: los de respuesta que su tipo admite —la misma
-/// tabla que usa `validate`, D6—, más los comunes. Ni un `rule` ni un `batch` admiten `low-confidence`.
+/// Ports the editor offers to wire on a node: the answer ones its type admits (the same
+/// table `validate` uses, D6), plus the common ones. Neither a `rule` nor a `batch` admits `low-confidence`.
 pub fn puertos(def: &NodeDef) -> Vec<String> {
     let mut puertos = answer_ports(def);
     puertos.push(ERROR.to_string());
@@ -166,7 +166,7 @@ pub fn puertos(def: &NodeDef) -> Vec<String> {
     puertos
 }
 
-/// Las paradas, en el orden del dibujo: cada nodo con sus puertos detrás, y luego las salidas.
+/// The stops, in drawing order: each node with its ports behind it, and then the outputs.
 fn paradas(def: &FlowDef) -> Vec<Parada> {
     if def.start.is_empty() {
         return Vec::new();
@@ -187,7 +187,7 @@ fn paradas(def: &FlowDef) -> Vec<Parada> {
     paradas
 }
 
-/// Un flujo sin nada, para el grafo de un documento que no se pudo leer.
+/// A flow with nothing, for the graph of a document that could not be read.
 fn flujo_vacio() -> Flow {
     Flow {
         name: String::new(),
@@ -210,7 +210,7 @@ mod tests {
         serde_yaml::from_str(LOCAL).unwrap_or_else(|e| panic!("{e}"))
     }
 
-    /// El borrador con un `noul` suelto, como el que añade el editor: sin cablear.
+    /// The draft with a loose `noul`, like the one the editor adds: unwired.
     fn con_suelto() -> FlowDef {
         let mut def = def();
         let mut nuevo = def.nodes["pipe_sh"].clone();
@@ -228,12 +228,12 @@ mod tests {
         assert_eq!(paradas[1], Parada::Puerto { nodo: "rm_root".into(), puerto: "true".into() });
         assert_eq!(paradas[2], Parada::Puerto { nodo: "rm_root".into(), puerto: "false".into() });
         assert_eq!(paradas[3], Parada::Puerto { nodo: "rm_root".into(), puerto: "error".into() });
-        // Un `rule` no admite `low-confidence`; un `batch` solo cablea su `error`.
+        // A `rule` does not admit `low-confidence`; a `batch` only wires its `error`.
         assert!(!paradas.contains(&Parada::Puerto { nodo: "rm_root".into(), puerto: "low-confidence".into() }));
         let del_batch: Vec<&Parada> = paradas.iter().filter(|p| p.nodo() == Some("risks")).collect();
         assert_eq!(del_batch.len(), 2, "el nodo y su puerto de error: {del_batch:?}");
-        // Las salidas que cablea un `out` están; las que solo aparecen en un `route` de un `batch` no
-        // son aristas del dibujo (el pintor solo cablea `out`) y se ven en el inspector.
+        // The outputs wired by an `out` are there; those that only appear in a `batch`'s `route` are not
+        // drawing edges (the painter only wires `out`) and are seen in the inspector.
         for salida in ["deny_static", "ask_static", "ask_error"] {
             assert!(paradas.contains(&Parada::Salida(salida.into())), "falta la salida {salida}");
         }
@@ -250,7 +250,7 @@ mod tests {
         assert_eq!(sueltas.len(), 5, "el nodo, sus dos respuestas, su error y su low-confidence: {sueltas:?}");
         assert!(sueltas.iter().any(|p| matches!(p, Parada::Puerto { puerto, .. } if puerto == "true")));
 
-        // Y el cursor llega hasta él con las flechas.
+        // And the cursor reaches it with the arrows.
         let mut encontrado = false;
         for _ in 0..grafo.paradas().len() {
             encontrado |= grafo.nodo() == Some("nuevo-1");
@@ -264,7 +264,7 @@ mod tests {
         let def = con_suelto();
         let mut grafo = Grafo::nuevo();
         grafo.rehacer("tool-risk-local", &def);
-        // El cursor, en el nodo suelto; y el culpable, `rm_root`.
+        // The cursor, on the loose node; and the culprit, `rm_root`.
         while grafo.nodo() != Some("nuevo-1") {
             grafo.siguiente();
         }
@@ -287,8 +287,8 @@ mod tests {
         let dibujo = dibujo("tool-risk-local", &def);
         assert_eq!(dibujo.name, "tool-risk-local");
         assert_eq!(dibujo.nodes.len(), 4);
-        // El suelto viaja con el backend del flujo y sin que nadie lo juzgue: mientras tanto, la
-        // banda inferior es la que dice que el borrador no vale.
+        // The loose one travels with the flow's backend and without anyone judging it: meanwhile, the
+        // bottom band is the one that says the draft is not valid.
         assert_eq!(dibujo.nodes["nuevo-1"].backend, "kev");
         assert!(dibujo.nodes["nuevo-1"].out.is_empty());
     }

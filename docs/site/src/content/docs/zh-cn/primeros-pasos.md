@@ -29,6 +29,8 @@ cargo build --locked --release -p jevalan
 ./target/release/jevalan tui --demo
 ```
 
+![`jevalan tui --demo` 的终端截图：左侧是客户端，顶部是带各项能力的中枢，底部是带延迟的后端，以及实时决策流。](../../../assets/tui-topologia.png)
+
 ## 使用自己的后端启动
 
 在解压后的目录中复制示例配置，并检查其中的端点：
