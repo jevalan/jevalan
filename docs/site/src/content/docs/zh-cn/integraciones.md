@@ -91,6 +91,10 @@ jevalan shadow fixtures --lab-dir lab-fixtures-batch --max 20
 
 默认情况下，报告不包含工具输入，所以你可以发布它。这些 fixture 会供给[实验室](/zh-cn/laboratorio/)，让你的测试集随着真实发生的情况而增长。
 
+`--since` 接受 `YYYY-MM-DD` 或 RFC 3339 日期（带时区或不带时区，不带时按 UTC）；其他写法会报错，而不是给出一份空报告。
+
+`shadow fixtures` 会在文件夹不存在时创建它及其 `lab.yaml`，并且不会覆盖任何已有内容：重复运行不会产生重复的 fixture，也不会改动你的 `lab.yaml`。结束时它会统计丢弃了什么以及原因（由固定规则做出的决策、不带全部四个概率的决策、上下文被截断的决策……），以及 `--max` 裁掉了多少。这些 fixture 是 `offline` 模式的：用 `jevalan lab offline --lab-dir <文件夹>` 并配合提供该流程的同一个 `--config` 来重放。它写出的 `lab.yaml` 带有示例目标，请按你的后端调整。
+
 在终端界面中按 `H` 可以实时查看决策：带 p50 和 p95 延迟的计数器、最近的调用，以及每个问题的概率条（在 0.55 和 0.85 阈值处有刻度）。它在本地读取该文件，从不显示输入，所以截图是安全的。
 
 ![钩子决策视图的终端截图：裁决计数器、决策列表，以及以条形显示的每个问题的概率。](../../../assets/tui-decisiones-hook.png)

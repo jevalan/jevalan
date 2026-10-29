@@ -152,7 +152,7 @@ enum ShadowAction {
         #[arg(long)]
         log: Option<PathBuf>,
         /// Only since this date (RFC 3339 or YYYY-MM-DD, in UTC).
-        #[arg(long)]
+        #[arg(long, value_parser = shadow::parse_since)]
         since: Option<String>,
         /// Output file; without it, standard output.
         #[arg(long)]
@@ -167,7 +167,7 @@ enum ShadowAction {
         #[arg(long)]
         log: Option<PathBuf>,
         /// Only since this date (RFC 3339 or YYYY-MM-DD, in UTC).
-        #[arg(long)]
+        #[arg(long, value_parser = shadow::parse_since)]
         since: Option<String>,
         /// Fixture bench; created if it does not exist, with its `lab.yaml`.
         #[arg(long, default_value = "lab-fixtures-batch")]

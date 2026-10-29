@@ -24,6 +24,18 @@ description: The commands of the TUI, daemon, flow editor, hooks, shadow log, an
 
 Run `jevalan <command> --help` to see all options of a command.
 
+## Options of the other commands
+
+| Command | Options |
+|---|---|
+| `serve` | `--config` (without it, `JEVALAN_CONFIG` or the defaults). |
+| `edit` | `--url` and `--token` of the daemon, `--no-events` (do not listen to the event bus) and `--signals-dir` (default `./config/signals`). |
+| `mcp` | `--addr` and `--token` of the daemon, and `--allow-live`. |
+| `hook` | `--mode shadow\|enforce` (default `shadow`); `hook run` also takes `--client` (default `unknown`) and `--dialect claude\|crush`. |
+| `shadow report` | `--log`, `--since` (RFC 3339 or `YYYY-MM-DD`, in UTC), `--out` and `--with-inputs`. |
+| `shadow fixtures` | `--log`, `--since`, `--lab-dir` (default `lab-fixtures-batch`) and `--max`. |
+| `lab check`, `lab offline`, `lab record`, `lab live` | `--lab-dir` (default `config/lab`) and `--config`. All but `check` take a capability as an argument and `--fixture`. `record` and `live` add `--target` and `--yes`; `record`, `--force`; `live`, `--repeat`. |
+
 ## Terminal UI options
 
 | Flag | Meaning | Default |
@@ -34,6 +46,7 @@ Run `jevalan <command> --help` to see all options of a command.
 | `--fake` | Feed the TUI with simulated traces. | off |
 | `--fake-rate`, `--fake-seed` | Simulated requests per second, and a seed for repeatable runs. | `2`, random |
 | `--demo` | Mock backends and simulated traffic. | off |
+| `--rate` | Requests per second of the `--demo` traffic. | `2` |
 | `--config` | Config file for the daemon the TUI starts, if it has to. | none |
 
 ### Keys
@@ -47,12 +60,13 @@ Run `jevalan <command> --help` to see all options of a command.
 | `esc` | Back. |
 | `tab` | Switch focus between the topology and the feed. |
 | `enter` | Open the flow (on a topology port) or the trace (on a feed row). |
-| arrows or `hjkl` | Move the view. |
-| `+` `-` `0` | Zoom in, zoom out, fit to view. |
-| `n` `N` | Next or previous node. |
+| arrows or `hjkl` | Move the view of the topology or of a flow. On the feed, `↑` `↓` pick the row; in a trace, they scroll. |
+| `+` (or `=`) `-` `0` | Zoom in, zoom out, fit to view. |
+| mouse | Dragging moves the view and the wheel zooms, in the topology and in a flow. |
+| `n` `N` | Next or previous node in the topology. |
 | `t` | In a trace, toggle between the node path and the event timeline. |
-| `H` | Live view of the hook decisions. |
-| `x` | In `--demo`, knock down or bring back the selected backend. |
+| `H` | Live view of the hook decisions. Inside, `↑` `↓` or `jk` move and `g` `G` (or `Home` `End`) jump to the first or the last. |
+| `x` | In `--demo`, with the focus on the topology, knock down or bring back the selected backend. |
 
 ## Flow editor keys
 

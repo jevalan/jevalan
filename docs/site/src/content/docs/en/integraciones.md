@@ -91,6 +91,10 @@ jevalan shadow fixtures --lab-dir lab-fixtures-batch --max 20
 
 By default the report holds no tool input, so you can publish it. The fixtures feed the [lab](/en/laboratorio/), so your test bench grows out of what actually happened.
 
+`--since` takes `YYYY-MM-DD` or an RFC 3339 date (with a time zone, or without one, which means UTC); anything else is an error, not an empty report.
+
+`shadow fixtures` creates the folder with its `lab.yaml` if it does not exist and overwrites nothing that is already there: running it again duplicates no fixtures and leaves your `lab.yaml` alone. When it finishes it counts what it discarded and why (decisions made by a fixed rule, those without all four probabilities, those with truncated context…) and how many `--max` trimmed. The fixtures are `offline`: replay them with `jevalan lab offline --lab-dir <folder>` and the same `--config` that serves the flow. The `lab.yaml` it writes has example targets; adjust them to your backends.
+
 In the terminal UI, press `H` to see the decisions live: counters with p50 and p95 latency, the latest calls, and the probability of each question as bars with ticks at the 0.55 and 0.85 thresholds. It reads the file locally and never shows the input, so it is safe to screenshot.
 
 ![Terminal screenshot of the hook decisions view: verdict counters, the list of decisions, and the probability of each question as bars.](../../../assets/tui-decisiones-hook.png)

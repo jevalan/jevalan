@@ -91,6 +91,10 @@ jevalan shadow fixtures --lab-dir lab-fixtures-batch --max 20
 
 Por defecto el informe no contiene la entrada de la herramienta, así que puedes publicarlo. Los fixtures alimentan el [laboratorio](/laboratorio/), de modo que tu banco de pruebas crece a partir de lo que de verdad pasó.
 
+`--since` acepta `AAAA-MM-DD` o una fecha RFC 3339 (con zona horaria o sin ella, que se entiende UTC); una fecha que no lo sea es un error, no un informe vacío.
+
+`shadow fixtures` crea la carpeta con su `lab.yaml` si no existe y no pisa nada de lo que ya hay: repetirlo no duplica fixtures y deja intacto tu `lab.yaml`. Al terminar cuenta qué descartó y por qué (las decisiones de una regla fija, las que no traen las cuatro probabilidades, las de contexto truncado…) y cuántas recortó `--max`. Los fixtures son de modo `offline`: se reproducen con `jevalan lab offline --lab-dir <carpeta>` y la misma `--config` que sirve el flujo. El `lab.yaml` que escribe trae objetivos de ejemplo; ajústalos a tus backends.
+
 En la interfaz de terminal, pulsa `H` para ver las decisiones en vivo: contadores con latencia p50 y p95, las últimas llamadas y la probabilidad de cada pregunta como barras con marcas en los umbrales 0.55 y 0.85. Lee el fichero en local y nunca muestra la entrada, así que es seguro hacer capturas.
 
 ![Captura de la terminal con la vista de decisiones del hook: contadores de veredictos, lista de decisiones y la probabilidad de cada pregunta en barras.](../../assets/tui-decisiones-hook.png)

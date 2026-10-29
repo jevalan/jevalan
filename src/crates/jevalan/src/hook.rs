@@ -288,7 +288,7 @@ fn iso_now() -> String {
     iso(d.as_secs() as i64, d.subsec_millis())
 }
 
-fn iso(secs: i64, millis: u32) -> String {
+pub(crate) fn iso(secs: i64, millis: u32) -> String {
     let (days, rem) = (secs.div_euclid(86400), secs.rem_euclid(86400));
     // Days since 1970 to a civil date (Howard Hinnant's algorithm).
     let z = days + 719_468;

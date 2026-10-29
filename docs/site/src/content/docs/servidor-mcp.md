@@ -27,7 +27,7 @@ Para Claude Code, añádelo al `.mcp.json` de tu proyecto, con la **ruta absolut
 
 ## Herramientas
 
-**Una por capacidad.** Cada capacidad cargada se convierte en una herramienta cuyo esquema de entrada es el de la propia capacidad. El nombre es el id de la capacidad con todo carácter que no sea letra, cifra, `_` o `-` sustituido por `_`; así `tool.risk` es `tool_risk` y `agent.wakeup` es `agent_wakeup`. El resultado es la respuesta tipada del hub: `status` vale `ok`, `abstain` o `error`, y solo `error` se marca como llamada fallida. Cuando el daemon recarga las capacidades, el cliente recibe el aviso de que la lista cambió.
+**Una por capacidad.** Cada capacidad cargada se convierte en una herramienta cuyo esquema de entrada es el de la propia capacidad. El nombre es el id de la capacidad con todo carácter que no sea letra, cifra, `_` o `-` sustituido por `_`; así `tool.risk` es `tool_risk` y `agent.wakeup` es `agent_wakeup`. El resultado es la respuesta tipada del hub: `status` vale `ok`, `abstain` o `error`, y solo `error` se marca como llamada fallida. Cada 5 segundos el puente comprueba si la lista cambió (una capacidad que aparece, desaparece o cambia el esquema de su entrada) y, si es así, avisa al cliente. Un cambio solo de descripción no avisa.
 
 **Cuatro para flujos**, siempre presentes:
 
@@ -46,7 +46,7 @@ Para Claude Code, añádelo al `.mcp.json` de tu proyecto, con la **ruta absolut
 
 ## Sobre `--allow-live`
 
-`jevalan_try_draft` recibe un `transport`. Por defecto solo se ofrece `replay`: reproduce respuestas grabadas y no llama a nada. `live` y `record` llaman a tus backends reales, lo que puede costar dinero, así que se rechazan salvo que arranques el puente con `--allow-live`.
+`jevalan_try_draft` recibe un `transport`. Por defecto solo se ofrece `replay`: reproduce respuestas grabadas y no llama a nada. Sin `cassette` no hay nada que reproducir, y el flujo sigue su camino de fallo en vez de devolver un error de la herramienta. `live` y `record` llaman a tus backends reales, lo que puede costar dinero, así que se rechazan salvo que arranques el puente con `--allow-live`.
 
 ## Preguntar no es lo mismo que obligar
 
