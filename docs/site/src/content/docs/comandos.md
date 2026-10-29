@@ -24,6 +24,18 @@ description: Los comandos de la TUI, el daemon, el editor de flujos, los hooks, 
 
 Ejecuta `jevalan <comando> --help` para ver todas las opciones de un comando.
 
+## Opciones de los demás comandos
+
+| Comando | Opciones |
+|---|---|
+| `serve` | `--config` (sin él, `JEVALAN_CONFIG` o los valores por defecto). |
+| `edit` | `--url` y `--token` del daemon, `--no-events` (no escuchar el bus de eventos) y `--signals-dir` (por defecto `./config/signals`). |
+| `mcp` | `--addr` y `--token` del daemon, y `--allow-live`. |
+| `hook` | `--mode shadow\|enforce` (por defecto `shadow`); en `hook run`, además `--client` (por defecto `unknown`) y `--dialect claude\|crush`. |
+| `shadow report` | `--log`, `--since` (RFC 3339 o `AAAA-MM-DD`, en UTC), `--out` y `--with-inputs`. |
+| `shadow fixtures` | `--log`, `--since`, `--lab-dir` (por defecto `lab-fixtures-batch`) y `--max`. |
+| `lab check`, `lab offline`, `lab record`, `lab live` | `--lab-dir` (por defecto `config/lab`) y `--config`. Todos menos `check` aceptan también una capacidad como argumento y `--fixture`. `record` y `live` añaden `--target` y `--yes`; `record`, `--force`; `live`, `--repeat`. |
+
 ## Opciones de la interfaz de terminal
 
 | Flag | Significado | Por defecto |
@@ -34,6 +46,7 @@ Ejecuta `jevalan <comando> --help` para ver todas las opciones de un comando.
 | `--fake` | Alimenta la TUI con trazas simuladas. | desactivado |
 | `--fake-rate`, `--fake-seed` | Peticiones simuladas por segundo, y una semilla para ejecuciones repetibles. | `2`, aleatoria |
 | `--demo` | Backends simulados y tráfico simulado. | desactivado |
+| `--rate` | Peticiones por segundo del tráfico de `--demo`. | `2` |
 | `--config` | Fichero de configuración del daemon que la TUI arranca, si hace falta. | ninguno |
 
 ### Teclas
@@ -47,12 +60,13 @@ Ejecuta `jevalan <comando> --help` para ver todas las opciones de un comando.
 | `esc` | Volver. |
 | `tab` | Cambiar el foco entre la topología y el feed. |
 | `enter` | Abrir el flujo (en un puerto de la topología) o la traza (en una fila del feed). |
-| flechas o `hjkl` | Mover la vista. |
-| `+` `-` `0` | Acercar, alejar, ajustar a la vista. |
-| `n` `N` | Nodo siguiente o anterior. |
+| flechas o `hjkl` | Mover la vista de la topología o de un flujo. En el feed, `↑` `↓` eligen la fila; en una traza, desplazan. |
+| `+` (o `=`) `-` `0` | Acercar, alejar, ajustar a la vista. |
+| ratón | Arrastrar mueve la vista y la rueda hace zoom, en la topología y en un flujo. |
+| `n` `N` | Nodo siguiente o anterior en la topología. |
 | `t` | En una traza, alterna entre el camino de nodos y la línea de tiempo de eventos. |
-| `H` | Vista en vivo de las decisiones del hook. |
-| `x` | En `--demo`, tumba o recupera el backend seleccionado. |
+| `H` | Vista en vivo de las decisiones del hook. Dentro, `↑` `↓` o `jk` se mueven y `g` `G` (o `Inicio` `Fin`) saltan a la primera o a la última. |
+| `x` | En `--demo`, con el foco en la topología, tumba o recupera el backend seleccionado. |
 
 ## Teclas del editor de flujos
 
