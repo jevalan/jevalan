@@ -183,6 +183,54 @@ async fn draft_run_replays_a_cassette_without_touching_a_backend() {
 }
 
 #[tokio::test]
+async fn a_recorded_batch_replays_from_its_own_cassette() {
+    let (backend, guion) = scripted_backend().await;
+    say(
+        &guion,
+        "risks",
+        200,
+        answers(&[
+            ("risks.destructive", "noul", json!(0.9), 0.9),
+            ("risks.exfiltration", "noul", json!(0.1), 0.9),
+            ("risks.privilege", "noul", json!(0.1), 0.9),
+            ("risks.secret_exposure", "noul", json!(0.1), 0.9),
+        ]),
+    );
+    let dir = TempDir::with(&[]);
+    let daemon = start_with_flows_and(&backend, &["kev"], &dir).await;
+
+    let (estado, grabado) = post(
+        &daemon,
+        "/v1/flows/draft/run",
+        json!({ "flow": "tool-risk-local", "yaml": LOCAL, "input": entrada(), "transport": "record" }),
+    )
+    .await;
+    assert_eq!(estado, 200, "{grabado}");
+
+    // The recording is keyed like the replay looks it up: one entry per question, `"<node>.<question>"`.
+    let mut claves: Vec<&str> = grabado["cassette"].as_object().unwrap().keys().map(String::as_str).collect();
+    claves.sort_unstable();
+    assert_eq!(
+        claves,
+        ["risks.destructive", "risks.exfiltration", "risks.privilege", "risks.secret_exposure"],
+        "{grabado}"
+    );
+
+    let (estado, repetido) = post(
+        &daemon,
+        "/v1/flows/draft/run",
+        json!({
+            "flow": "tool-risk-local", "yaml": LOCAL, "input": entrada(), "transport": "replay",
+            "cassette": grabado["cassette"],
+        }),
+    )
+    .await;
+    assert_eq!(estado, 200, "{repetido}");
+    assert_eq!(repetido["data"]["verdict"], "deny", "{repetido}");
+    assert_eq!(repetido["path"][2]["answer"]["destructive"], 0.9, "{repetido}");
+}
+
+#[tokio::test]
 async fn draft_run_refuses_an_unknown_transport_and_an_invalid_draft() {
     let (backend, _guion) = scripted_backend().await;
     let dir = TempDir::with(&[]);
