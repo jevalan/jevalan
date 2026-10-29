@@ -42,7 +42,7 @@ Assertions are CEL booleans over `status` (`ok`, `abstain`, or `error`), `decisi
 ## Replay and cassettes
 
 - **`replay`** lives in the fixture and always wins. For a model node it is `{ answer, confidence }`; for an `exec` or `http` specialist it is the JSON it would return.
-- A **cassette** is written by `jevalan lab record`, one file per fixture and target. It stores only status and body, never headers, keys, or the request. It can express what a `replay` cannot, such as an HTTP failure.
+- A **cassette** is written by `jevalan lab record`, one file per fixture and target. It stores only status and body, never headers, keys, or the request. It can express what a `replay` cannot, such as an HTTP failure. If the backend failed while recording (a `401`, a `500`, an `error`), `record` keeps the previous cassette and says so in the report; add `--force` to overwrite it anyway.
 - A cassette records the fixture's `version` and a hash of its `input`. If either changes, the fixture is `skipped` until you record again, so a stale recording never gives a false pass.
 - `modes: [offline]` or `[live]` limits where a fixture runs.
 
@@ -71,7 +71,7 @@ prices:
   jev-latest: { input_per_mtok: 1.0, output_per_mtok: 2.0 }   # use the real rate in USD per million tokens
 ```
 
-A target replaces `backend` and `model` in every model node of a flow capability, which is how you compare backends on identical cases. The run stops, writing what it did, when it would exceed the budget. A target without a price reports its cost as `unknown`, and the cost cap cannot control it; Jevalan never reports an estimate as a cost.
+A target replaces `backend` and `model` in every model node of a flow capability, which is how you compare backends on identical cases. If the planned calls already exceed `max_calls`, nothing runs. If the budget runs out during the run, it stops and writes what it did, marked as partial. A target without a price reports its cost as `unknown`, and the cost cap cannot control it; Jevalan never reports an estimate as a cost.
 
 ## Reading the report
 

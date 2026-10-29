@@ -42,7 +42,7 @@ expect:                          # 不能为空
 ## Replay 与 cassette
 
 - **`replay`** 存放在 fixture 中，并且始终优先。对于模型节点，它是 `{ answer, confidence }`；对于 `exec` 或 `http` 专家，它是该专家会返回的 JSON。
-- **cassette** 由 `jevalan lab record` 写入，每个 fixture 和 target 一个文件。它只保存状态和响应体，从不保存请求头、密钥或请求本身。它可以表达 `replay` 无法表达的情形，例如 HTTP 失败。
+- **cassette** 由 `jevalan lab record` 写入，每个 fixture 和 target 一个文件。它只保存状态和响应体，从不保存请求头、密钥或请求本身。它可以表达 `replay` 无法表达的情形，例如 HTTP 失败。如果录制时后端失败（`401`、`500`、`error`），`record` 会保留原有的 cassette，并在报告中说明；加上 `--force` 可强行覆盖。
 - cassette 会记录 fixture 的 `version` 和它的 `input` 的哈希。只要其中任何一个发生变化，该 fixture 就会被 `skipped`，直到你重新录制，因此过期的录制永远不会产生虚假的通过。
 - `modes: [offline]` 或 `[live]` 限定 fixture 在哪里运行。
 
@@ -71,7 +71,7 @@ prices:
   jev-latest: { input_per_mtok: 1.0, output_per_mtok: 2.0 }   # 使用真实价格，单位为每百万 token 的美元数
 ```
 
-target 会替换 flow 类型能力中每个模型节点的 `backend` 和 `model`，这就是你用完全相同的用例比较各个后端的方式。如果运行将要超出预算，就会停止，并写出已经完成的内容。没有价格的 target 的成本会显示为 `unknown`，成本上限也无法控制它；Jevalan 从不把估算值当作成本报告。
+target 会替换 flow 类型能力中每个模型节点的 `backend` 和 `model`，这就是你用完全相同的用例比较各个后端的方式。如果预计的调用次数已经超过 `max_calls`，则一次也不会运行；如果预算在运行途中耗尽，就会停止，并写出已经完成的内容，标记为部分结果。没有价格的 target 的成本会显示为 `unknown`，成本上限也无法控制它；Jevalan 从不把估算值当作成本报告。
 
 ## 阅读报告
 
