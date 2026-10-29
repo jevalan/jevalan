@@ -125,6 +125,8 @@ outputs:
 
 A diferencia de los dos primeros, este flujo pregunta a un modelo, así que necesita un backend alcanzable. Fíjate en los puertos `error` y `low-confidence`: si el modelo falla o duda, el flujo cae en la opción intermedia en lugar de hacer fallar la petición.
 
+No todos los backends responden a todos los tipos de nodo. Probado contra un backend local que no maneja `score`, cada petición salió por el puerto `error` y acabó en `sonnet`: la alternativa funcionó como estaba diseñada, pero nada se enrutó por dificultad. Comprueba que tu backend admite los tipos de nodo que usa un flujo antes de fiarte de él.
+
 ## 5. Filtra un mensaje antes de que llegue a tu app de LLM
 
 Un nodo `batch` hace dos preguntas de sí o no en una sola llamada. Los umbrales los aplica tu código, no el modelo: un intento claro de saltarse las instrucciones se bloquea, uno dudoso o con datos personales va a revisión, y un fallo del backend también va a revisión en lugar de dejar pasar el mensaje.

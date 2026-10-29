@@ -125,6 +125,8 @@ outputs:
 
 Unlike the first two, this flow asks a model, so it needs a reachable backend. Note the `error` and `low-confidence` ports: when the model fails or is unsure, the flow falls back to the middle option instead of failing the request. The file in the repository has its instructions in Spanish; the structure is the same.
 
+Not every backend answers every node type. Tried against a local backend that does not handle `score`, each request took the `error` port and landed on `sonnet`: the fallback worked as designed, but nothing was routed by difficulty. Check that your backend supports the node types a flow uses before relying on it.
+
 ## 5. Screen a message before it reaches your LLM app
 
 One `batch` node asks two yes/no questions in a single call. Your code, not the model, applies the thresholds: a likely instruction override is blocked, a borderline one or one with personal data goes to review, and a backend failure also goes to review rather than letting the message through.
