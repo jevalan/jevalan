@@ -83,6 +83,7 @@ pub async fn demo_config(addr: SocketAddr, seed: u64, specialist: Vec<String>) -
         token: None,
         backends,
         routes: BTreeMap::new(),
+        sessions: Default::default(),
         default_backend: "ollama".into(),
         flows_dir: PathBuf::from("./config/flows"),
         hub,

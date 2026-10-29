@@ -278,6 +278,7 @@ mod tests {
                 ("typesafe".into(), backend("http://y")),
             ]),
             routes: BTreeMap::new(),
+            sessions: Default::default(),
             default_backend: "ollama".into(),
             flows_dir: dir.into(),
             hub: Default::default(),

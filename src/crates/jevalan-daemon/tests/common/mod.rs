@@ -79,6 +79,7 @@ pub fn cfg_with(backends: &[(&str, &str, Option<&str>)], token: Option<&str>) ->
         token: token.map(str::to_string),
         backends: map,
         routes: BTreeMap::new(),
+        sessions: Default::default(),
         default_backend: backends[0].0.to_string(),
         flows_dir: "./config/flows".into(),
         hub: Default::default(),

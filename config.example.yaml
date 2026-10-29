@@ -15,6 +15,12 @@ backends:
 #     members:
 #       - { backend: ollama, model: nimble }
 #       - { backend: openrouter, model: typesafe/jev-1.13 }   # needs `cloud: true` on the backend
+# Session capture, off unless you opt in: it keeps the tool inputs and the decisions in clear, on this machine only.
+# sessions:
+#   enabled: true
+#   capture: full          # full | off
+#   dir: ./sessions        # by default <data dir>/sessions
+#   retention_days: 14     # older daily files are deleted at start; today's is never touched
 default_backend: ollama
 flows_dir: ./config/flows
 hub:

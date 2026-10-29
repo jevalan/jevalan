@@ -13,9 +13,25 @@ pub struct Config {
     pub backends: BTreeMap<String, Backend>,
     /// Ordered `(backend, model)` lists a flow may name where it would name a backend.
     pub routes: BTreeMap<String, Route>,
+    pub sessions: Sessions,
     pub default_backend: String,
     pub flows_dir: PathBuf,
     pub hub: Hub,
+}
+
+/// Session capture (`sessions:` in the file): off unless the user opts in, since it keeps inputs and decisions in clear.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sessions {
+    pub enabled: bool,
+    /// Where the log goes; `None` means `<data>/sessions`.
+    pub dir: Option<PathBuf>,
+    pub retention_days: u32,
+}
+
+impl Default for Sessions {
+    fn default() -> Self {
+        Self { enabled: false, dir: None, retention_days: 14 }
+    }
 }
 
 /// A route: the first member that is reachable answers. Members that go out to the cloud are already left out
@@ -122,6 +138,8 @@ struct RawConfig {
     backends: Option<BTreeMap<String, RawBackend>>,
     #[serde(default)]
     routes: BTreeMap<String, RawRoute>,
+    #[serde(default)]
+    sessions: RawSessions,
     default_backend: Option<String>,
     flows_dir: Option<PathBuf>,
     #[serde(default)]
@@ -152,6 +170,16 @@ struct RawBackend {
     timeout_ms: Option<u64>,
     #[serde(default)]
     cloud: bool,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct RawSessions {
+    enabled: Option<bool>,
+    /// `full` records everything; `off` records nothing even if `enabled` (`redacted` is still to come).
+    capture: Option<String>,
+    dir: Option<PathBuf>,
+    retention_days: Option<u32>,
 }
 
 /// A route is a bare list of members (cloud closed) or, to open the cloud, an object that says so.
@@ -232,6 +260,7 @@ fn build(raw: RawConfig, env: &dyn Fn(&str) -> Option<String>) -> Result<Config,
     }
 
     let routes = build_routes(raw.routes, &backends)?;
+    let sessions = build_sessions(raw.sessions)?;
     let default_backend = env("JEVALAN_DEFAULT_BACKEND").or(raw.default_backend).unwrap_or_else(|| "ollama".into());
     if !backends.contains_key(&default_backend) && !routes.contains_key(&default_backend) {
         return Err(format!("default_backend «{default_backend}» no figura entre los backends ni las rutas"));
@@ -253,7 +282,20 @@ fn build(raw: RawConfig, env: &dyn Fn(&str) -> Option<String>) -> Result<Config,
         .or(raw.hub.signals_dir)
         .unwrap_or_else(|| Hub::default().signals_dir);
     let hub = Hub { capabilities_dir, allow_exec, signals_dir, ..Hub::default() };
-    Ok(Config { addr, token, backends, routes, default_backend, flows_dir, hub })
+    Ok(Config { addr, token, backends, routes, sessions, default_backend, flows_dir, hub })
+}
+
+fn build_sessions(raw: RawSessions) -> Result<Sessions, String> {
+    let capture = raw.capture.as_deref().unwrap_or("full");
+    if !matches!(capture, "full" | "off") {
+        return Err(format!("sessions.capture «{capture}» no es válido: use full u off"));
+    }
+    let defaults = Sessions::default();
+    Ok(Sessions {
+        enabled: raw.enabled.unwrap_or(false) && capture == "full",
+        dir: raw.dir,
+        retention_days: raw.retention_days.unwrap_or(defaults.retention_days),
+    })
 }
 
 /// Validates the routes against the backends and drops the cloud members of those that did not opt in.
@@ -450,6 +492,16 @@ default_backend: kev
             timeout: Duration::from_millis(1),
             cloud: false,
         }
+    }
+
+    #[test]
+    fn sessions_are_off_unless_the_user_opts_in() {
+        assert!(!load_yaml("", &[]).unwrap().sessions.enabled);
+        let on = load_yaml("sessions: { enabled: true, dir: ./log, retention_days: 3 }", &[]).unwrap().sessions;
+        assert_eq!((on.enabled, on.dir, on.retention_days), (true, Some(PathBuf::from("./log")), 3));
+        assert!(!load_yaml("sessions: { enabled: true, capture: off }", &[]).unwrap().sessions.enabled);
+        assert!(load_yaml("sessions: { enabled: true, capture: redacted }", &[]).is_err());
+        assert!(load_yaml("sessions: { enabeld: true }", &[]).is_err());
     }
 
     #[test]

@@ -2,6 +2,7 @@
 
 use crate::AppState;
 use crate::proxy::call_backend;
+use crate::session::Recorder;
 use axum::body::Bytes;
 use jevalan_hub::classify::{ErrorCode, Status};
 use serde_json::{Value, json};
@@ -63,11 +64,19 @@ struct Tally {
 pub struct Io<'a> {
     transport: &'a Transport,
     tally: Mutex<Tally>,
+    /// The session log and the trace this run belongs to, when capture is on.
+    recording: Option<(Arc<Recorder>, String)>,
 }
 
 impl<'a> Io<'a> {
     pub fn new(transport: &'a Transport) -> Self {
-        Self { transport, tally: Mutex::default() }
+        Self { transport, tally: Mutex::default(), recording: None }
+    }
+
+    /// Stores every live backend call of this run in the session log, under `trace_id`.
+    pub fn recording(mut self, state: &AppState, trace_id: &str) -> Self {
+        self.recording = state.recorder.clone().map(|r| (r, trace_id.to_string()));
+        self
     }
 
     fn tally(&self) -> std::sync::MutexGuard<'_, Tally> {
@@ -150,6 +159,7 @@ impl<'a> Io<'a> {
         questions: &[String],
         body: Bytes,
     ) -> Result<(u16, Bytes), String> {
+        let request = self.recording.is_some().then(|| body.clone());
         let result = match self.transport {
             Transport::Replay(rec) if !questions.is_empty() => {
                 replay_many(rec, questions).ok_or_else(|| self.miss(&questions[0]))
@@ -161,6 +171,12 @@ impl<'a> Io<'a> {
             }
             _ => call_backend(state, backend, body).await,
         };
+        if let (Some((recorder, trace_id)), Some(request), false) =
+            (&self.recording, &request, matches!(self.transport, Transport::Replay(_)))
+        {
+            let response = result.as_ref().map(|(status, bytes)| (*status, &bytes[..])).map_err(String::as_str);
+            recorder.backend_call(trace_id, backend, node, request, response);
+        }
         // A failed call, or one without `usage`, cannot be priced: the run's cost stops being known.
         let mut metered = false;
         let mut cost = None;

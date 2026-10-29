@@ -79,6 +79,24 @@ The daemon forwards to `url + path`; the client-facing route `/{backend}/v1/syst
 The daemon fails fast if `default_backend` is not defined, a `url` is not http(s), or an
 `api_key_env` variable is empty or missing.
 
+### Session log: what was asked and what was decided
+
+With `sessions.enabled: true` the daemon appends, to `<data dir>/sessions/log-YYYYMMDD.jsonl` (or `sessions.dir`), a line
+for each fact of a request: the `INPUT` the client sent (**in clear**, secrets included), every `BACKEND_CALL` with its
+request and response, the `DECISION`, and the bus events of the trace. A session is the set of traces that share the
+`client` of the `X-Jevalan-Client` header. It is opt-in and local: nothing is sent anywhere, daily files older than
+`retention_days` (default 14) are pruned at start, and a write that fails is dropped without failing the request. The
+input and the decision never travel on the public bus (`/events`), so the live TUI still sees neither.
+
+```bash
+cargo run -p jevalan -- sessions list [--since 2026-10-29] [--client crush] [--json]
+cargo run -p jevalan -- sessions show crush/crush:243a        # a client, or a trace_id
+```
+
+`list` prints one row per client (first and last activity, traces, decisions by verdict); `show` draws each trace's
+timeline: the input, the path through the flow, the backends touched with their latency, and the decision. Replaying a
+session offline and importing it into the lab bench are not implemented yet.
+
 ### Routes: the first backend that answers
 
 A `routes.<name>` entry is an ordered list of `{ backend, model }`. A flow (`defaults.backend` or a node's `backend`)
