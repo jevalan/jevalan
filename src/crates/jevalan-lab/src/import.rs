@@ -36,14 +36,12 @@ const CRUMB_CHARS: usize = 32;
 /// What the laboratory requires at the bench root; written only if missing.
 const LAB_YAML: &str = "\
 # Banco de fixtures importados del registro sombra (`jevalan shadow fixtures`).
-# Los reproduce el flujo local `tool-risk-local` (nodo `batch` `risks`), de modo que este banco se corre
-# con `--config config/lab/config.local.yaml`. Sus fixtures son de modo `offline` y solo tienen sentido ahí:
-# reproducen decisiones ya grabadas, no miden al modelo. Véase docs/local-development.md.
-targets:
-  kev:  { backend: kev,  model: kev-latest }
-  laya: { backend: laya, model: laya-latest }
-budget: { max_calls: 200, max_cost_usd: 1.0 }
-repeat: 3
+# Los reproduce el flujo local `tool-risk-local` (nodo `batch` `risks`): se corren con `lab offline` y con la
+# `--config` del daemon que sirve ese flujo. Sus fixtures son de modo `offline`: reproducen decisiones ya
+# grabadas, no miden a ningún modelo. Véase docs/local-development.md.
+# Los targets son opcionales: `offline` no necesita ninguno. Para `lab record` o `lab live`, declare aquí al
+# menos uno (un nombre, el backend del daemon y el modelo) junto con un `budget`.
+targets: {}
 ";
 
 /// What the command line asked for.
@@ -663,6 +661,19 @@ mod tests {
         let (stem, yaml) = fixtures_of(&tmp).remove(0);
         assert!(stem.contains("-ls-"), "{stem}: {yaml}");
         assert!(yaml.contains("decision.verdict == 'ask'"), "{yaml}");
+    }
+
+    #[test]
+    fn el_lab_yaml_escrito_no_nombra_ningun_backend_ni_modelo_y_carga() {
+        let config = jevalan_hub::lab::config::parse_lab_config(LAB_YAML).unwrap();
+        assert!(config.targets.is_empty(), "los targets los elige quien usa el banco: {config:?}");
+        for coupled in ["kev", "laya", "backend:", "model:"] {
+            assert!(
+                !LAB_YAML.contains(coupled),
+                "{coupled} en el lab.yaml escrito:
+{LAB_YAML}"
+            );
+        }
     }
 
     #[test]

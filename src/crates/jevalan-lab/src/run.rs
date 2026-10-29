@@ -50,7 +50,8 @@ impl Lab {
         } else {
             cap.provider_id.clone()
         };
-        let mut line = ResultLine::blank(case, &target, 1, "replay");
+        // Without any target (a bench that only replays) the report still needs something to put in the column.
+        let mut line = ResultLine::blank(case, if target.is_empty() { "-" } else { &target }, 1, "replay");
 
         // The manual replay rules; the cassette only fills in the missing keys. A `batch`'s keys
         // are those of its questions, `"<node>.<question>"`, which is what the daemon will ask for (D3).

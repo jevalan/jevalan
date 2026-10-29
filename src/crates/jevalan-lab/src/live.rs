@@ -71,6 +71,12 @@ impl Lab {
         confirm: &mut (dyn FnMut(&str) -> bool + Send),
     ) -> Result<RunOutcome, String> {
         let budget = self.config.budget.ok_or("lab.yaml necesita `budget` para record y live")?;
+        let needs_targets = self.cases.iter().any(|c| matches!(c.cap.provider, Provider::Flow { .. }));
+        if self.config.targets.is_empty() && needs_targets {
+            return Err(
+                "lab.yaml no declara ningún target: añada al menos uno (backend y model) para record y live".into()
+            );
+        }
         if let Some(t) = opts.target.as_deref()
             && !self.config.targets.contains_key(t)
             && !self.cases.iter().any(|c| c.cap.provider_id == t)

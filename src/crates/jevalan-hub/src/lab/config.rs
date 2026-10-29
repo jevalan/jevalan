@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LabConfig {
+    /// Optional: replaying offline needs none. `record` and `live` ask for them when they run.
+    #[serde(default)]
     pub targets: BTreeMap<String, Target>,
     #[serde(default)]
     pub budget: Option<Budget>,
@@ -42,9 +44,6 @@ pub struct Price {
 
 pub fn parse_lab_config(yaml: &str) -> Result<LabConfig, String> {
     let c: LabConfig = serde_yaml::from_str(yaml).map_err(|e| format!("lab.yaml inválido: {e}"))?;
-    if c.targets.is_empty() {
-        return Err("lab.yaml necesita al menos un target".into());
-    }
     if let Some(bad) = c
         .targets
         .keys()
@@ -98,7 +97,9 @@ prices:
 
     #[test]
     fn invalid_matrices_are_rejected() {
-        assert!(parse_lab_config("targets: {}").is_err());
+        // A bench that only replays needs no target at all; `record` and `live` ask for one when they run.
+        assert!(parse_lab_config("targets: {}").unwrap().targets.is_empty());
+        assert_eq!(parse_lab_config("repeat: 2").unwrap().repeat, 2);
         assert!(parse_lab_config(&OK.replace("repeat: 3", "repeat: 0")).is_err());
         assert!(parse_lab_config(&OK.replace("nimble:", "Nimble X:")).is_err());
         assert!(parse_lab_config(&OK.replace("max_cost_usd: 1.0", "max_cost_usd: -1.0")).is_err());
