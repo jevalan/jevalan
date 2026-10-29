@@ -652,14 +652,14 @@ default_backend: kev
     #[test]
     fn parchear_el_config_local_de_verdad_conserva_sus_comentarios_y_valida() {
         let Some(real) = config_local_de_verdad() else { return };
-        assert!(real.contains("# Daemon íntegramente local"), "el fichero real ha de traer sus comentarios");
+        assert!(real.contains("# Fully local daemon"), "el fichero real ha de traer sus comentarios");
         let cambios = [Cambio { backend: "kev".into(), clave: "timeout_ms".into(), valor: "9000".into() }];
         let nuevo = parchear(&real, &cambios).expect("el config.local.yaml de verdad ha de poder parchearse");
         // Ojo al espacio: el fichero trae `kev:  ` con dos, y la línea parcheada sale con uno, porque se
         // reconstruye. Es de la línea que se toca; las que no se tocan conservan el suyo (laya, abajo).
         assert!(nuevo.contains("kev: { url: \"http://127.0.0.1:8009\", timeout_ms: 9000 }"), "{nuevo}");
-        assert!(nuevo.contains("# Daemon íntegramente local"), "el comentario de cabecera sobrevive: {nuevo}");
-        assert!(nuevo.contains("# Requiere Kev en :8009"), "y el segundo también: {nuevo}");
+        assert!(nuevo.contains("# Fully local daemon"), "el comentario de cabecera sobrevive: {nuevo}");
+        assert!(nuevo.contains("# Needs Kev on :8009"), "y el segundo también: {nuevo}");
         assert!(nuevo.contains("laya: { url: \"http://127.0.0.1:8021\", timeout_ms: 5000 }"), "y laya no se toca");
         assert!(validar(&nuevo, &env_de).is_ok(), "y el resultado ha de validar con el daemon: {nuevo}");
     }
