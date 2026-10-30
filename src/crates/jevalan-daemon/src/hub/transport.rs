@@ -221,6 +221,13 @@ impl<'a> Io<'a> {
         result
     }
 
+    /// Stores a live specialist answer in the session log, if capture is on.
+    fn note_specialist(&self, key: &str, value: &Value) {
+        if let Some((recorder, trace_id)) = &self.recording {
+            recorder.specialist_call(trace_id, key, value);
+        }
+    }
+
     /// Specialist response; `live` is only polled if the transport is not `Replay`.
     pub async fn specialist(
         &self,
@@ -234,9 +241,14 @@ impl<'a> Io<'a> {
             Transport::Replay(rec) => {
                 rec.get(key).cloned().ok_or_else(|| Status::error(ErrorCode::ProviderFailed, self.miss(key)))
             }
-            Transport::Live => live.await,
+            Transport::Live => {
+                let value = live.await?;
+                self.note_specialist(key, &value);
+                Ok(value)
+            }
             Transport::Record(rec) => {
                 let value = live.await?;
+                self.note_specialist(key, &value);
                 rec.lock().unwrap_or_else(PoisonError::into_inner).insert(key.into(), value.clone());
                 Ok(value)
             }

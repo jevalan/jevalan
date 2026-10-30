@@ -5,6 +5,7 @@ pub mod classify;
 pub mod envelope;
 pub mod lab;
 pub mod program;
+pub mod sessions;
 pub mod shadow;
 
 pub const PROTOCOL: &str = "jev-hub/0.1";

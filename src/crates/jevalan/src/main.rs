@@ -175,6 +175,28 @@ enum SessionsAction {
         #[arg(long)]
         json: bool,
     },
+    /// Re-runs the traces offline with their recorded answers; fails if any decision changed.
+    Replay {
+        /// The client or a `trace_id`.
+        target: String,
+        /// Configuration of the daemon whose flows and capabilities decide, as `serve` reads it.
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Writes the traces as fixtures of a laboratory bench (created if missing) and checks that it loads.
+    Import {
+        /// The client or a `trace_id`.
+        target: String,
+        /// Fixture bench.
+        #[arg(long, default_value = "lab-fixtures-sessions")]
+        lab_dir: PathBuf,
+        /// Configuration of the daemon whose flows and capabilities the fixtures are checked against.
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -306,6 +328,10 @@ fn main() -> ExitCode {
             action: match action {
                 SessionsAction::List { since, client, json } => sessions::Action::List { since, client, json },
                 SessionsAction::Show { target, json } => sessions::Action::Show { target, json },
+                SessionsAction::Replay { target, config, json } => sessions::Action::Replay { target, config, json },
+                SessionsAction::Import { target, lab_dir, config } => {
+                    sessions::Action::Import { target, lab_dir, config }
+                }
             },
         }),
         Cmd::MockSpecialist { capability, fail, fail_flag } => specialist::run(&capability, fail, fail_flag.as_deref()),

@@ -94,8 +94,24 @@ cargo run -p jevalan -- sessions show crush/crush:243a        # a client, or a t
 ```
 
 `list` prints one row per client (first and last activity, traces, decisions by verdict); `show` draws each trace's
-timeline: the input, the path through the flow, the backends touched with their latency, and the decision. Replaying a
-session offline and importing it into the lab bench are not implemented yet.
+timeline: the input, the path through the flow, the backends touched with their latency, and the decision.
+
+```bash
+cargo run -p jevalan -- sessions replay crush/crush:243a --config config.yaml
+cargo run -p jevalan -- sessions import crush/crush:243a --lab-dir lab-fixtures-sessions --config config.yaml
+```
+
+`replay` re-runs each trace through the same path as `POST /v1/hub`, in process, with the recorded backend and specialist
+answers as the only transport (no network, no processes), and compares status and decision with the recorded ones; it exits
+non-zero if any differs or lacks a recording. Traces from `/v1/decide`, or whose specialist call failed, are skipped.
+`import` writes each replayable trace as an `offline` fixture (the recorded answers as its `replay`, the recorded verdict
+fields as its `expect`) and then loads the bench and runs `lab check`. A fixture keeps only each answer and its confidence,
+so `replay` is the faithful comparison and the fixture is the regression case.
+
+In the TUI, `S` on the dashboard opens the sessions screen: clients by recent activity on the left, the selected trace's
+timeline on the right (`↑↓` session, `[` `]` older / newer trace, `r` re-read, `esc` back). It reads `sessions/` beside
+`shadow.jsonl`, so a custom `sessions.dir` is not followed, and it **never shows the input**: screenshots of the TUI end
+up in public places, and `sessions show` is where the input is read.
 
 ### Routes: the first backend that answers
 

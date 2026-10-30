@@ -1,9 +1,10 @@
 //! `jevalan sessions`: reads the session log (`list`, `show`). The log is written by the daemon when
 //! `sessions.enabled` is on; see `jevalan_daemon::session`.
 
-use jevalan_daemon::session::log::{Session, Trace, group, read_dir};
+use jevalan_hub::sessions::{Session, Trace, group, read_dir, timeline, verdict_counts};
+use jevalan_lab::Lab;
+use jevalan_lab::session::{import, load_state, passed, render, replay};
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -13,8 +14,27 @@ pub struct Opts {
 }
 
 pub enum Action {
-    List { since: Option<String>, client: Option<String>, json: bool },
-    Show { target: String, json: bool },
+    List {
+        since: Option<String>,
+        client: Option<String>,
+        json: bool,
+    },
+    Show {
+        target: String,
+        json: bool,
+    },
+    /// Re-runs the traces offline with their recorded answers and compares the decisions.
+    Replay {
+        target: String,
+        config: Option<PathBuf>,
+        json: bool,
+    },
+    /// Writes the traces as fixtures of a laboratory bench.
+    Import {
+        target: String,
+        lab_dir: PathBuf,
+        config: Option<PathBuf>,
+    },
 }
 
 pub fn run(opts: Opts) -> ExitCode {
@@ -38,11 +58,80 @@ pub fn run(opts: Opts) -> ExitCode {
                 println!("{}", if json { show_json(&traces) } else { show_text(&traces) });
                 ExitCode::SUCCESS
             }
-            None => {
-                eprintln!("error: ninguna sesión ni traza coincide con «{target}»");
+            None => not_found(&target),
+        },
+        Action::Replay { target, config, json } => {
+            let Some(traces) = find(&sessions, &target) else { return not_found(&target) };
+            let state = match crate::load_cfg(config.as_deref()) {
+                Ok(cfg) => load_state(&cfg),
+                Err(code) => return code,
+            };
+            let results = match block_on(replay(&state, &traces)) {
+                Ok(r) => r,
+                Err(code) => return code,
+            };
+            let text = if json { serde_json::to_string_pretty(&results).unwrap_or_default() } else { render(&results) };
+            println!("{text}");
+            if passed(&results) { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+        }
+        Action::Import { target, lab_dir, config } => {
+            let Some(traces) = find(&sessions, &target) else { return not_found(&target) };
+            let cfg = match crate::load_cfg(config.as_deref()) {
+                Ok(cfg) => cfg,
+                Err(code) => return code,
+            };
+            import_into(&cfg, &traces, &lab_dir)
+        }
+    }
+}
+
+fn not_found(target: &str) -> ExitCode {
+    eprintln!("error: ninguna sesión ni traza coincide con «{target}»");
+    ExitCode::FAILURE
+}
+
+fn block_on<T>(future: impl std::future::Future<Output = T>) -> Result<T, ExitCode> {
+    match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+        Ok(rt) => Ok(rt.block_on(future)),
+        Err(e) => {
+            eprintln!("error: {e}");
+            Err(ExitCode::FAILURE)
+        }
+    }
+}
+
+/// Writes the fixtures and proves the bench still loads and checks, so that nothing unloadable is left behind.
+fn import_into(cfg: &jevalan_daemon::config::Config, traces: &[Trace], lab_dir: &std::path::Path) -> ExitCode {
+    let state = load_state(cfg);
+    let done = match import(&state, traces, lab_dir) {
+        Ok(done) => done,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    println!("{} fixtures escritas, {} idénticas, {} omitidas", done.written, done.identical, done.skipped.len());
+    for why in &done.skipped {
+        println!("  omitida: {why}");
+    }
+    if done.lab_yaml_written {
+        println!("Se creó {}", lab_dir.join("lab.yaml").display());
+    }
+    match Lab::load(lab_dir, cfg) {
+        Ok(lab) => {
+            let problems = lab.check();
+            problems.iter().for_each(|p| eprintln!("error: {p}"));
+            if problems.is_empty() {
+                println!("El banco carga y pasa `lab check` ({} fixtures).", lab.fixture_count());
+                ExitCode::SUCCESS
+            } else {
                 ExitCode::FAILURE
             }
-        },
+        }
+        Err(problems) => {
+            problems.iter().for_each(|p| eprintln!("error: {p}"));
+            ExitCode::FAILURE
+        }
     }
 }
 
@@ -67,23 +156,6 @@ fn find(sessions: &[Session], target: &str) -> Option<Vec<Trace>> {
     sessions.iter().flat_map(|s| &s.traces).find(|t| t.trace_id == target).map(|t| vec![t.clone()])
 }
 
-/// What the capability decided, in one word: the verdict it carries, or its status when it carries none.
-fn verdict(decision: &Value) -> String {
-    if decision["status"] != "ok" {
-        return decision["status"].as_str().unwrap_or("?").to_string();
-    }
-    ["decision", "verdict", "outcome"].iter().find_map(|k| decision["decision"][k].as_str()).unwrap_or("ok").to_string()
-}
-
-fn verdicts(session: &Session) -> BTreeMap<String, usize> {
-    let mut counts = BTreeMap::new();
-    for trace in &session.traces {
-        let word = trace.first("DECISION").map_or_else(|| "sin decisión".to_string(), verdict);
-        *counts.entry(word).or_insert(0) += 1;
-    }
-    counts
-}
-
 fn day(ts: &str) -> &str {
     ts.get(..16).unwrap_or(ts)
 }
@@ -95,7 +167,7 @@ fn list_text(sessions: &[Session]) -> String {
     let mut out = String::from("cliente | inicio | fin | trazas | decisiones\n");
     for s in sessions {
         let (first, last) = (s.traces.first().map_or("", Trace::start), s.traces.last().map_or("", Trace::end));
-        let counts: Vec<String> = verdicts(s).iter().map(|(k, n)| format!("{k}×{n}")).collect();
+        let counts: Vec<String> = verdict_counts(s).iter().map(|(k, n)| format!("{k}×{n}")).collect();
         out.push_str(&format!(
             "{} | {} | {} | {} | {}\n",
             s.client,
@@ -117,7 +189,7 @@ fn list_json(sessions: &[Session]) -> String {
                 "start": s.traces.first().map_or("", Trace::start),
                 "end": s.traces.last().map_or("", Trace::end),
                 "traces": s.traces.len(),
-                "decisions": verdicts(s),
+                "decisions": verdict_counts(s),
             })
         })
         .collect();
@@ -136,43 +208,9 @@ fn show_text(traces: &[Trace]) -> String {
     for trace in traces {
         let client = trace.lines.iter().find_map(|l| l["client"].as_str()).unwrap_or("unknown");
         out.push_str(&format!("== {} · {} · {}\n", trace.trace_id, client, trace.start()));
-        if let Some(input) = trace.first("INPUT") {
-            out.push_str(&format!("entrada ({}): {}\n", input["capability"].as_str().unwrap_or("?"), input["input"]));
-        }
-        let events = |ty: &'static str| trace.all("EVENT").filter(move |l| l["payload"]["type"] == ty);
-        for end in events("NODE_END") {
-            let p = &end["payload"]["payload"];
-            out.push_str(&format!(
-                "  nodo {} → puerto {}\n",
-                p["node"].as_str().unwrap_or("?"),
-                p["port"].as_str().unwrap_or("?")
-            ));
-        }
-        let latencies: Vec<u64> =
-            events("BACKEND_RESPONSE").filter_map(|l| l["payload"]["payload"]["duration_ms"].as_u64()).collect();
-        for (i, call) in trace.all("BACKEND_CALL").enumerate() {
-            let status = call["response"]["status"].as_u64().map_or_else(
-                || format!("fallo: {}", call["response"]["error"].as_str().unwrap_or("?")),
-                |s| format!("HTTP {s}"),
-            );
-            let ms = latencies.get(i).map_or(String::new(), |ms| format!(" ({ms} ms)"));
-            out.push_str(&format!(
-                "  backend {} nodo {}: {status}{ms}\n",
-                call["backend"].as_str().unwrap_or("?"),
-                call["node"].as_str().unwrap_or("?")
-            ));
-        }
-        match trace.first("DECISION") {
-            Some(d) => {
-                let detail = d["decision"].as_object().map_or(String::new(), |_| format!(" {}", d["decision"]));
-                out.push_str(&format!(
-                    "decisión: {}{}{}\n",
-                    verdict(d),
-                    d["code"].as_str().map_or(String::new(), |c| format!(" ({c})")),
-                    detail
-                ));
-            }
-            None => out.push_str("decisión: ninguna registrada\n"),
+        for line in timeline(trace, true) {
+            out.push_str(&line);
+            out.push('\n');
         }
     }
     out.trim_end().to_string()

@@ -4,23 +4,23 @@
 //! live TUI must keep seeing neither. It is opt-in, local-only and best-effort: a write that fails is dropped and
 //! counted, never turned into a failed request (D7).
 
-pub mod log;
+pub use jevalan_hub::sessions as log;
+pub use jevalan_hub::sessions::files;
 
 use crate::bus::Bus;
 use jevalan_events::v2::{Event, EventKind, rfc3339};
+use jevalan_hub::sessions::{PREFIX, SUFFIX};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::SystemTime;
 
 /// How many `trace_id → client` pairs are remembered before the map starts over.
 const MAX_CLIENTS: usize = 4096;
-const PREFIX: &str = "log-";
-const SUFFIX: &str = ".jsonl";
 
 struct Active {
     /// `YYYYMMDD` of the file held open.
@@ -118,6 +118,11 @@ impl Recorder {
         }));
     }
 
+    /// What an `exec`/`http` specialist answered, under the key a replay will ask for (`provider.id`).
+    pub fn specialist_call(&self, trace_id: &str, key: &str, response: &Value) {
+        self.write(json!({ "trace_id": trace_id, "type": "SPECIALIST_CALL", "key": key, "response": response }));
+    }
+
     fn event(&self, event: &Event) {
         match &event.kind {
             EventKind::HubRequest { client, .. } | EventKind::RequestReceived { client, .. } => {
@@ -204,21 +209,6 @@ fn days_since_epoch(day: &str) -> Option<i64> {
 /// The directory the log lives in when the configuration names none: `<data>/sessions`.
 pub fn default_dir() -> Option<PathBuf> {
     crate::discovery::data_dir().map(|d| d.join("sessions"))
-}
-
-/// The log files of `dir`, oldest first.
-pub fn files(dir: &Path) -> Vec<PathBuf> {
-    let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| {
-            p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(PREFIX) && n.ends_with(SUFFIX))
-        })
-        .collect();
-    found.sort();
-    found
 }
 
 #[cfg(test)]
