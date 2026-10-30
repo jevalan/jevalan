@@ -1,4 +1,4 @@
-//! `POST /v1/hub` y `GET /v1/hub/capabilities`.
+//! `POST /v1/hub`, `GET /v1/hub/capabilities` y su gemela `GET /.well-known/jev-hub.json`.
 
 use crate::AppState;
 use crate::hub::execute::execute_as;

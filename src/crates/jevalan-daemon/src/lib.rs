@@ -101,6 +101,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/flows/draft/run", post(draft::draft_run))
         .route("/v1/hub", post(hub::route::hub))
         .route("/v1/hub/capabilities", get(hub::route::capabilities))
+        .route("/.well-known/jev-hub.json", get(hub::route::capabilities))
         .route("/events", get(ws::events))
         .route("/healthz", get(|| async { "ok" }))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))

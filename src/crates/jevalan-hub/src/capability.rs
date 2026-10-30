@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::path::{Component, Path};
 use std::sync::Arc;
@@ -127,6 +128,8 @@ pub struct Capability {
     pub deadline_ms: u64,
     pub input_schema: Value,
     pub decision_schema: Value,
+    /// See `Capability::digest`.
+    digest: String,
     input: Arc<jsonschema::Validator>,
     decision: Arc<jsonschema::Validator>,
 }
@@ -146,9 +149,26 @@ impl Capability {
         first_error(&self.decision, v)
     }
 
+    /// Global identifier: the publisher's namespace plus the file name.
+    pub fn id(&self) -> String {
+        format!("{}/{}", self.namespace, self.name)
+    }
+
+    /// `sha256:<hex>` of the contract: the resolved capability (schemas inlined, not their `$file` reference) without
+    /// the `provider` block, so that rebinding a capability never changes it and pinning by hash pins a contract.
+    /// `serde_json` keeps object keys sorted, which makes the serialization canonical on any machine.
+    pub fn digest(&self) -> &str {
+        &self.digest
+    }
+
     /// What `/v1/hub/capabilities` publishes: never the command, environment or URL.
     pub fn summary(&self) -> Value {
         json!({
+            "id": self.id(),
+            "digest": self.digest,
+            "namespace": self.namespace,
+            "publisher": self.publisher,
+            "requires": self.requires,
             "version": self.version,
             "description": self.description,
             "provider": { "id": self.provider_id, "type": self.provider.kind() },
@@ -264,6 +284,19 @@ pub fn parse_capability_with(
         (None, None, Some(_)) => return Err(CapError::BadProvider("http.url debe ser http(s)".into())),
         _ => return Err(CapError::BadProvider("declara exactamente uno de flow, exec o http".into())),
     };
+    let contract = json!({
+        "name": name,
+        "namespace": def.namespace,
+        "version": def.version,
+        "description": def.description,
+        "publisher": def.publisher,
+        "requires": def.requires,
+        "input_schema": input_schema,
+        "decision_schema": decision_schema,
+        "deadline_ms": def.defaults.deadline_ms,
+    });
+    let hash = Sha256::digest(contract.to_string().as_bytes());
+    let digest = format!("sha256:{}", hash.iter().map(|b| format!("{b:02x}")).collect::<String>());
     Ok(Capability {
         name: name.into(),
         namespace: def.namespace,
@@ -279,6 +312,7 @@ pub fn parse_capability_with(
         deadline_ms: def.defaults.deadline_ms,
         input_schema,
         decision_schema,
+        digest,
         input: Arc::new(input),
         decision: Arc::new(decision),
     })
@@ -389,6 +423,22 @@ defaults: { deadline_ms: 5000 }
         let s = load("tool.risk", EXEC).unwrap().summary().to_string();
         assert!(!s.contains("toolgate\", \"decide") && !s.contains("TYPESAFE_API_KEY"), "{s}");
         assert!(s.contains("\"exec\""));
+    }
+
+    #[test]
+    fn digest_covers_the_contract_and_not_the_binding() {
+        let base = load("tool.risk", EXEC).unwrap();
+        assert!(base.digest().starts_with("sha256:") && base.digest().len() == 71, "{}", base.digest());
+        assert_eq!(base.digest(), load("tool.risk", EXEC).unwrap().digest());
+        // Rebinding the provider, its command or its environment leaves the contract alone.
+        let rebound = EXEC.replace("toolgate\", \"decide", "otro\", \"decide").replace("TYPESAFE_API_KEY", "OTRA");
+        assert_eq!(base.digest(), load("tool.risk", &rebound).unwrap().digest());
+        // A different contract, or the same one under another name, does not share it.
+        let other = EXEC.replace("required: [verdict]", "required: [verdict, reason]");
+        assert_ne!(base.digest(), load("tool.risk", &other).unwrap().digest());
+        assert_ne!(base.digest(), load("tool.other", EXEC).unwrap().digest());
+        assert_eq!(base.id(), "io.github.prueba/tool.risk");
+        assert!(base.summary().to_string().contains(base.digest()));
     }
 
     #[test]

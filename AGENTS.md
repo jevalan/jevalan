@@ -15,6 +15,7 @@ live product view.
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit.
 - [`docs/local-development.md`](docs/local-development.md) — running it, configuration, and the
   flow editor's keys and manual script.
+- [`docs/hub-profile.md`](docs/hub-profile.md) — the hub profile: what is published and what an implementation honours.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — the checks a change must pass.
 - [`docs/site/`](docs/site/) — static presentation and usage guide.
 
