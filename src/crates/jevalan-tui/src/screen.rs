@@ -107,6 +107,12 @@ pub trait Screen {
     fn draw(&mut self, ctx: &Ctx, f: &mut Frame, area: Rect);
     fn keys(&self) -> &'static [KeyHint];
 
+    /// `true` while the screen is taking text (a filter being typed): the global keys (`q`, `f`, `p`, `esc`...) then
+    /// go to the screen as ordinary characters.
+    fn captures_text(&self) -> bool {
+        false
+    }
+
     /// `true` while the screen has an animation of its own in progress (effects).
     fn animating(&self) -> bool {
         false

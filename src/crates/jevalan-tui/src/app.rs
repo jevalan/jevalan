@@ -61,7 +61,8 @@ impl App {
             Msg::Key(k) if k.kind != KeyEventKind::Press => return,
             Msg::Key(k) => {
                 self.dirty = true;
-                if self.global_key(k) {
+                let typing = self.stack.last().is_some_and(|s| s.captures_text());
+                if !typing && self.global_key(k) {
                     return;
                 }
             }
@@ -268,6 +269,36 @@ mod tests {
         fn keys(&self) -> &'static [KeyHint] {
             &[KeyHint { key: "x", desc: "apilar" }]
         }
+    }
+
+    /// Test screen that is taking text.
+    struct Typing;
+
+    impl Screen for Typing {
+        fn update(&mut self, _ctx: &mut Ctx, _msg: &Msg) -> Option<Nav> {
+            None
+        }
+
+        fn draw(&mut self, _ctx: &Ctx, _f: &mut Frame, _area: Rect) {}
+
+        fn keys(&self) -> &'static [KeyHint] {
+            &[]
+        }
+
+        fn captures_text(&self) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn a_screen_taking_text_keeps_the_global_keys_to_itself() {
+        let mut a = App::new(Box::new(Typing), FxMode::Events, Instant::now());
+        let fx = a.ctx.fx;
+        a.update(key(KeyCode::Char('q')));
+        a.update(key(KeyCode::Char('f')));
+        a.update(key(KeyCode::Esc));
+        assert!(!a.quit, "ni q ni esc cierran mientras se escribe");
+        assert_eq!(a.ctx.fx, fx, "ni f cambia los efectos");
     }
 
     fn app() -> (App, Rc<RefCell<Vec<String>>>) {

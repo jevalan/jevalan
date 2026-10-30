@@ -526,7 +526,7 @@ Use it as a deterministic regression guard, which is what it is; to measure the 
 
 ### Hook decisions view
 
-In `jevalan tui` (live or `--fake`), press `H` to open a live view of the Claude Code hook decisions: verdict counters with p50/p95 latency and the "ask sospechosos" count, a scrolling list of the latest calls, and, for the selected one, its eight probabilities as bars with ticks at 0.55 and 0.85 plus the reason. It tails `shadow.jsonl` locally (polling every 500 ms and re-reading from the start if the file shrinks) and never shows `tool_input`, so it is safe to screenshot. It works without the daemon; `esc` goes back.
+In `jevalan tui` (live or `--fake`), press `H` to open a live view of the Claude Code hook decisions: verdict counters with p50/p95 latency and the "ask sospechosos" count, a scrolling list of the latest calls, and, for the selected one, its eight probabilities as bars with ticks at 0.55 and 0.85 plus the reason. It tails `shadow.jsonl` locally (polling every 500 ms and re-reading from the start if the file shrinks) and never shows `tool_input`, so it is safe to screenshot. A long log is read in slices, with a spinner, a bar and the megabytes and decisions read so far, so the screen never looks stuck. The list can be narrowed (the counters above it always speak for the whole log): `1` to `5` keep only allow, ask, deny, abstain or error (`0` lifts it), `s` keeps only the suspicious asks, `/` filters by tool name (any case; `enter` keeps it, `esc` clears it) and `c` lifts every filter. It works without the daemon; `esc` goes back.
 
 ### In the demo
 
