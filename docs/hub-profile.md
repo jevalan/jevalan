@@ -39,4 +39,8 @@ version or the deadline does. Pinning by digest therefore pins a contract.
 provider, and two runs give the same answers byte for byte once durations and trace ids are set aside. An
 implementation that brings its own daemon meets the profile when those requests, sent to it, get the same answers.
 
-A public index of manifests comes last, and only once someone else's implementation passes the cases above.
+A public index of manifests comes last, and only once someone else's implementation passes the cases above. It lives
+outside this repository, in a project of its own that depends on what is published here (this profile, the `digest`,
+`/.well-known/jev-hub.json` and the conformance cases) and never the other way round. Here only the capabilities that
+serve as examples are kept: `tool.risk` (a third party's specialist, through `exec`), `agent.stop` and `agent.wakeup`
+(native flows).
