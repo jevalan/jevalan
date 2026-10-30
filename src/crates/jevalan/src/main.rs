@@ -351,6 +351,7 @@ fn tui_fake(fx: FxMode, fake_rate: f64, fake_seed: Option<u64>) -> ExitCode {
         "fake",
         None,
         crate::shadow::default_log(),
+        jevalan_daemon::session::default_dir(),
     ))
 }
 

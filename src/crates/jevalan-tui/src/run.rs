@@ -18,6 +18,7 @@ pub fn run(
     source: &'static str,
     toggle: Option<BackendToggle>,
     shadow_log: Option<PathBuf>,
+    sessions_dir: Option<PathBuf>,
 ) -> io::Result<()> {
     // ratatui::init chains this hook: it first restores the terminal and then releases the mouse.
     let previous = std::panic::take_hook();
@@ -27,7 +28,7 @@ pub fn run(
     }));
     let mut terminal = ratatui::init();
     execute!(io::stdout(), EnableMouseCapture)?;
-    let result = event_loop(&mut terminal, &rx, fx, source, toggle, shadow_log);
+    let result = event_loop(&mut terminal, &rx, fx, source, toggle, shadow_log, sessions_dir);
     let _ = execute!(io::stdout(), DisableMouseCapture);
     ratatui::restore();
     result
@@ -40,11 +41,13 @@ fn event_loop(
     source: &'static str,
     toggle: Option<BackendToggle>,
     shadow_log: Option<PathBuf>,
+    sessions_dir: Option<PathBuf>,
 ) -> io::Result<()> {
     let mut app = App::new(Box::new(Dashboard::new()), fx, Instant::now());
     app.ctx.source = source;
     app.ctx.toggle = toggle;
     app.ctx.shadow_log = shadow_log;
+    app.ctx.sessions_dir = sessions_dir;
     loop {
         if app.needs_redraw() {
             terminal.draw(|f| app.draw(f))?;

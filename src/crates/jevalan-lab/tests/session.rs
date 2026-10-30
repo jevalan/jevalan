@@ -104,6 +104,23 @@ async fn a_failed_backend_replays_to_the_decision_it_took() {
 }
 
 #[tokio::test]
+async fn a_specialist_that_failed_replays_to_the_same_error() {
+    let state = load_state(&cfg());
+    let line = |ty: &str, extra: Value| line(ty, extra);
+    let lines = vec![
+        line("INPUT", json!({ "capability": "tool.risk", "input": { "tool_name": "Bash" } })),
+        line(
+            "SPECIALIST_CALL",
+            json!({ "key": "toolgate", "failure": { "code": "provider_failed", "message": "el proceso murió" } }),
+        ),
+        line("DECISION", json!({ "capability": "tool.risk", "status": "error", "code": "provider_failed" })),
+    ];
+    let t = group(lines).remove(0).traces.remove(0);
+    let results = replay(&state, &[t]).await;
+    assert_eq!(results[0].outcome, Outcome::Same, "{}", render(&results));
+}
+
+#[tokio::test]
 async fn traces_that_are_not_hub_capabilities_are_skipped_not_failed() {
     let state = load_state(&cfg());
     let mut t = verified();

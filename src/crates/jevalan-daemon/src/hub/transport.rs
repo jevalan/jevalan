@@ -10,6 +10,9 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::{Arc, Mutex, PoisonError};
 
+/// Key under which a recorded specialist failure travels in a `Recordings` map.
+pub const FAILURE: &str = "$failure";
+
 /// Key: node name (the backend's `{status, body}`) or `provider.id` (the specialist's JSON).
 pub type Recordings = BTreeMap<String, Value>;
 
@@ -228,6 +231,13 @@ impl<'a> Io<'a> {
         }
     }
 
+    /// Stores a live specialist failure in the session log, if capture is on.
+    fn note_specialist_failure(&self, key: &str, status: &Status) {
+        if let (Some((recorder, trace_id)), Status::Error { code, message }) = (&self.recording, status) {
+            recorder.specialist_failure(trace_id, key, code.as_str(), message);
+        }
+    }
+
     /// Specialist response; `live` is only polled if the transport is not `Replay`.
     pub async fn specialist(
         &self,
@@ -238,11 +248,25 @@ impl<'a> Io<'a> {
             self.tally().specialist_calls += 1;
         }
         match self.transport {
-            Transport::Replay(rec) => {
-                rec.get(key).cloned().ok_or_else(|| Status::error(ErrorCode::ProviderFailed, self.miss(key)))
-            }
+            Transport::Replay(rec) => match rec.get(key) {
+                // A recorded failure replays as the same error.
+                Some(value) if value.get(FAILURE).is_some() => {
+                    let failure = &value[FAILURE];
+                    let code =
+                        failure["code"].as_str().and_then(ErrorCode::from_code).unwrap_or(ErrorCode::ProviderFailed);
+                    Err(Status::error(code, failure["message"].as_str().unwrap_or_default()))
+                }
+                Some(value) => Ok(value.clone()),
+                None => Err(Status::error(ErrorCode::ProviderFailed, self.miss(key))),
+            },
             Transport::Live => {
-                let value = live.await?;
+                let value = match live.await {
+                    Ok(value) => value,
+                    Err(status) => {
+                        self.note_specialist_failure(key, &status);
+                        return Err(status);
+                    }
+                };
                 self.note_specialist(key, &value);
                 Ok(value)
             }

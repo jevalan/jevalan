@@ -76,6 +76,8 @@ pub struct Ctx {
     pub notice: Option<(String, Instant)>,
     /// Local path of `shadow.jsonl`, if known; the hook view follows it.
     pub shadow_log: Option<std::path::PathBuf>,
+    /// Local directory of the session log, if known; the sessions view reads it.
+    pub sessions_dir: Option<std::path::PathBuf>,
 }
 
 impl Ctx {
@@ -95,6 +97,7 @@ impl Ctx {
             toggle: None,
             notice: None,
             shadow_log: None,
+            sessions_dir: None,
         }
     }
 }

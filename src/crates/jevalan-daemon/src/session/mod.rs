@@ -123,6 +123,14 @@ impl Recorder {
         self.write(json!({ "trace_id": trace_id, "type": "SPECIALIST_CALL", "key": key, "response": response }));
     }
 
+    /// A specialist that failed, so that the trace can be replayed to the same error.
+    pub fn specialist_failure(&self, trace_id: &str, key: &str, code: &str, message: &str) {
+        self.write(json!({
+            "trace_id": trace_id, "type": "SPECIALIST_CALL", "key": key,
+            "failure": { "code": code, "message": message },
+        }));
+    }
+
     fn event(&self, event: &Event) {
         match &event.kind {
             EventKind::HubRequest { client, .. } | EventKind::RequestReceived { client, .. } => {

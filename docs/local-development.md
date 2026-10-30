@@ -103,14 +103,14 @@ cargo run -p jevalan -- sessions import crush/crush:243a --lab-dir lab-fixtures-
 
 `replay` re-runs each trace through the same path as `POST /v1/hub`, in process, with the recorded backend and specialist
 answers as the only transport (no network, no processes), and compares status and decision with the recorded ones; it exits
-non-zero if any differs or lacks a recording. Traces from `/v1/decide`, or whose specialist call failed, are skipped.
+non-zero if any differs or lacks a recording. Traces from `/v1/decide` are skipped (only hub capabilities replay); a specialist that failed replays to the same error, but is not imported as a fixture.
 `import` writes each replayable trace as an `offline` fixture (the recorded answers as its `replay`, the recorded verdict
 fields as its `expect`) and then loads the bench and runs `lab check`. A fixture keeps only each answer and its confidence,
 so `replay` is the faithful comparison and the fixture is the regression case.
 
 In the TUI, `S` on the dashboard opens the sessions screen: clients by recent activity on the left, the selected trace's
-timeline on the right (`↑↓` session, `[` `]` older / newer trace, `r` re-read, `esc` back). It reads `sessions/` beside
-`shadow.jsonl`, so a custom `sessions.dir` is not followed, and it **never shows the input**: screenshots of the TUI end
+timeline on the right (`↑↓` session, `[` `]` older / newer trace, `r` re-read, `esc` back). It reads the `sessions.dir` of the daemon the TUI starts itself, or
+`<data dir>/sessions` when it attaches to one already running, and it **never shows the input**: screenshots of the TUI end
 up in public places, and `sessions show` is where the input is read.
 
 ### Routes: the first backend that answers

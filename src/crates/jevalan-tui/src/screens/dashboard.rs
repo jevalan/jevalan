@@ -135,9 +135,7 @@ impl Screen for Dashboard {
                 return Some(Nav::Push(Box::new(HookScreen::new(ctx.shadow_log.clone()))));
             }
             Msg::Key(k) if k.kind == KeyEventKind::Press && k.code == KeyCode::Char('S') => {
-                // The log lives beside `shadow.jsonl`; a custom `sessions.dir` is not known here.
-                let dir = ctx.shadow_log.as_ref().and_then(|p| p.parent()).map(|p| p.join("sessions"));
-                return Some(Nav::Push(Box::new(SessionsScreen::new(dir))));
+                return Some(Nav::Push(Box::new(SessionsScreen::new(ctx.sessions_dir.clone()))));
             }
             Msg::Key(k) if k.kind == KeyEventKind::Press && k.code == KeyCode::Tab => {
                 self.focus = match self.focus {

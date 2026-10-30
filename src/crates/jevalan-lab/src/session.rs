@@ -8,7 +8,7 @@ use crate::write::fnv1a64;
 use jevalan_daemon::AppState;
 use jevalan_daemon::config::Config;
 use jevalan_daemon::hub::execute::execute;
-use jevalan_daemon::hub::transport::{Recordings, Transport};
+use jevalan_daemon::hub::transport::{FAILURE, Recordings, Transport};
 use jevalan_daemon::session::log::Trace;
 use jevalan_flow::NodeType;
 use jevalan_hub::capability::{Capability, Provider};
@@ -83,7 +83,11 @@ fn recordings(trace: &Trace) -> Recordings {
     }
     for call in trace.all("SPECIALIST_CALL") {
         if let Some(key) = call["key"].as_str() {
-            rec.insert(key.into(), call["response"].clone());
+            let kept = match call.get("failure") {
+                Some(failure) => json!({ FAILURE: failure }),
+                None => call["response"].clone(),
+            };
+            rec.insert(key.into(), kept);
         }
     }
     rec
@@ -256,6 +260,9 @@ fn replay_rules(state: &AppState, cap: &Capability, trace: &Trace) -> Result<BTr
             }
         }
         _ => match rec.get(&cap.provider_id) {
+            Some(reply) if reply.get(FAILURE).is_some() => {
+                return Err("el especialista falló: se reproduce con `sessions replay`, no es una fixture".into());
+            }
             Some(reply) => {
                 out.insert(cap.provider_id.clone(), reply.clone());
             }
