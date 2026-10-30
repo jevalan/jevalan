@@ -97,7 +97,10 @@ pub fn verdict(decision: &Value) -> String {
     if decision["status"] != "ok" {
         return decision["status"].as_str().unwrap_or("?").to_string();
     }
-    ["decision", "verdict", "outcome"].iter().find_map(|k| decision["decision"][k].as_str()).unwrap_or("ok").to_string()
+    let word = ["decision", "verdict", "outcome"].iter().find_map(|k| decision["decision"][k].as_str());
+    // `agent.stop` and its kin decide with a boolean `stop`.
+    let stop = decision["decision"]["stop"].as_bool().map(|s| if s { "stop" } else { "continue" });
+    word.or(stop).unwrap_or("ok").to_string()
 }
 
 /// How many traces of the session ended in each verdict.
