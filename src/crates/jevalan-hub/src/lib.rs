@@ -4,6 +4,7 @@ pub mod capability;
 pub mod classify;
 pub mod envelope;
 pub mod lab;
+pub mod otlp;
 pub mod program;
 pub mod sessions;
 pub mod shadow;

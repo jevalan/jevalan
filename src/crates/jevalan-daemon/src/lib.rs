@@ -74,6 +74,9 @@ impl AppState {
     pub fn start_recording(&self) {
         if let Some(recorder) = &self.recorder {
             recorder.follow(&self.bus);
+            if let Some(otlp) = &self.cfg.sessions.otlp {
+                recorder.start_export(otlp.clone());
+            }
         }
     }
 

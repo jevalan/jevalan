@@ -4,6 +4,8 @@
 //! live TUI must keep seeing neither. It is opt-in, local-only and best-effort: a write that fails is dropped and
 //! counted, never turned into a failed request (D7).
 
+mod export;
+
 pub use jevalan_hub::sessions as log;
 pub use jevalan_hub::sessions::files;
 
@@ -33,6 +35,9 @@ pub struct Recorder {
     active: Mutex<Active>,
     clients: Mutex<HashMap<String, String>>,
     failures: AtomicU64,
+    /// Lines on their way to the OTLP exporter, once `start_export` has put one in place.
+    export: Mutex<Option<tokio::sync::mpsc::UnboundedSender<Value>>>,
+    export_failures: Arc<AtomicU64>,
 }
 
 impl Recorder {
@@ -44,6 +49,8 @@ impl Recorder {
             active: Mutex::new(Active { day: String::new(), file: None }),
             clients: Mutex::new(HashMap::new()),
             failures: AtomicU64::new(0),
+            export: Mutex::new(None),
+            export_failures: Arc::new(AtomicU64::new(0)),
         };
         recorder.prune(retention_days, &day_of(SystemTime::now()));
         recorder
@@ -52,6 +59,18 @@ impl Recorder {
     /// Lines that could not be written since the start.
     pub fn failures(&self) -> u64 {
         self.failures.load(Ordering::Relaxed)
+    }
+
+    /// Traces the exporter could not deliver since the start.
+    pub fn export_failures(&self) -> u64 {
+        self.export_failures.load(Ordering::Relaxed)
+    }
+
+    /// Mirrors every finished trace to the collector. Needs a running runtime. The JSONL stays the source of truth:
+    /// a collector that is down loses the mirror, never the log.
+    pub fn start_export(&self, otlp: crate::config::Otlp) {
+        let tx = export::spawn(otlp, self.export_failures.clone());
+        *self.export.lock().unwrap_or_else(PoisonError::into_inner) = Some(tx);
     }
 
     /// Follows the public bus and stores every event of a trace. The task ends with the bus.
@@ -176,6 +195,10 @@ impl Recorder {
         let written = active.file.as_mut().is_some_and(|f| writeln!(f, "{line}").is_ok());
         if !written {
             self.failures.fetch_add(1, Ordering::Relaxed);
+        }
+        drop(active);
+        if let Some(tx) = self.export.lock().unwrap_or_else(PoisonError::into_inner).as_ref() {
+            let _ = tx.send(line);
         }
     }
 

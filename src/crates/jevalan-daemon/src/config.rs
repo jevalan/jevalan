@@ -26,12 +26,25 @@ pub struct Sessions {
     /// Where the log goes; `None` means `<data>/sessions`.
     pub dir: Option<PathBuf>,
     pub retention_days: u32,
+    /// Mirror of the log towards an OTLP/HTTP collector; off unless an endpoint is given.
+    pub otlp: Option<Otlp>,
 }
 
 impl Default for Sessions {
     fn default() -> Self {
-        Self { enabled: false, dir: None, retention_days: 14 }
+        Self { enabled: false, dir: None, retention_days: 14, otlp: None }
     }
+}
+
+/// Where and what the session log is mirrored to (`sessions.otlp`). The headers are resolved from the environment at
+/// load, so that no key lives in the file.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Otlp {
+    /// Full URL of the traces endpoint.
+    pub endpoint: String,
+    /// Also send the tool's input and the decision. Off by default: they travel in clear.
+    pub content: bool,
+    pub headers: Vec<(String, String)>,
 }
 
 /// A route: the first member that is reachable answers. Members that go out to the cloud are already left out
@@ -180,6 +193,17 @@ struct RawSessions {
     capture: Option<String>,
     dir: Option<PathBuf>,
     retention_days: Option<u32>,
+    otlp: Option<RawOtlp>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawOtlp {
+    endpoint: String,
+    content: Option<bool>,
+    /// Header name → name of the environment variable holding its value.
+    #[serde(default)]
+    headers_env: BTreeMap<String, String>,
 }
 
 /// A route is a bare list of members (cloud closed) or, to open the cloud, an object that says so.
@@ -260,7 +284,7 @@ fn build(raw: RawConfig, env: &dyn Fn(&str) -> Option<String>) -> Result<Config,
     }
 
     let routes = build_routes(raw.routes, &backends)?;
-    let sessions = build_sessions(raw.sessions)?;
+    let sessions = build_sessions(raw.sessions, env)?;
     let default_backend = env("JEVALAN_DEFAULT_BACKEND").or(raw.default_backend).unwrap_or_else(|| "ollama".into());
     if !backends.contains_key(&default_backend) && !routes.contains_key(&default_backend) {
         return Err(format!("default_backend «{default_backend}» no figura entre los backends ni las rutas"));
@@ -285,17 +309,35 @@ fn build(raw: RawConfig, env: &dyn Fn(&str) -> Option<String>) -> Result<Config,
     Ok(Config { addr, token, backends, routes, sessions, default_backend, flows_dir, hub })
 }
 
-fn build_sessions(raw: RawSessions) -> Result<Sessions, String> {
+fn build_sessions(raw: RawSessions, env: &dyn Fn(&str) -> Option<String>) -> Result<Sessions, String> {
     let capture = raw.capture.as_deref().unwrap_or("full");
     if !matches!(capture, "full" | "off") {
         return Err(format!("sessions.capture «{capture}» no es válido: use full u off"));
     }
     let defaults = Sessions::default();
+    let otlp = raw.otlp.map(|o| build_otlp(o, env)).transpose()?;
     Ok(Sessions {
         enabled: raw.enabled.unwrap_or(false) && capture == "full",
         dir: raw.dir,
         retention_days: raw.retention_days.unwrap_or(defaults.retention_days),
+        otlp,
     })
+}
+
+fn build_otlp(raw: RawOtlp, env: &dyn Fn(&str) -> Option<String>) -> Result<Otlp, String> {
+    if !(raw.endpoint.starts_with("http://") || raw.endpoint.starts_with("https://")) {
+        return Err(format!("sessions.otlp.endpoint no es http(s): {}", raw.endpoint));
+    }
+    let base = raw.endpoint.trim_end_matches('/');
+    let endpoint = if base.ends_with("/v1/traces") { base.to_string() } else { format!("{base}/v1/traces") };
+    let mut headers = Vec::new();
+    for (name, var) in raw.headers_env {
+        match env(&var).filter(|v| !v.is_empty()) {
+            Some(value) => headers.push((name, value)),
+            None => return Err(format!("sessions.otlp declara la cabecera «{name}» desde «{var}», vacía o ausente")),
+        }
+    }
+    Ok(Otlp { endpoint, content: raw.content.unwrap_or(false), headers })
 }
 
 /// Validates the routes against the backends and drops the cloud members of those that did not opt in.
@@ -492,6 +534,21 @@ default_backend: kev
             timeout: Duration::from_millis(1),
             cloud: false,
         }
+    }
+
+    #[test]
+    fn the_otlp_mirror_is_off_by_default_and_keeps_its_keys_out_of_the_file() {
+        assert_eq!(load_yaml("", &[]).unwrap().sessions.otlp, None);
+        let yaml = "sessions: { enabled: true, otlp: { endpoint: 'http://localhost:4318/', headers_env: { authorization: OTLP_AUTH } } }";
+        let otlp = load_yaml(yaml, &[("OTLP_AUTH", "Basic abc")]).unwrap().sessions.otlp.unwrap();
+        assert_eq!(otlp.endpoint, "http://localhost:4318/v1/traces");
+        assert_eq!((otlp.content, otlp.headers), (false, vec![("authorization".into(), "Basic abc".into())]));
+        // The full address of the traces endpoint is taken as it comes.
+        let full = "sessions: { otlp: { endpoint: 'https://x.example/v1/traces', content: true } }";
+        assert!(load_yaml(full, &[]).unwrap().sessions.otlp.unwrap().content);
+        assert!(load_yaml(yaml, &[]).unwrap_err().contains("OTLP_AUTH"));
+        assert!(load_yaml("sessions: { otlp: { endpoint: 'ftp://x' } }", &[]).is_err());
+        assert!(load_yaml("sessions: { otlp: { endpoint: 'http://x', headers: {} } }", &[]).is_err());
     }
 
     #[test]

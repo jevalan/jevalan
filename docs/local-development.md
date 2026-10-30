@@ -113,6 +113,26 @@ timeline on the right (`↑↓` session, `[` `]` older / newer trace, `r` re-rea
 `<data dir>/sessions` when it attaches to one already running, and it **never shows the input**: screenshots of the TUI end
 up in public places, and `sessions show` is where the input is read.
 
+#### Mirroring the log to an OTLP collector
+
+`sessions.otlp` sends each finished trace, as it is decided, to an OTLP/HTTP collector in JSON, so that any standard
+viewer can draw it. The JSONL stays the source of truth: a collector that is down or refuses costs the mirror of that
+trace, never the log nor the request. It is off unless `endpoint` is set, and it needs `sessions.enabled`.
+
+```yaml
+sessions:
+  enabled: true
+  otlp:
+    endpoint: http://127.0.0.1:4318        # "/v1/traces" is appended unless already there
+    headers_env: { authorization: OTLP_AUTH }   # the value comes from the environment, never from the file
+```
+
+Each trace is a root span `invoke_workflow <capability>` (OpenTelemetry GenAI vocabulary, with the client as
+`gen_ai.conversation.id`) and a child `chat <model>` per backend call, with its provider, node, status and latency. The
+tool's input and the decision are **not** sent unless `content: true`, and backend requests, which carry the input, never
+are. Pointing `endpoint` outside the machine breaks the rule that nothing leaves it, so the default is a local collector
+that fans out to whatever viewer you choose. Only `http/json` is spoken; protobuf is not.
+
 ### Routes: the first backend that answers
 
 A `routes.<name>` entry is an ordered list of `{ backend, model }`. A flow (`defaults.backend` or a node's `backend`)
