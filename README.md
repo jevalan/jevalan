@@ -46,6 +46,8 @@ flowchart LR
     LAB -.->|"same path, in process"| REG
 ```
 
+The entry points are layers over one core. `POST /{backend}/v1/systemone` is the base: a System One question goes to the backend and comes back untouched. A flow (`/v1/decide/{flow}`) combines several of those answers with rules and thresholds into a decision, and a capability (`/v1/hub`) gives such a decision a named, versioned contract, so a client like the hook or the MCP bridge does not need to know which flow or model answers.
+
 Jevalan returns a typed decision and never performs the effect: the client that asked stays in control. The full design, with more detailed diagrams, is in [`docs/architecture.md`](docs/architecture.md).
 
 ## Status
@@ -88,8 +90,8 @@ More detail, including the `--fake` generator and the sandbox caveats:
 | `jevalan edit <FICHERO> [--url] [--token] [--no-events]` | Flow editor: opens a `config/flows/*.yaml` as a draft and never publishes it |
 | `jevalan serve [--config]` | The daemon: System One proxy, decision flows, event bus |
 | `jevalan hook claude-code [--mode shadow\|enforce]` | Claude Code `PreToolUse` hook; asks for `tool.risk` |
-| `jevalan hook crush [--mode shadow|enforce]` | Crush command hook; native output format |
-| `jevalan hook run --client <name> --dialect <claude|crush>` | Generic hook adapter |
+| `jevalan hook crush [--mode shadow\|enforce]` | Crush command hook; native output format |
+| `jevalan hook run --client <name> --dialect <claude\|crush>` | Generic hook adapter |
 | `jevalan mcp [--allow-live]` | MCP server over stdio: the hub's capabilities as tools |
 | `jevalan lab {check,offline,record,live}` | Fixture lab: regression offline, measurement live |
 | `jevalan shadow {report,fixtures}` | Reports over `shadow.jsonl`, and fixtures mined from it |

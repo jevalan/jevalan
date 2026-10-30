@@ -26,6 +26,21 @@ impl ErrorCode {
         }
     }
 
+    /// The inverse of `as_str`.
+    pub fn from_code(code: &str) -> Option<Self> {
+        [
+            Self::UnknownCapability,
+            Self::VersionMismatch,
+            Self::InvalidInput,
+            Self::DeadlineExceeded,
+            Self::ProviderFailed,
+            Self::ProviderDisabled,
+            Self::InvalidDecision,
+        ]
+        .into_iter()
+        .find(|c| c.as_str() == code)
+    }
+
     pub fn retryable(self) -> bool {
         matches!(self, Self::DeadlineExceeded | Self::ProviderFailed)
     }

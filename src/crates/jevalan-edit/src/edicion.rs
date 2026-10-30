@@ -3,7 +3,7 @@
 use crate::daemon::Cliente;
 use crate::documento::Documento;
 use crate::inspector::Campo;
-use jevalan_flow::{Criteria, FlowError, NodeDef, NodeType, RouteDef, Signals, parse_with};
+use jevalan_flow::{Criteria, FlowError, NodeDef, NodeType, RouteDef, Signals, parse_routed};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -36,6 +36,8 @@ pub struct Borrador {
     /// The daemon's backend catalogue, which arrives over the bus; without it, local validation cannot
     /// judge the backends and will say so.
     backends: Vec<String>,
+    /// Route names of the daemon: they go where a backend goes, and their members bring the model.
+    rutas: Vec<String>,
     backend_por_defecto: String,
     /// Signal catalogue: without it, a flow that uses them cannot be judged locally.
     senales: Signals,
@@ -51,6 +53,7 @@ impl Borrador {
         Self {
             doc,
             backends: Vec::new(),
+            rutas: Vec::new(),
             backend_por_defecto: String::new(),
             senales: Signals::new(),
             cliente: None,
@@ -63,6 +66,11 @@ impl Borrador {
     pub fn catalogo(&mut self, backends: Vec<String>, por_defecto: String) {
         self.backends = backends;
         self.backend_por_defecto = por_defecto;
+    }
+
+    /// The daemon's route names, which arrive over the bus together with the backends.
+    pub fn rutas(&mut self, rutas: Vec<String>) {
+        self.rutas = rutas;
     }
 
     /// The signal catalogue against which the draft is judged locally.
@@ -125,14 +133,20 @@ impl Borrador {
     /// it declares itself: the backend is not checked (the daemon will do that when it answers) but everything
     /// else is. Forgiving the backend error is not enough: `parse` aborts at the first one, so
     /// forgiving it would hide the broken CEL or the badly wired port that came after.
+    ///
+    /// A name a node declares may be a backend or a route, and without the catalogue they cannot be told apart. The
+    /// declared names are therefore offered as both: a node that names a route and leaves its `model` out (the
+    /// route's members bring their own) is not condemned here, and the daemon judges it when it answers.
     fn juzgar(&self) -> Validez {
         if !self.backends.is_empty() {
             let backends: Vec<&str> = self.backends.iter().map(String::as_str).collect();
-            return match parse_with(
+            let rutas: Vec<&str> = self.rutas.iter().map(String::as_str).collect();
+            return match parse_routed(
                 &self.nombre(),
                 &self.doc.yaml(),
                 &self.senales,
                 &backends,
+                &rutas,
                 &self.backend_por_defecto,
             ) {
                 Ok(_) => Validez::valido(),
@@ -153,7 +167,7 @@ impl Borrador {
         let backends: Vec<&str> = declarados.iter().map(String::as_str).collect();
         let por_defecto = declarados.first().cloned().unwrap_or_default();
         let yaml = serde_yaml::to_string(&def).unwrap_or_default();
-        match parse_with(&self.nombre(), &yaml, &self.senales, &backends, &por_defecto) {
+        match parse_routed(&self.nombre(), &yaml, &self.senales, &backends, &backends, &por_defecto) {
             Ok(_) => Validez::valido(),
             Err(e) => Validez::invalido(e.to_string(), nodo_de(&e)),
         }
@@ -547,6 +561,17 @@ outputs:
         );
         borrador.campo("risks", &Campo::Instructions, "otra cosa").unwrap();
         assert_eq!(borrador.guardar().unwrap(), 1, "y ha de poder guardar");
+    }
+
+    #[test]
+    fn sin_daemon_un_nodo_con_ruta_y_sin_model_no_se_condena() {
+        // A route brings the model of each member, so the node may leave its own out. Without a daemon the editor
+        // cannot tell a route from a backend, and must not call the flow invalid for that.
+        let (_tmp, mut borrador) = borrador(LOCAL, "tool-risk-local.yaml");
+        borrador.catalogo(Vec::new(), String::new());
+        borrador.campo("risks", &Campo::Backend, "local").unwrap();
+        borrador.campo("risks", &Campo::Model, "").unwrap();
+        assert!(borrador.validez.ok, "{:?}", borrador.validez);
     }
 
     #[test]

@@ -3,7 +3,7 @@
 use crate::bus::Bus;
 use crate::config::Config;
 use jevalan_events::v2::{Event, EventKind, new_event};
-use jevalan_flow::{Flow, FlowError, parse_with};
+use jevalan_flow::{Flow, FlowError, parse_routed};
 use notify::{EventKind as FsKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -65,11 +65,13 @@ impl Registry {
     pub fn load_file(&self, path: &Path, cfg: &Config, bus: &Bus) {
         let Some(name) = flow_name(path) else { return };
         let backends: Vec<&str> = cfg.backends.keys().map(String::as_str).collect();
+        let routes: Vec<&str> = cfg.routes.keys().map(String::as_str).collect();
         let (signals, invalid) = crate::signals::load_dir(&cfg.hub.signals_dir);
         let parsed = std::fs::read_to_string(path)
             .map_err(|e| format!("no se puede leer {}: {e}", path.display()))
             .and_then(|text| {
-                parse_with(&name, &text, &signals, &backends, &cfg.default_backend).map_err(|e| why(e, &invalid))
+                parse_routed(&name, &text, &signals, &backends, &routes, &cfg.default_backend)
+                    .map_err(|e| why(e, &invalid))
             });
 
         // It is published with the lock held: whoever subscribes before reading the snapshot loses nothing.
@@ -80,6 +82,7 @@ impl Registry {
                 if inner.flows.get(&name).is_some_and(|old| **old == flow) {
                     return;
                 }
+                ignored_models(&name, &flow, cfg);
                 let version = inner.versions.entry(name.clone()).or_insert(0);
                 *version += 1;
                 let event = loaded_event(&name, *version, &flow);
@@ -216,6 +219,23 @@ fn without_instructions(flow: &Flow) -> Value {
     def
 }
 
+/// A node that names a route takes the model of whichever member answers; one it declares anyway is never
+/// used, and that is said out loud rather than silently dropped.
+fn ignored_models(name: &str, flow: &Flow, cfg: &Config) {
+    for (node, n) in &flow.nodes {
+        for (label, q) in
+            std::iter::once((node.clone(), n)).chain(n.questions.iter().map(|(q, qn)| (format!("{node}.{q}"), qn)))
+        {
+            if cfg.routes.contains_key(&q.backend) && !q.model.is_empty() {
+                eprintln!(
+                    "aviso: {name}/{label} nombra la ruta «{}» y declara el modelo «{}», que se ignora: manda el de cada miembro",
+                    q.backend, q.model
+                );
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,6 +268,7 @@ mod tests {
             path: "/v1/systemone".into(),
             api_key: None,
             timeout: Duration::from_millis(100),
+            cloud: false,
         };
         Config {
             addr: "127.0.0.1:0".parse().unwrap(),
@@ -256,6 +277,8 @@ mod tests {
                 ("ollama".into(), backend("http://x")),
                 ("typesafe".into(), backend("http://y")),
             ]),
+            routes: BTreeMap::new(),
+            sessions: Default::default(),
             default_backend: "ollama".into(),
             flows_dir: dir.into(),
             hub: Default::default(),

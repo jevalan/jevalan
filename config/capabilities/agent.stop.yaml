@@ -1,0 +1,13 @@
+manifest_version: "2"
+# La sirve un flujo del propio hub, asi que no es publicable y su publicador es
+# local: declarar el repo de otro proyecto seria mentir sobre quien la mantiene.
+namespace: local.jev
+requires:
+  runtime: none
+  platform: any
+version: "1"
+description: "¿Puede el agente dar su trabajo por terminado?"
+input_schema: { $file: "schemas/agent.stop.input.json" }
+decision_schema: { $file: "schemas/agent.stop.decision.json" }
+provider: { id: jevalan-flow, flow: agent-stop }
+defaults: { deadline_ms: 3000 }

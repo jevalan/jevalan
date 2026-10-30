@@ -1,0 +1,9 @@
+id: threshold-edge-unsure
+version: 1
+description: "Justo en el umbral de dormir (0.3) se despierta con motivo unsure"
+input: { waiting_for: "una build terminada", event: "cron: limpieza de logs", skipped: 1 }
+replay:
+  worth: { answer: 0.3, confidence: 0.9 }
+expect:
+  - cel: "status == 'ok' && decision.wake == true && decision.reason == 'unsure'"
+    why: "El umbral es semiabierto: 0.3 ya cae en la zona dudosa y debe despertar, no dormir"

@@ -6,7 +6,7 @@ use crate::hook_log::{HookLog, Kind, Summary, bar_geometry, level};
 use crate::screen::{Ctx, KeyHint, Msg, Nav, Screen};
 use crate::screens::dashboard::footer;
 use crate::theme;
-use jevalan_hub::shadow::{Entry, NAMES, category};
+use jevalan_hub::shadow::{Entry, NAMES, category, suspicious};
 use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEventKind};
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
@@ -18,11 +18,22 @@ use std::time::{Duration, Instant};
 const KEYS: &[KeyHint] = &[
     KeyHint { key: "↑↓ jk", desc: "elegir decisión" },
     KeyHint { key: "g G", desc: "la más reciente / la más antigua" },
+    KeyHint { key: "1-5", desc: "solo allow/ask/deny/abstain/error (0 quita)" },
+    KeyHint { key: "s", desc: "solo ask sospechosos" },
+    KeyHint { key: "/", desc: "filtrar por herramienta (enter fija, esc borra)" },
+    KeyHint { key: "c", desc: "quitar los filtros" },
     KeyHint { key: "esc", desc: "volver" },
 ];
 
-/// How often the file is probed.
+/// How often the file is probed once it is loaded.
 const POLL_EVERY: Duration = Duration::from_millis(500);
+/// Bytes of the log taken per tick while it loads, so that the screen keeps answering and can show its progress.
+const LOAD_CHUNK: u64 = 1 << 19;
+/// Longest tool filter that can be typed.
+const MAX_TOOL_FILTER: usize = 24;
+const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+/// The verdicts that keys `1` to `5` select.
+const FILTER_KINDS: [Kind; 5] = [Kind::Allow, Kind::Ask, Kind::Deny, Kind::Abstain, Kind::Error];
 /// Minimum width to split list and detail horizontally.
 const WIDE: u16 = 110;
 /// Width of a list row, without the selection marker.
@@ -30,11 +41,54 @@ const ROW_WIDTH: u16 = 76;
 const LABEL_WIDTH: usize = 19;
 const VALUE_WIDTH: usize = 5;
 
+/// What narrows the list of decisions. The counters above it always speak for the whole log.
+#[derive(Debug, Default, Clone, PartialEq)]
+struct Filter {
+    kind: Option<Kind>,
+    suspicious: bool,
+    /// Part of the tool's name, any case.
+    tool: String,
+}
+
+impl Filter {
+    fn active(&self) -> bool {
+        self.kind.is_some() || self.suspicious || !self.tool.is_empty()
+    }
+
+    fn passes(&self, e: &Entry) -> bool {
+        self.kind.is_none_or(|k| Kind::of(e) == k)
+            && (!self.suspicious || suspicious(e))
+            && (self.tool.is_empty() || e.tool_name.to_lowercase().contains(&self.tool.to_lowercase()))
+    }
+
+    fn describe(&self) -> String {
+        let mut parts = Vec::new();
+        if let Some(kind) = self.kind {
+            parts.push(kind.label().to_string());
+        }
+        if self.suspicious {
+            parts.push("sospechosos".into());
+        }
+        if !self.tool.is_empty() {
+            parts.push(format!("/{}", self.tool));
+        }
+        parts.join(" · ")
+    }
+}
+
 pub struct HookScreen {
     log: Option<HookLog>,
     last_poll: Option<Instant>,
-    /// Position in the list; 0 is the most recent decision.
+    /// When the first probe happened, and how long the whole file took to load once it did.
+    started: Option<Instant>,
+    loaded_in: Option<Duration>,
+    /// Bytes taken per tick while loading.
+    chunk: u64,
+    /// Position in the filtered list; 0 is the most recent decision.
     selected: usize,
+    filter: Filter,
+    /// The tool filter is being typed.
+    editing: bool,
     fx: FxState,
     /// Data has arrived and still needs painting with its flash.
     fresh: bool,
@@ -42,22 +96,91 @@ pub struct HookScreen {
 
 impl HookScreen {
     pub fn new(path: Option<std::path::PathBuf>) -> Self {
-        Self { log: path.map(HookLog::new), last_poll: None, selected: 0, fx: FxState::new(), fresh: false }
+        Self {
+            log: path.map(HookLog::new),
+            last_poll: None,
+            started: None,
+            loaded_in: None,
+            chunk: LOAD_CHUNK,
+            selected: 0,
+            filter: Filter::default(),
+            editing: false,
+            fx: FxState::new(),
+            fresh: false,
+        }
+    }
+
+    /// The decisions that pass the filter, most recent first.
+    fn visible(&self) -> Vec<&Entry> {
+        self.log.iter().flat_map(|l| l.entries.iter().rev()).filter(|e| self.filter.passes(e)).collect()
     }
 
     fn len(&self) -> usize {
-        self.log.as_ref().map_or(0, |l| l.entries.len())
+        self.log.as_ref().map_or(0, |l| l.entries.iter().filter(|e| self.filter.passes(e)).count())
     }
 
-    fn poll(&mut self) {
+    /// The log has not been read through yet (or not even probed).
+    fn loading(&self) -> bool {
+        self.log.as_ref().is_some_and(|l| self.started.is_none() || l.loading())
+    }
+
+    fn poll(&mut self, now: Instant) {
         let Some(log) = &mut self.log else { return };
-        let Some(fresh) = log.refresh() else { return };
+        let started = *self.started.get_or_insert(now);
+        let fresh = log.refresh_up_to(self.chunk);
+        if !log.loading() && self.loaded_in.is_none() {
+            self.loaded_in = Some(now.saturating_duration_since(started));
+        }
+        let Some(fresh) = fresh else { return };
         if self.selected > 0 {
             // Whoever is reading an old decision does not want it moved from under them.
-            self.selected += fresh;
+            self.selected += log.entries.iter().rev().take(fresh).filter(|e| self.filter.passes(e)).count();
         }
-        self.selected = self.selected.min(self.len().saturating_sub(1));
+        let shown = log.entries.iter().filter(|e| self.filter.passes(e)).count();
+        self.selected = self.selected.min(shown.saturating_sub(1));
         self.fresh = true;
+    }
+
+    fn change_filter(&mut self, filter: Filter) {
+        if filter != self.filter {
+            self.filter = filter;
+            self.selected = 0;
+        }
+    }
+
+    fn navigate(&mut self, code: KeyCode) {
+        let last = self.len().saturating_sub(1);
+        let mut filter = self.filter.clone();
+        match code {
+            KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
+            KeyCode::Down | KeyCode::Char('j') => self.selected = (self.selected + 1).min(last),
+            KeyCode::Char('g') | KeyCode::Home => self.selected = 0,
+            KeyCode::Char('G') | KeyCode::End => self.selected = last,
+            KeyCode::Char('0') => filter.kind = None,
+            KeyCode::Char(c @ '1'..='5') => filter.kind = FILTER_KINDS.get(c as usize - '1' as usize).copied(),
+            KeyCode::Char('s') => filter.suspicious = !filter.suspicious,
+            KeyCode::Char('c') => filter = Filter::default(),
+            KeyCode::Char('/') => self.editing = true,
+            _ => {}
+        }
+        self.change_filter(filter);
+    }
+
+    fn type_filter(&mut self, code: KeyCode) {
+        let mut filter = self.filter.clone();
+        match code {
+            KeyCode::Enter => self.editing = false,
+            KeyCode::Esc => {
+                filter.tool.clear();
+                self.editing = false;
+            }
+            KeyCode::Backspace => {
+                filter.tool.pop();
+            }
+            KeyCode::Char(c) if !c.is_control() && filter.tool.chars().count() < MAX_TOOL_FILTER => filter.tool.push(c),
+            _ => {}
+        }
+        self.change_filter(filter);
     }
 }
 
@@ -65,19 +188,17 @@ impl Screen for HookScreen {
     fn update(&mut self, _ctx: &mut Ctx, msg: &Msg) -> Option<Nav> {
         match msg {
             Msg::Tick(now) => {
-                if self.last_poll.is_none_or(|t| now.saturating_duration_since(t) >= POLL_EVERY) {
+                // While loading every tick takes one more slice; afterwards the file is probed twice a second.
+                if self.loading() || self.last_poll.is_none_or(|t| now.saturating_duration_since(t) >= POLL_EVERY) {
                     self.last_poll = Some(*now);
-                    self.poll();
+                    self.poll(*now);
                 }
             }
             Msg::Key(k) if k.kind == KeyEventKind::Press => {
-                let last = self.len().saturating_sub(1);
-                match k.code {
-                    KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
-                    KeyCode::Down | KeyCode::Char('j') => self.selected = (self.selected + 1).min(last),
-                    KeyCode::Char('g') | KeyCode::Home => self.selected = 0,
-                    KeyCode::Char('G') | KeyCode::End => self.selected = last,
-                    _ => {}
+                if self.editing {
+                    self.type_filter(k.code);
+                } else {
+                    self.navigate(k.code);
                 }
             }
             _ => {}
@@ -91,13 +212,15 @@ impl Screen for HookScreen {
                 .areas(area);
         let name =
             self.log.as_ref().and_then(|l| l.path().file_name()).map_or("shadow.jsonl".into(), |n| n.to_string_lossy());
-        f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled("jevalan", theme::title()),
-                Span::styled(format!(" · decisiones del hook · {name}"), theme::text()),
-            ])),
-            head,
-        );
+        let mut title = vec![
+            Span::styled("jevalan", theme::title()),
+            Span::styled(format!(" · decisiones del hook · {name}"), theme::text()),
+        ];
+        if let (Some(log), true) = (&self.log, self.loading()) {
+            let (read, total) = log.progress();
+            title.push(Span::styled(format!(" · cargando {}%", percent(read, total)), theme::dim()));
+        }
+        f.render_widget(Paragraph::new(Line::from(title)), head);
 
         let empty = Summary::default();
         let summary = self.log.as_ref().map_or(&empty, |l| &l.summary);
@@ -112,37 +235,45 @@ impl Screen for HookScreen {
             Layout::vertical([Constraint::Min(4), Constraint::Length(13)]).areas(body)
         };
 
-        let block = panel("Decisiones");
+        let retained = self.log.as_ref().map_or(0, |l| l.entries.len());
+        let (items, selected): (Vec<ListItem>, Option<Entry>) = {
+            let visible = self.visible();
+            (visible.iter().map(|e| ListItem::new(row(e))).collect(), visible.get(self.selected).map(|e| (*e).clone()))
+        };
+        let mut list_title = format!("Decisiones · {} de {retained}", items.len());
+        if self.filter.active() || self.editing {
+            list_title.push_str(&format!(" · filtro: {}", self.filter.describe()));
+        }
+        if self.editing {
+            list_title.push('▏');
+        }
+        let block = panel(&list_title);
         let list_inner = block.inner(list_area);
         f.render_widget(block, list_area);
-        let entries = self.log.as_ref().map(|l| &l.entries);
-        match entries.filter(|e| !e.is_empty()) {
-            Some(entries) => {
-                let items: Vec<ListItem> = entries.iter().rev().map(|e| ListItem::new(row(e))).collect();
-                let list = List::new(items)
-                    .highlight_symbol("▶ ")
-                    .highlight_style(Style::new().add_modifier(Modifier::BOLD | Modifier::REVERSED));
-                let mut state = ListState::default().with_selected(Some(self.selected));
-                f.render_stateful_widget(list, list_inner, &mut state);
-            }
-            None => {
-                let text = self.empty_message();
-                let row = Rect::new(
-                    list_inner.x,
-                    list_inner.y + list_inner.height / 2,
-                    list_inner.width,
-                    1.min(list_inner.height),
-                );
-                f.render_widget(Paragraph::new(text).style(theme::dim()).alignment(Alignment::Center), row);
-            }
+        if self.loading() {
+            self.draw_loading(ctx, f, list_inner);
+        } else if items.is_empty() {
+            let row = Rect::new(
+                list_inner.x,
+                list_inner.y + list_inner.height / 2,
+                list_inner.width,
+                1.min(list_inner.height),
+            );
+            f.render_widget(Paragraph::new(self.empty_message()).style(theme::dim()).alignment(Alignment::Center), row);
+        } else {
+            let list = List::new(items)
+                .highlight_symbol("▶ ")
+                .highlight_style(Style::new().add_modifier(Modifier::BOLD | Modifier::REVERSED));
+            let mut state = ListState::default().with_selected(Some(self.selected));
+            f.render_stateful_widget(list, list_inner, &mut state);
         }
 
-        let selected = self.log.as_ref().and_then(|l| l.entries.iter().rev().nth(self.selected));
-        let title = selected.map_or("Detalle".to_string(), |e| format!("Detalle · {} · {}", clock(e), e.tool_name));
+        let title =
+            selected.as_ref().map_or("Detalle".to_string(), |e| format!("Detalle · {} · {}", clock(e), e.tool_name));
         let block = panel(&title);
         let inner = block.inner(detail_area);
         f.render_widget(block, detail_area);
-        if let Some(e) = selected {
+        if let Some(e) = &selected {
             render_detail(e, inner, f);
         }
 
@@ -160,7 +291,11 @@ impl Screen for HookScreen {
     }
 
     fn animating(&self) -> bool {
-        self.fresh || self.fx.is_running()
+        self.fresh || self.fx.is_running() || self.loading()
+    }
+
+    fn captures_text(&self) -> bool {
+        self.editing
     }
 }
 
@@ -169,9 +304,51 @@ impl HookScreen {
         match &self.log {
             None => "no se conoce el directorio de datos · no hay registro que seguir".into(),
             Some(l) if !l.exists => "esperando decisiones… aún no existe shadow.jsonl".into(),
-            Some(_) => "el registro está vacío · esperando decisiones…".into(),
+            Some(l) if l.entries.is_empty() => "el registro está vacío · esperando decisiones…".into(),
+            Some(_) => "ninguna decisión coincide con el filtro · c lo quita".into(),
         }
     }
+
+    /// A spinner, a bar and the counts of what has been read, centred in the list.
+    fn draw_loading(&self, ctx: &Ctx, f: &mut Frame, area: Rect) {
+        let Some(log) = &self.log else { return };
+        let (read, total) = log.progress();
+        let elapsed = self.started.map_or(Duration::ZERO, |t| ctx.now.saturating_duration_since(t));
+        let spinner = SPINNER[(elapsed.as_millis() / 80) as usize % SPINNER.len()];
+        let width = (area.width as usize).saturating_sub(8).clamp(10, 40);
+        let filled = if total == 0 { 0 } else { (read as f64 / total as f64 * width as f64).round() as usize };
+        let bar: String = "█".repeat(filled.min(width)) + &"░".repeat(width - filled.min(width));
+        let lines = vec![
+            Line::from(Span::styled(format!("{spinner} Cargando el registro…"), theme::title())),
+            Line::from(vec![
+                Span::styled(bar, theme::accent()),
+                Span::styled(format!(" {:>3}%", percent(read, total)), theme::text()),
+            ]),
+            Line::from(Span::styled(
+                format!(
+                    "{} de {} MB · {} decisiones · {:.1} s",
+                    mb(read),
+                    mb(total),
+                    log.summary.total,
+                    elapsed.as_secs_f64()
+                ),
+                theme::dim(),
+            )),
+        ];
+        let height = (lines.len() as u16).min(area.height);
+        let row = Rect::new(area.x, area.y + area.height.saturating_sub(height) / 2, area.width, height);
+        f.render_widget(Paragraph::new(lines).alignment(Alignment::Center), row);
+    }
+}
+
+/// Percentage of `read` over `total`, whole; an empty file counts as done.
+fn percent(read: u64, total: u64) -> u64 {
+    if total == 0 { 100 } else { (read * 100 / total).min(100) }
+}
+
+/// Mebibytes with one decimal and a comma.
+fn mb(bytes: u64) -> String {
+    format!("{:.1}", bytes as f64 / 1_048_576.0).replace('.', ",")
 }
 
 fn panel(title: &str) -> Block<'static> {
@@ -378,6 +555,120 @@ mod tests {
         }
         // The one selected by default is the most recent: the error, with its text.
         assert!(render(&mut screen, &ctx, 120, 30).contains("daemon inalcanzable"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Ticks until the log is read through, at most a hundred.
+    fn load(screen: &mut HookScreen, ctx: &mut Ctx, t0: Instant) -> usize {
+        for n in 0..100 {
+            if !screen.loading() && n > 0 {
+                return n;
+            }
+            tick(screen, ctx, t0 + Duration::from_millis(16 * n as u64));
+        }
+        100
+    }
+
+    #[test]
+    fn a_large_log_loads_in_slices_and_says_how_far_it_got() {
+        let path = temp("slices");
+        std::fs::write(&path, LOG.repeat(4)).unwrap();
+        let t0 = Instant::now();
+        let mut ctx = Ctx::new(FxMode::Events, t0);
+        let mut screen = HookScreen::new(Some(path.clone()));
+        screen.chunk = 300;
+        assert!(screen.loading(), "antes de la primera lectura ya se está cargando");
+
+        tick(&mut screen, &mut ctx, t0);
+        assert!(screen.loading() && screen.animating());
+        let out = render(&mut screen, &ctx, 100, 24);
+        for want in ["Cargando el registro", "cargando", "MB", "decisiones", "%"] {
+            assert!(out.contains(want), "falta {want:?} en\n{out}");
+        }
+        assert!(!out.contains("TOPSECRET"));
+
+        let ticks = load(&mut screen, &mut ctx, t0);
+        assert!(ticks > 2 && ticks < 100, "se esperaban varias rebanadas, no {ticks}");
+        assert!(!screen.loading() && screen.loaded_in.is_some());
+        assert!(render(&mut screen, &ctx, 100, 24).contains("total 12"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_verdict_keys_narrow_the_list_and_the_counters_stay_whole() {
+        let path = temp("kind");
+        std::fs::write(&path, LOG).unwrap();
+        let t0 = Instant::now();
+        let mut ctx = Ctx::new(FxMode::Events, t0);
+        let mut screen = HookScreen::new(Some(path.clone()));
+        load(&mut screen, &mut ctx, t0);
+        let press = |code| Msg::Key(KeyEvent::new(code, KeyModifiers::NONE));
+
+        screen.update(&mut ctx, &press(KeyCode::Char('2')));
+        assert_eq!(screen.len(), 1);
+        let out = render(&mut screen, &ctx, 120, 30);
+        assert!(out.contains("1 de 3") && out.contains("filtro: ask"), "{out}");
+        assert!(out.contains("total 3"), "los contadores hablan de todo el registro");
+        assert!(out.contains("duda razonable"), "el detalle es el de la decisión filtrada");
+
+        screen.update(&mut ctx, &press(KeyCode::Char('3')));
+        assert!(render(&mut screen, &ctx, 120, 30).contains("ninguna decisión coincide"));
+
+        screen.update(&mut ctx, &press(KeyCode::Char('c')));
+        assert_eq!(screen.len(), 3);
+        screen.update(&mut ctx, &press(KeyCode::Char('s')));
+        assert!(screen.filter.suspicious);
+        screen.update(&mut ctx, &press(KeyCode::Char('0')));
+        screen.update(&mut ctx, &press(KeyCode::Char('c')));
+        assert!(!screen.filter.active());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_tool_filter_is_typed_without_the_global_keys_and_esc_clears_it() {
+        let path = temp("tool");
+        std::fs::write(&path, LOG).unwrap();
+        let t0 = Instant::now();
+        let mut ctx = Ctx::new(FxMode::Events, t0);
+        let mut screen = HookScreen::new(Some(path.clone()));
+        load(&mut screen, &mut ctx, t0);
+        let press = |code| Msg::Key(KeyEvent::new(code, KeyModifiers::NONE));
+
+        assert!(!screen.captures_text());
+        screen.update(&mut ctx, &press(KeyCode::Char('/')));
+        assert!(screen.captures_text(), "mientras se escribe, q, f y esc son del filtro");
+        for c in "EDI".chars() {
+            screen.update(&mut ctx, &press(KeyCode::Char(c)));
+        }
+        assert_eq!((screen.len(), screen.filter.tool.as_str()), (1, "EDI"), "sin distinguir mayúsculas");
+        assert!(render(&mut screen, &ctx, 120, 30).contains("/EDI▏"));
+        screen.update(&mut ctx, &press(KeyCode::Backspace));
+        assert_eq!(screen.filter.tool, "ED");
+
+        screen.update(&mut ctx, &press(KeyCode::Enter));
+        assert!(!screen.captures_text() && screen.filter.tool == "ED", "enter fija el filtro");
+        screen.update(&mut ctx, &press(KeyCode::Char('/')));
+        screen.update(&mut ctx, &press(KeyCode::Esc));
+        assert!(!screen.captures_text() && screen.filter.tool.is_empty(), "esc lo borra");
+        assert_eq!(screen.len(), 3);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn data_arriving_does_not_move_the_decision_being_read_under_a_filter() {
+        let path = temp("filtered-arrival");
+        std::fs::write(&path, LOG).unwrap();
+        let t0 = Instant::now();
+        let mut ctx = Ctx::new(FxMode::Events, t0);
+        let mut screen = HookScreen::new(Some(path.clone()));
+        load(&mut screen, &mut ctx, t0);
+        let press = |code| Msg::Key(KeyEvent::new(code, KeyModifiers::NONE));
+        screen.update(&mut ctx, &press(KeyCode::Char('1')));
+        assert_eq!(screen.len(), 1);
+        // Only `Bash` is an allow; no more arrive, so the selection has nothing to shift for.
+        std::fs::write(&path, format!("{LOG}{}", LOG.lines().nth(1).unwrap().to_string() + "\n")).unwrap();
+        tick(&mut screen, &mut ctx, t0 + Duration::from_secs(2));
+        assert_eq!((screen.len(), screen.selected), (1, 0));
         let _ = std::fs::remove_file(&path);
     }
 

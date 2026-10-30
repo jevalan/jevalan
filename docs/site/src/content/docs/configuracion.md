@@ -57,9 +57,32 @@ backends:
 
 Los nombres de backend usan minúsculas, dígitos y guiones, y no pueden ser `v1`. La ruta que llaman tus clientes, `/{backend}/v1/systemone`, nunca cambia, sea cual sea el `path`.
 
+**Ollama como backend.** A partir de la versión 0.35.0, Ollama sirve modelos de decisión por este mismo contrato (por ejemplo, `ollama pull nimble`) y se llaman por el nombre del modelo. Con una versión anterior, o sin un modelo de decisión descargado, `/v1/systemone` no responde como System One (en una 0.32.15 devuelve `404`) y todos los nodos salen por `error`. Un modelo de chat corriente de Ollama no sirve: no devuelve probabilidades propias.
+
 El daemon falla enseguida, con un mensaje claro, si `default_backend` no está definido, una `url` no es http ni https, o una variable de `api_key_env` está vacía o sin definir.
 
 Los flujos nombran el backend que usan. Si un flujo nombra un backend que tu configuración no define, ese flujo aparece como inválido hasta que lo añadas. Mira [Solución de problemas](/solucion-de-problemas/).
+
+## Rutas: el primer backend que responda
+
+Una ruta es una lista ordenada de `{ backend, modelo }`. Un flujo (`defaults.backend` o el `backend` de un nodo) o `default_backend` puede nombrarla donde nombraría un backend, y el daemon usa el primer miembro que conteste. Cada miembro trae su propio modelo, así que el `model` del nodo es opcional y se ignora (el daemon lo avisa al cargar el flujo si lo declaras).
+
+```yaml
+routes:
+  local:                    # forma corta: la nube se queda fuera
+    - { backend: kev,  model: kev-latest }
+    - { backend: laya, model: laya-rl-agent }
+  local-cloud:              # forma larga: la única manera de dejar entrar un backend con `cloud: true`
+    allow_cloud: true
+    members:
+      - { backend: kev, model: kev-latest }
+      - { backend: openrouter, model: typesafe/jev-1.13 }
+```
+
+- **Solo salta el fallo de transporte** (conexión rechazada, plazo vencido, DNS). Un HTTP 5xx, un 429 o una respuesta inservible no cambian de miembro: los juzga el nodo como siempre. Si fallan todos, el nodo sale por su puerto `error`.
+- **La nube no entra sola.** Un backend marcado `cloud: true` solo participa en una ruta con `allow_cloud: true`. Una ruta con todos sus miembros en la nube y sin `allow_cloud` es un error de configuración.
+- **La traza no miente.** Un nodo sigue siendo un paso: su `backend` es el miembro que respondió y `tried` enumera los que fallaron antes.
+- El nombre de una ruta usa minúsculas, dígitos y guiones, no puede ser `v1` ni coincidir con un backend. Las grabaciones del laboratorio nunca saltan, y `/{backend}/v1/systemone` sigue nombrando un backend concreto.
 
 ## Claves y acceso
 

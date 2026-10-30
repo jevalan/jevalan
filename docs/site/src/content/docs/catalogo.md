@@ -43,6 +43,21 @@ El flujo local aplica primero dos reglas fijas (borrado recursivo de la raíz o 
 
 Las razones posibles son `user-message`, `nothing-to-judge`, `skip-limit`, `judged`, `unsure` y `error`. Las tres primeras son reglas deterministas y no consultan ningún modelo: un mensaje del usuario siempre despierta, un aviso sin evento ni observación también, y tras `max_skips` omisiones seguidas (10 por defecto) se despierta igualmente. Solo el resto llega al modelo.
 
+## `agent.stop` (incluida)
+
+**Pregunta:** el agente dice que ha terminado: ¿puede darse por terminado su trabajo? Es la «puerta de hecho»: pide evidencia antes de dejarle parar.
+
+| | |
+|---|---|
+| Entrada | `task` y `blocked` (obligatorios); `claim`, `evidence`, `tests_passed`, `files_changed` y `max_blocks` (opcionales). `blocked` es cuántas veces se le ha impedido ya parar. |
+| Decisión | `stop` (booleano), `reason` y, si hubo modelo, `probability`. |
+| Plazo | 3000 ms por defecto. |
+| Quién la sirve | El flujo `agent-stop`, a través de `config/capabilities/agent.stop.yaml`. |
+| Quién la consume | Llamadas a `POST /v1/hub` y la herramienta `agent_stop` del servidor MCP. Todavía no hay un adaptador de hook `Stop`: quien la use decide qué hacer con `stop: false`. |
+| Sin respuesta | Si el modelo falla, el propio flujo deja parar al agente (`reason: error`): un guardián caído no debe atraparlo. Si no hay respuesta del hub, haz lo mismo en tu consumidor. |
+
+Las razones posibles son `block-limit`, `no-changes`, `tests-failed`, `verified`, `unverified`, `unsure` y `error`. Las cuatro primeras reglas son deterministas y se evalúan por este orden: tras `max_blocks` bloqueos seguidos (3 por defecto) se deja parar siempre, incluso con las pruebas en rojo, para no atrapar al agente; sin ficheros cambiados no hay nada que verificar; con las pruebas fallando no puede parar. Solo el resto llega al modelo, que juzga si la `evidence` demuestra la tarea: por debajo de 0,3 sigue (`unverified`), entre 0,3 y 0,6 también (`unsure`, porque con duda no se para) y desde 0,6 puede parar (`verified`).
+
 ## Flujos de ejemplo
 
 Estos dos flujos viven en `config/flows/` y se ejecutan con `POST /v1/decide/{flujo}`. No son capacidades del hub: no tienen esquema de entrada ni de decisión, así que el hub no los valida ni los expone por MCP. Convertir uno en capacidad es escribirle un manifiesto, como se explica más abajo.
@@ -60,7 +75,6 @@ Nada de esto está implementado ni tiene fecha. Se anota para que quede claro qu
 
 | Idea | Pregunta | Por qué encaja |
 |---|---|---|
-| `agent.stop` | ¿Puede este agente dar su trabajo por terminado? | Mismo patrón que `agent.wakeup`: reglas fijas (¿pasaron los tests?) y un modelo solo para lo dudoso. |
 | `model.route` | ¿Qué modelo y esfuerzo merece esta tarea? | Ya existe como flujo; le faltaría manifiesto y esquemas. |
 
 ## Añadir una capacidad

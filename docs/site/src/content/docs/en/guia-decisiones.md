@@ -70,6 +70,20 @@ The recommended path for `tool.risk` in an agent hook is the usual one:
 3. **Pin what matters in the lab.** Each case that surprised you becomes a fixture with its `why` (see [Lab](/en/laboratorio/)); `jevalan lab offline` replays it without network or keys, in CI too.
 4. **Switch to `enforce`** only when shadow and the lab convince you. Even then, in `enforce` the hook can only tighten permissions, and with no answer it asks.
 
+## What to test before switching to `enforce`
+
+The independent studies published on decision models agree on a few failures, and each one can be tested with the [lab](/en/laboratorio/). Their results depend on the task and the model they measured: use them to design your tests, not to trust their numbers.
+
+| The decision | What can go wrong | What to test in Jevalan |
+|---|---|---|
+| **Answer or abstain?** | A `choice` forced to pick among options that do not fit picks one anyway. | Always offer a "none" option (`other`) and wire `low-confidence`. Write fixtures with inputs that belong to no option. |
+| **Move up to a larger model?** | Escalation does not always improve the result and almost always costs more. | Measure with `jevalan lab live` how many cases escalate and at what cost, on cases you did **not** use to set `min_confidence` (example 8 in [Examples](/en/ejemplos/)). |
+| **Fix a threshold?** | A threshold tuned to your tests drifts with real traffic. | Calibrate with `jevalan shadow report` on real traffic, and pin the edges with fixtures: `threshold-edge-sleep`, `threshold-edge-unsure` and `threshold-edge-judged` of `agent.wakeup` check what happens just below, at and above each threshold. |
+| **Sort by probability?** | Many answers tie near the cutoff, and grouping questions can move the numbers. | Add fixtures with values equal to the threshold. A node's intervals are half-open (`[a, b)`), so a tie always falls on the same side. |
+| **Approve an action?** | Much of the error comes not from the model but from how its answer is turned into an action. | Test the mapping apart from the model: a fixture with `replay` fixes the model's answer and checks only what your flow does with it. |
+
+A fixture with `replay` measures no model: it measures **your rules**. That is why it runs without network or keys, in CI, and is the first thing worth having.
+
 ## Choosing the default
 
 This is the most important decision and the one most often forgotten. Ask what a mistake costs in each direction:

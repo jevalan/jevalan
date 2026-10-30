@@ -15,8 +15,11 @@ live product view.
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit.
 - [`docs/local-development.md`](docs/local-development.md) — running it, configuration, and the
   flow editor's keys and manual script.
+- [`docs/hub-profile.md`](docs/hub-profile.md) — the hub profile: what is published and what an implementation honours.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — the checks a change must pass.
 - [`docs/site/`](docs/site/) — static presentation and usage guide.
+- [`jev-hub-catalog`](https://github.com/jevalan/jev-hub-catalog) — the catalog and measurements of third-party
+  specialists; a separate repository (see §8).
 
 To confirm your toolchain is healthy, and to see the thing work right now:
 
@@ -111,3 +114,16 @@ What matters before you run it:
   **backends could not be checked**. Everything else — CEL, ports, cycles, models — still is.
 - It needs a real terminal: do not launch it from a test or a script. `cargo test -p
   jevalan-edit` covers it headlessly.
+
+## 8. The catalog lives elsewhere: `jev-hub-catalog`
+
+The index of capabilities, the verdicts on third-party specialists and their measurements live in a project of their own,
+`jevalan/jev-hub-catalog` (a sibling directory, `../jev-hub-catalog`, in the usual workspace). It depends on what this
+repository publishes and never the other way round: the profile (`docs/hub-profile.md`), each capability's `digest`,
+`/.well-known/jev-hub.json` and the conformance cases (`cargo test -p jevalan-daemon --test conformance`).
+
+- **Keep here only the examples** (`tool.risk` through `exec`, `agent.stop`, `agent.wakeup`). A new third-party capability
+  belongs in the catalog, not in `config/capabilities/`.
+- **Changing the profile, the digest or the conformance cases can break the catalog's measurements.** Say so in the
+  change; the catalog's `scripts/probe.mjs` starts a `jevalan serve` in a sandbox with no keys and checks them.
+- The catalog is not a registry: push, pull and signing stay out (spec §8).

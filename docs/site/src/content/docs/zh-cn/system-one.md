@@ -89,7 +89,7 @@ Jevalan 逐字节转发请求体，如果配置了后端密钥就加上，并原
 | `score` | `type: score`，带 `criteria` | 刻度上的 `a..b` 区间。 |
 | `batch` | 一次调用中的多个问题 | `route` 规则能看到所有答案。 |
 
-此外，每个节点都有 `error` 端口（后端失败或回答有误）和 `low-confidence` 端口（`confidence` 低于 `min_confidence`）。因此，不支持某种问题类型的后端会让每个请求都从 `error` 端口出去：见[示例](/zh-cn/ejemplos/)中的第 4 个示例。
+此外，调用模型的节点可以连接 `error` 端口（后端失败或回答有误）和 `low-confidence` 端口（`confidence` 低于 `min_confidence`；不连接则忽略置信度，`batch` 不支持该端口）。因此，不支持某种问题类型的后端会让每个请求都从 `error` 端口出去：见[示例](/zh-cn/ejemplos/)中的第 4 个示例。
 
 ## 错误
 

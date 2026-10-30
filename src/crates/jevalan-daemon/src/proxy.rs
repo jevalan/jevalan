@@ -20,7 +20,10 @@ pub async fn named(
 }
 
 pub async fn default(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    let backend = state.cfg.default_backend.clone();
+    // The passthrough does not fall back: a default that is a route stands for its first member.
+    let default = &state.cfg.default_backend;
+    let backend =
+        state.cfg.routes.get(default).and_then(|r| r.members.first()).map_or(default.clone(), |m| m.backend.clone());
     passthrough(state, backend, headers, body).await
 }
 

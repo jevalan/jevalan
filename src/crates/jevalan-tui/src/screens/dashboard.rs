@@ -5,6 +5,7 @@ use crate::screen::{Ctx, KeyHint, Msg, Nav, Screen, SourceStatus};
 use crate::screens::capability::CapabilityScreen;
 use crate::screens::flow::FlowScreen;
 use crate::screens::hook::HookScreen;
+use crate::screens::sessions::SessionsScreen;
 use crate::screens::trace::TraceScreen;
 use crate::theme;
 use crate::topology::{NodeId, PASSTHROUGH};
@@ -25,6 +26,7 @@ const KEYS: &[KeyHint] = &[
     KeyHint { key: "n N", desc: "nodo siguiente / anterior" },
     KeyHint { key: "↑↓ enter", desc: "elegir decisión y abrir su traza (feed)" },
     KeyHint { key: "H", desc: "decisiones del hook de Claude Code" },
+    KeyHint { key: "S", desc: "sesiones capturadas" },
 ];
 
 const KEY_TOGGLE: KeyHint = KeyHint { key: "x", desc: "apagar / encender backend" };
@@ -131,6 +133,9 @@ impl Screen for Dashboard {
         match msg {
             Msg::Key(k) if k.kind == KeyEventKind::Press && k.code == KeyCode::Char('H') => {
                 return Some(Nav::Push(Box::new(HookScreen::new(ctx.shadow_log.clone()))));
+            }
+            Msg::Key(k) if k.kind == KeyEventKind::Press && k.code == KeyCode::Char('S') => {
+                return Some(Nav::Push(Box::new(SessionsScreen::new(ctx.sessions_dir.clone()))));
             }
             Msg::Key(k) if k.kind == KeyEventKind::Press && k.code == KeyCode::Tab => {
                 self.focus = match self.focus {

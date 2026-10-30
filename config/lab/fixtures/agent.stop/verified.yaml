@@ -1,0 +1,9 @@
+id: verified
+version: 1
+description: "El modelo estima que la evidencia demuestra la tarea cumplida"
+input: { task: "arreglar el fallo de exportación", claim: "ya está arreglado", evidence: "cargo test: 120 pasan, 0 fallan", blocked: 0, files_changed: 2, tests_passed: true }
+replay:
+  done: { answer: 0.9, confidence: 0.9 }
+expect:
+  - cel: "status == 'ok' && decision.stop == true && decision.reason == 'verified'"
+    why: "Con evidencia clara el agente puede parar"

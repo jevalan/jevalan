@@ -1,0 +1,7 @@
+id: block-limit-custom
+version: 1
+description: "El límite de bloqueos se puede bajar con max_blocks"
+input: { task: "arreglar el fallo de exportación", blocked: 1, max_blocks: 1, files_changed: 2 }
+expect:
+  - cel: "status == 'ok' && decision.stop == true && decision.reason == 'block-limit'"
+    why: "max_blocks sustituye al límite por defecto"

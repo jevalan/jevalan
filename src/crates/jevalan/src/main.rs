@@ -4,6 +4,7 @@ mod hook;
 mod lab;
 mod live;
 mod mcp;
+mod sessions;
 mod shadow;
 mod specialist;
 
@@ -103,6 +104,14 @@ enum Cmd {
         #[command(subcommand)]
         action: ShadowAction,
     },
+    /// The daemon's session log (opt-in: `sessions.enabled`): what was asked, which backends answered, what was decided.
+    Sessions {
+        /// Log directory; by default `<data>/sessions`.
+        #[arg(long, global = true)]
+        dir: Option<PathBuf>,
+        #[command(subcommand)]
+        action: SessionsAction,
+    },
     /// Simulated specialist (the demo uses it as an `exec` provider).
     #[command(hide = true)]
     MockSpecialist {
@@ -141,6 +150,52 @@ enum HookAction {
         /// shadow: only records and stays silent; enforce: may block with deny.
         #[arg(long, value_enum, default_value_t = hook::Mode::Shadow)]
         mode: hook::Mode,
+    },
+}
+
+#[derive(Subcommand)]
+enum SessionsAction {
+    /// One row per client: first and last activity, traces and decisions by verdict.
+    List {
+        /// Only traces since this date (RFC 3339 or YYYY-MM-DD, in UTC).
+        #[arg(long, value_parser = shadow::parse_since)]
+        since: Option<String>,
+        /// Only clients whose name contains this text.
+        #[arg(long)]
+        client: Option<String>,
+        /// JSON instead of text, to chain with `jq`.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Timeline of a client's traces, or of one trace: input, path, backends and decision.
+    Show {
+        /// The client (`crush/crush:243a`) or a `trace_id`.
+        target: String,
+        /// JSON instead of text, to chain with `jq`.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Re-runs the traces offline with their recorded answers; fails if any decision changed.
+    Replay {
+        /// The client or a `trace_id`.
+        target: String,
+        /// Configuration of the daemon whose flows and capabilities decide, as `serve` reads it.
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Writes the traces as fixtures of a laboratory bench (created if missing) and checks that it loads.
+    Import {
+        /// The client or a `trace_id`.
+        target: String,
+        /// Fixture bench.
+        #[arg(long, default_value = "lab-fixtures-sessions")]
+        lab_dir: PathBuf,
+        /// Configuration of the daemon whose flows and capabilities the fixtures are checked against.
+        #[arg(long)]
+        config: Option<PathBuf>,
     },
 }
 
@@ -268,6 +323,17 @@ fn main() -> ExitCode {
             }
             ShadowAction::Fixtures { log, since, lab_dir, max } => fixtures::run(log, since, lab_dir, max),
         },
+        Cmd::Sessions { dir, action } => sessions::run(sessions::Opts {
+            dir,
+            action: match action {
+                SessionsAction::List { since, client, json } => sessions::Action::List { since, client, json },
+                SessionsAction::Show { target, json } => sessions::Action::Show { target, json },
+                SessionsAction::Replay { target, config, json } => sessions::Action::Replay { target, config, json },
+                SessionsAction::Import { target, lab_dir, config } => {
+                    sessions::Action::Import { target, lab_dir, config }
+                }
+            },
+        }),
         Cmd::MockSpecialist { capability, fail, fail_flag } => specialist::run(&capability, fail, fail_flag.as_deref()),
     }
 }
@@ -285,6 +351,7 @@ fn tui_fake(fx: FxMode, fake_rate: f64, fake_seed: Option<u64>) -> ExitCode {
         "fake",
         None,
         crate::shadow::default_log(),
+        jevalan_daemon::session::default_dir(),
     ))
 }
 

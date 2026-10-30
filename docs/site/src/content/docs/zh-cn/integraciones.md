@@ -79,7 +79,7 @@ hook 是**全局**的：你机器上每个项目的每次工具调用，包括�
 把它变成可读的内容，再变成测试：
 
 ```sh
-# 一份 Markdown 报告：判定、出现 ask 的原因、概率、延迟
+# 一份 Markdown 报告：判定、出现 ask 的原因、概率、有多少决策靠近阈值、延迟
 jevalan shadow report --since 2026-10-01 --out report.md
 
 # 同上，并附上每个示例脱敏后的摘录（仅限本地使用）
@@ -88,6 +88,8 @@ jevalan shadow report --with-inputs
 # 把真实决策转成实验室 fixture，风险最高的优先
 jevalan shadow fixtures --lab-dir lab-fixtures-batch --max 20
 ```
+
+“Cerca de un umbral”（靠近阈值）一节把每个决策的最高风险按 0.1 分段，并统计有多少落在 0.55 和 0.85 的 0.05 范围内。这些决策只要阈值稍有不同就会改变判定，值得人工复核。它不衡量校准：日志里没有记录你本来会怎么决定，缺了这个就无法衡量。
 
 默认情况下，报告不包含工具输入，所以你可以发布它。这些 fixture 会供给[实验室](/zh-cn/laboratorio/)，让你的测试集随着真实发生的情况而增长。
 

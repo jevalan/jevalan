@@ -68,11 +68,14 @@ fn config(addr: std::net::SocketAddr, flows: &Path, caps: &Path, signals: &Path)
         path: "/v1/systemone".into(),
         api_key: None,
         timeout: Duration::from_millis(500),
+        cloud: false,
     };
     Config {
         addr,
         token: Some("t0ken".into()),
         backends: BTreeMap::from([("ollama".to_string(), backend)]),
+        routes: BTreeMap::new(),
+        sessions: Default::default(),
         default_backend: "ollama".into(),
         flows_dir: flows.to_path_buf(),
         hub: Hub { capabilities_dir: caps.to_path_buf(), signals_dir: signals.to_path_buf(), ..Hub::default() },

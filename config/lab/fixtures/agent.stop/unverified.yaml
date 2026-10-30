@@ -1,0 +1,9 @@
+id: unverified
+version: 1
+description: "El modelo no ve evidencia de que la tarea esté cumplida"
+input: { task: "arreglar el fallo de exportación", claim: "ya está arreglado", evidence: "he cambiado dos ficheros", blocked: 0, files_changed: 2, tests_passed: true }
+replay:
+  done: { answer: 0.1, confidence: 0.9 }
+expect:
+  - cel: "status == 'ok' && decision.stop == false && decision.reason == 'unverified'"
+    why: "Afirmar que está hecho no es demostrarlo: el agente debe seguir hasta tener evidencia"

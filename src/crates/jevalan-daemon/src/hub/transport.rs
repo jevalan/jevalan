@@ -2,12 +2,16 @@
 
 use crate::AppState;
 use crate::proxy::call_backend;
+use crate::session::Recorder;
 use axum::body::Bytes;
 use jevalan_hub::classify::{ErrorCode, Status};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::{Arc, Mutex, PoisonError};
+
+/// Key under which a recorded specialist failure travels in a `Recordings` map.
+pub const FAILURE: &str = "$failure";
 
 /// Key: node name (the backend's `{status, body}`) or `provider.id` (the specialist's JSON).
 pub type Recordings = BTreeMap<String, Value>;
@@ -63,15 +67,28 @@ struct Tally {
 pub struct Io<'a> {
     transport: &'a Transport,
     tally: Mutex<Tally>,
+    /// The session log and the trace this run belongs to, when capture is on.
+    recording: Option<(Arc<Recorder>, String)>,
 }
 
 impl<'a> Io<'a> {
     pub fn new(transport: &'a Transport) -> Self {
-        Self { transport, tally: Mutex::default() }
+        Self { transport, tally: Mutex::default(), recording: None }
+    }
+
+    /// Stores every live backend call of this run in the session log, under `trace_id`.
+    pub fn recording(mut self, state: &AppState, trace_id: &str) -> Self {
+        self.recording = state.recorder.clone().map(|r| (r, trace_id.to_string()));
+        self
     }
 
     fn tally(&self) -> std::sync::MutexGuard<'_, Tally> {
         self.tally.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Only a live transport falls back to the next member of a route: a recording is deterministic.
+    pub fn is_live(&self) -> bool {
+        matches!(self.transport, Transport::Live)
     }
 
     pub fn is_replay(&self) -> bool {
@@ -145,6 +162,7 @@ impl<'a> Io<'a> {
         questions: &[String],
         body: Bytes,
     ) -> Result<(u16, Bytes), String> {
+        let request = self.recording.is_some().then(|| body.clone());
         let result = match self.transport {
             Transport::Replay(rec) if !questions.is_empty() => {
                 replay_many(rec, questions).ok_or_else(|| self.miss(&questions[0]))
@@ -156,6 +174,12 @@ impl<'a> Io<'a> {
             }
             _ => call_backend(state, backend, body).await,
         };
+        if let (Some((recorder, trace_id)), Some(request), false) =
+            (&self.recording, &request, matches!(self.transport, Transport::Replay(_)))
+        {
+            let response = result.as_ref().map(|(status, bytes)| (*status, &bytes[..])).map_err(String::as_str);
+            recorder.backend_call(trace_id, backend, node, request, response);
+        }
         // A failed call, or one without `usage`, cannot be priced: the run's cost stops being known.
         let mut metered = false;
         let mut cost = None;
@@ -200,6 +224,20 @@ impl<'a> Io<'a> {
         result
     }
 
+    /// Stores a live specialist answer in the session log, if capture is on.
+    fn note_specialist(&self, key: &str, value: &Value) {
+        if let Some((recorder, trace_id)) = &self.recording {
+            recorder.specialist_call(trace_id, key, value);
+        }
+    }
+
+    /// Stores a live specialist failure in the session log, if capture is on.
+    fn note_specialist_failure(&self, key: &str, status: &Status) {
+        if let (Some((recorder, trace_id)), Status::Error { code, message }) = (&self.recording, status) {
+            recorder.specialist_failure(trace_id, key, code.as_str(), message);
+        }
+    }
+
     /// Specialist response; `live` is only polled if the transport is not `Replay`.
     pub async fn specialist(
         &self,
@@ -210,12 +248,31 @@ impl<'a> Io<'a> {
             self.tally().specialist_calls += 1;
         }
         match self.transport {
-            Transport::Replay(rec) => {
-                rec.get(key).cloned().ok_or_else(|| Status::error(ErrorCode::ProviderFailed, self.miss(key)))
+            Transport::Replay(rec) => match rec.get(key) {
+                // A recorded failure replays as the same error.
+                Some(value) if value.get(FAILURE).is_some() => {
+                    let failure = &value[FAILURE];
+                    let code =
+                        failure["code"].as_str().and_then(ErrorCode::from_code).unwrap_or(ErrorCode::ProviderFailed);
+                    Err(Status::error(code, failure["message"].as_str().unwrap_or_default()))
+                }
+                Some(value) => Ok(value.clone()),
+                None => Err(Status::error(ErrorCode::ProviderFailed, self.miss(key))),
+            },
+            Transport::Live => {
+                let value = match live.await {
+                    Ok(value) => value,
+                    Err(status) => {
+                        self.note_specialist_failure(key, &status);
+                        return Err(status);
+                    }
+                };
+                self.note_specialist(key, &value);
+                Ok(value)
             }
-            Transport::Live => live.await,
             Transport::Record(rec) => {
                 let value = live.await?;
+                self.note_specialist(key, &value);
                 rec.lock().unwrap_or_else(PoisonError::into_inner).insert(key.into(), value.clone());
                 Ok(value)
             }

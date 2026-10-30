@@ -1,0 +1,26 @@
+---
+title: Probar umbrales
+description: Mueve los umbrales de tool.risk y agent.wakeup y mira qué decidiría cada flujo, sin hacer ninguna petición.
+---
+
+import UmbralPlayground from '../../components/UmbralPlayground.astro';
+
+El modelo devuelve probabilidades; **tu flujo decide qué hacer con ellas**. Estos dos juegos aplican en tu navegador las mismas reglas que los flujos incluidos (`tool-risk-local` y `agent-wakeup`). No llaman a ningún modelo ni hacen ninguna petición: las probabilidades las mueves tú.
+
+<UmbralPlayground labels={{
+  toolTitle: "tool.risk: cuatro riesgos, dos umbrales",
+  risks: [["destructive", "Destructivo"], ["exfiltration", "Exfiltración"], ["privilege", "Privilegios"], ["secret_exposure", "Secretos expuestos"]],
+  askAt: "Umbral de ask", denyAt: "Umbral de deny", verdict: "Veredicto",
+  allow: "allow", ask: "ask", deny: "deny",
+  wakeTitle: "agent.wakeup: ¿merece la pena despertarlo?",
+  prob: "Probabilidad del modelo", sleepBelow: "Dormir por debajo de", judgedFrom: "Juicio claro desde",
+  outcome: "Resultado", sleep: "duerme (judged)", unsure: "despierta (unsure)", judged: "despierta (judged)"
+}} />
+
+## Qué mirar
+
+- En `tool.risk` gana el primer umbral que se cumple, y `deny` va antes que `ask`. Basta **un** riesgo para decidir: sube solo uno y verás cómo cambia el veredicto.
+- En `agent.wakeup` los intervalos son semiabiertos: una probabilidad igual al umbral cae en el tramo de arriba. Pon 0,30 y 0,30: ya no duerme.
+- El modelo no ha cambiado en ningún momento. Cambia tu política, y con ella cuántas decisiones van a una persona.
+
+Los valores de los flujos incluidos (0,55 y 0,85; 0,3 y 0,5) son una primera aproximación. Para fijarlos con tus datos, mira la [guía de decisiones](/guia-decisiones/) y los [ejercicios](/ejercicios/).

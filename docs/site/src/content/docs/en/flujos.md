@@ -57,7 +57,7 @@ Nodes that ask a model take `instructions` (the question) and `criteria`, and in
 Besides your own ports, a model node can use two special ones:
 
 - `error` — taken when the backend fails or times out. Without it, a failing node ends the request with `502`.
-- `low-confidence` — taken when the model's confidence is below `min_confidence`.
+- `low-confidence` — taken when the model's confidence is below `min_confidence`, **but only if you wire it** in `out`. Without it the confidence is ignored and the node follows its answer. `rule` and `batch` nodes do not accept it.
 
 A flow that routes work to a model by difficulty, from the repository's `config/flows/model-route.yaml`, uses all of this:
 

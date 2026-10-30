@@ -5,6 +5,26 @@ backends:
   typesafe: { url: "https://api.typesafe.ai", api_key_env: TYPESAFE_API_KEY, timeout_ms: 2000 }
   openrouter: { url: "https://openrouter.ai", path: "/api/alpha/decisions", api_key_env: OPENROUTER_API_KEY, timeout_ms: 8000 }
   ollama: { url: "http://localhost:11434", timeout_ms: 5000 }
+# A route is an ordered list of (backend, model): a flow that names it uses the first member that answers.
+# Only a transport failure (refused, timeout, DNS) moves on to the next; the cloud never joins on its own.
+# routes:
+#   local:
+#     - { backend: ollama, model: nimble }
+#   local-cloud:
+#     allow_cloud: true
+#     members:
+#       - { backend: ollama, model: nimble }
+#       - { backend: openrouter, model: typesafe/jev-1.13 }   # needs `cloud: true` on the backend
+# Session capture, off unless you opt in: it keeps the tool inputs and the decisions in clear, on this machine only.
+# sessions:
+#   enabled: true
+#   capture: full          # full | off
+#   dir: ./sessions        # by default <data dir>/sessions
+#   retention_days: 14     # older daily files are deleted at start; today's is never touched
+#   otlp:                  # optional mirror of each finished trace to an OTLP/HTTP collector (JSON)
+#     endpoint: http://127.0.0.1:4318   # "/v1/traces" is appended unless already there
+#     content: false       # true also sends the tool's input and the decision, in clear
+#     headers_env: { authorization: OTLP_AUTH }   # header -> variable holding its value; no key in this file
 default_backend: ollama
 flows_dir: ./config/flows
 hub:

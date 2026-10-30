@@ -1,0 +1,9 @@
+id: threshold-edge-sleep
+version: 1
+description: "Justo por debajo del umbral de dormir (0.3) el agente sigue dormido"
+input: { waiting_for: "una build terminada", event: "cron: limpieza de logs", skipped: 1 }
+replay:
+  worth: { answer: 0.29, confidence: 0.9 }
+expect:
+  - cel: "status == 'ok' && decision.wake == false && decision.reason == 'judged'"
+    why: "Por debajo de 0.3 el evento se considera ajeno y no debe despertar al agente"

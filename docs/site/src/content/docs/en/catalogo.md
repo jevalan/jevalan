@@ -43,6 +43,21 @@ The local flow applies two fixed rules first (recursive deletion of the root or 
 
 The possible reasons are `user-message`, `nothing-to-judge`, `skip-limit`, `judged`, `unsure` and `error`. The first three are deterministic rules and consult no model: a user message always wakes, a notice with no event and no observation also wakes, and after `max_skips` consecutive skips (10 by default) it wakes anyway. Only the rest reaches the model.
 
+## `agent.stop` (included)
+
+**Question:** the agent says it is done: may its work be considered finished? It is the "done gate": it asks for evidence before letting the agent stop.
+
+| | |
+|---|---|
+| Input | `task` and `blocked` (required); `claim`, `evidence`, `tests_passed`, `files_changed` and `max_blocks` (optional). `blocked` is how many times it has already been prevented from stopping. |
+| Decision | `stop` (boolean), `reason` and, when a model was involved, `probability`. |
+| Deadline | 3000 ms by default. |
+| Who serves it | The `agent-stop` flow, through `config/capabilities/agent.stop.yaml`. |
+| Who consumes it | Calls to `POST /v1/hub` and the `agent_stop` tool of the MCP server. There is no `Stop` hook adapter yet: whoever uses it decides what to do with `stop: false`. |
+| No answer | If the model fails, the flow itself lets the agent stop (`reason: error`): a fallen guard must not trap it. If the hub gives no answer, do the same in your consumer. |
+
+The possible reasons are `block-limit`, `no-changes`, `tests-failed`, `verified`, `unverified`, `unsure` and `error`. The first rules are deterministic and are evaluated in this order: after `max_blocks` consecutive blocks (3 by default) it always lets the agent stop, even with red tests, so the agent is not trapped; with no changed files there is nothing to verify; with failing tests it cannot stop. Only the rest reaches the model, which judges whether the `evidence` demonstrates the task: below 0.3 the agent continues (`unverified`), between 0.3 and 0.6 it also continues (`unsure`, because with doubt it does not stop) and from 0.6 it may stop (`verified`).
+
 ## Example flows
 
 These two flows live in `config/flows/` and run with `POST /v1/decide/{flow}`. They are not hub capabilities: they have no input or decision schema, so the hub neither validates them nor exposes them over MCP. Turning one into a capability means writing it a manifest, as explained below.
@@ -60,7 +75,6 @@ None of this is implemented or dated. It is listed so it is clear what is produc
 
 | Idea | Question | Why it fits |
 |---|---|---|
-| `agent.stop` | May this agent consider its work finished? | Same pattern as `agent.wakeup`: fixed rules (did the tests pass?) and a model only for the doubtful cases. |
 | `model.route` | Which model and effort does this task deserve? | It already exists as a flow; it would need a manifest and schemas. |
 
 ## Adding a capability

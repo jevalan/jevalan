@@ -49,6 +49,48 @@ fn truncate(s: &str, max: usize) -> String {
 }
 
 /// Markdown report. Without `with_inputs` it includes no `tool_input` content at all.
+/// Half-width of the band around a threshold that counts as "borderline".
+const BAND_MILLI: i64 = 50;
+
+/// Thousandths of a probability, so the band edges compare exactly.
+fn milli(p: f64) -> i64 {
+    (p * 1000.0).round() as i64
+}
+
+/// Distribution of the highest risk per model decision, and how many sit close to each threshold.
+/// There are no human labels in the log, so this is not a calibration measure: it only shows how many
+/// decisions a slightly different threshold would flip.
+fn borderline(entries: &[Entry]) -> String {
+    let mut out = String::from("\n## Cerca de un umbral\n\n");
+    let risks: Vec<f64> = entries.iter().filter_map(|e| e.max_risk().map(|(_, p)| p)).collect();
+    if risks.is_empty() {
+        out.push_str("Sin decisiones con probabilidades.\n");
+        return out;
+    }
+    let n = risks.len();
+    let _ = writeln!(
+        out,
+        "Riesgo máximo de las decisiones con modelo (n = {n}). Sin etiquetas humanas esto no mide la calibración: \
+         solo dice cuántas decisiones cambiarían con un umbral algo distinto.\n"
+    );
+    out.push_str("| Riesgo máx | n | % |\n|---|---:|---:|\n");
+    let mut bins = [0usize; 10];
+    for p in &risks {
+        bins[(milli(*p) / 100).clamp(0, 9) as usize] += 1;
+    }
+    for (i, count) in bins.iter().enumerate() {
+        let _ =
+            writeln!(out, "| {:.1}–{:.1} | {count} | {:.1} |", i as f64 / 10.0, (i + 1) as f64 / 10.0, pct(*count, n));
+    }
+    out.push('\n');
+    for threshold in [RISK_THRESHOLD, HIGH_THRESHOLD] {
+        let t = milli(threshold);
+        let near = risks.iter().filter(|p| (t - BAND_MILLI..t + BAND_MILLI).contains(&milli(**p))).count();
+        let _ = writeln!(out, "Cerca de {threshold} (±0.05): {near} ({:.1}%)", pct(near, n));
+    }
+    out
+}
+
 pub fn report(entries: &[Entry], ignored: usize, with_inputs: bool) -> String {
     let total = entries.len();
     let mut out = String::from("# Informe del registro sombra\n\n");
@@ -129,6 +171,8 @@ pub fn report(entries: &[Entry], ignored: usize, with_inputs: bool) -> String {
             v.iter().filter(|p| **p >= HIGH_THRESHOLD).count()
         );
     }
+
+    out.push_str(&borderline(entries));
 
     // 5. Latencia y errores
     out.push_str("\n## Latencia y errores\n\n");
@@ -378,6 +422,45 @@ mod tests {
         let a = since_filter(e.clone(), &parse_since("2026-10-10T07:03:00Z").unwrap());
         let b = since_filter(e, &parse_since("2026-10-10T09:03:00+02:00").unwrap());
         assert_eq!(a.len(), b.len());
+    }
+
+    #[test]
+    fn borderline_section_counts_decisions_near_each_threshold() {
+        let risk = |max: f64| json!({ "destructive": max, "authorized": 0.9 });
+        let text = [0.52, 0.58, 0.60, 0.49, 0.50, 0.83, 0.89, 0.90, 0.12, 1.0]
+            .iter()
+            .map(|p| line("2026-10-10T07:00:00.000Z", "Bash", Some("ask"), Some("model"), Some("x"), risk(*p), 10))
+            .chain([line(
+                "2026-10-10T07:01:00.000Z",
+                "Bash",
+                Some("ask"),
+                Some("static-rule"),
+                Some("regla"),
+                json!(null),
+                1,
+            )])
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+        let (e, ignored) = parse(&text);
+        let md = report(&e, ignored, false);
+        assert!(md.contains("## Cerca de un umbral"), "{md}");
+        // Only decisions with probabilities count: the static rule has none.
+        assert!(md.contains("(n = 10)"), "{md}");
+        assert!(md.contains("| 0.1–0.2 | 1 | 10.0 |"), "{md}");
+        assert!(md.contains("| 0.9–1.0 | 2 | 20.0 |"), "{md}");
+        // [0.50, 0.60) holds 0.52, 0.58 and 0.50; 0.60 and 0.49 are outside.
+        assert!(md.contains("Cerca de 0.55 (±0.05): 3 (30.0%)"), "{md}");
+        // [0.80, 0.90) holds 0.83 and 0.89; 0.90 is outside.
+        assert!(md.contains("Cerca de 0.85 (±0.05): 2 (20.0%)"), "{md}");
+    }
+
+    #[test]
+    fn borderline_section_is_empty_without_model_decisions() {
+        let md = report(&[], 0, false);
+        assert!(md.contains("## Cerca de un umbral") && md.contains("Sin decisiones con probabilidades."), "{md}");
     }
 
     #[test]

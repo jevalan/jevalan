@@ -89,7 +89,7 @@ Un nodo de [flujo](/flujos/) es una pregunta System One con puertos de salida:
 | `score` | `type: score`, con `criteria` | Rangos `a..b` sobre la escala. |
 | `batch` | Varias preguntas en una sola llamada | Las reglas `route` ven todas las respuestas. |
 
-Además, cualquier nodo tiene los puertos `error` (el backend falló o contestó mal) y `low-confidence` (la `confidence` quedó por debajo de `min_confidence`). Por eso un backend que no admite un tipo de pregunta hace salir cada petición por `error`: mira el ejemplo 4 de [Ejemplos](/ejemplos/).
+Además, los nodos con modelo pueden cablear los puertos `error` (el backend falló o contestó mal) y `low-confidence` (la `confidence` quedó por debajo de `min_confidence`; si no lo cableas, se ignora la confianza, y `batch` no lo admite). Por eso un backend que no admite un tipo de pregunta hace salir cada petición por `error`: mira el ejemplo 4 de [Ejemplos](/ejemplos/).
 
 ## Errores
 

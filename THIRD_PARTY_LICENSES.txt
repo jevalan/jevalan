@@ -6,7 +6,7 @@ enlazadas en los binarios de jevalan. Se genera con `cargo about generate about.
 
 Resumen de licencias
 --------------------
-- MIT License (MIT): 258 paquete(s)
+- MIT License (MIT): 259 paquete(s)
 - ISC License (ISC): 25 paquete(s)
 - Unicode License v3 (Unicode-3.0): 19 paquete(s)
 - Apache License 2.0 (Apache-2.0): 5 paquete(s)
@@ -1955,6 +1955,7 @@ MIT License
 
 Usada por:
 - sha1 0.10.7 (https://github.com/RustCrypto/hashes)
+- sha2 0.10.9 (https://github.com/RustCrypto/hashes)
 
 Copyright (c) 2006-2009 Graydon Hoare
 Copyright (c) 2009-2013 Mozilla Foundation

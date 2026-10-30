@@ -65,7 +65,7 @@ Ejecuta `jevalan <comando> --help` para ver todas las opciones de un comando.
 | ratón | Arrastrar mueve la vista y la rueda hace zoom, en la topología y en un flujo. |
 | `n` `N` | Nodo siguiente o anterior en la topología. |
 | `t` | En una traza, alterna entre el camino de nodos y la línea de tiempo de eventos. |
-| `H` | Vista en vivo de las decisiones del hook. Dentro, `↑` `↓` o `jk` se mueven y `g` salta a la decisión más reciente y `G` a la más antigua (también `Inicio` y `Fin`). |
+| `H` | Vista en vivo de las decisiones del hook. Dentro, `↑` `↓` o `jk` se mueven y `g` salta a la decisión más reciente y `G` a la más antigua (también `Inicio` y `Fin`). `1`-`5` dejan solo allow, ask, deny, abstain o error (`0` lo quita), `s` los ask sospechosos, `/` filtra por nombre de herramienta y `c` quita los filtros. Un registro largo se carga con una barra de progreso. |
 | `x` | En `--demo`, con el foco en la topología, tumba o recupera el backend seleccionado. |
 
 ## Teclas del editor de flujos

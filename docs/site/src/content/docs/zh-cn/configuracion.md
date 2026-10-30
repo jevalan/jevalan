@@ -57,9 +57,32 @@ backends:
 
 后端名称使用小写字母、数字和连字符，且不能是 `v1`。无论 `path` 是什么，你的客户端调用的路由 `/{backend}/v1/systemone` 都不会改变。
 
+**把 Ollama 当作后端。** 从 0.35.0 版本起，Ollama 通过同一契约提供决策模型（例如 `ollama pull nimble`），按模型名调用。版本更旧，或没有拉取决策模型时，`/v1/systemone` 不会按 System One 应答（0.32.15 返回 `404`），所有节点都会走 `error` 端口。普通的 Ollama 聊天模型不行：它不会返回自己的概率。
+
 如果 `default_backend` 未定义、某个 `url` 不是 http 或 https，或者某个 `api_key_env` 变量为空或未设置，守护进程会立即失败，并给出清晰的信息。
 
 流程会指定它们所用的后端。如果流程指定了你的配置中没有定义的后端，该流程会显示为无效，直到你把它加上。参见[故障排查](/zh-cn/solucion-de-problemas/)。
+
+## 路由：第一个应答的后端
+
+路由是由 `{ backend, model }` 组成的有序列表。流程（`defaults.backend` 或节点的 `backend`）或 `default_backend` 可以在写后端名的地方写路由名，守护进程会使用第一个应答的成员。每个成员自带模型，因此节点的 `model` 可省略，写了也会被忽略（加载流程时守护进程会给出提示）。
+
+```yaml
+routes:
+  local:                    # 短写法：不会使用云端
+    - { backend: kev,  model: kev-latest }
+    - { backend: laya, model: laya-rl-agent }
+  local-cloud:              # 完整写法：让 `cloud: true` 后端参与的唯一方式
+    allow_cloud: true
+    members:
+      - { backend: kev, model: kev-latest }
+      - { backend: openrouter, model: typesafe/jev-1.13 }
+```
+
+- **只有传输层失败才会换下一个成员**（连接被拒、超时、DNS）。HTTP 5xx、429 或无法使用的响应不会换成员：仍由节点照常判断。所有成员都失败时，节点走它的 `error` 端口。
+- **云端不会自己加入。** 标记为 `cloud: true` 的后端只会参与带 `allow_cloud: true` 的路由。成员全是云端、却没有 `allow_cloud` 的路由属于配置错误。
+- **轨迹保持如实。** 一个节点仍然只有一步：其 `backend` 是应答的成员，`tried` 列出在它之前失败的成员。
+- 路由名只能用小写字母、数字和连字符，不能是 `v1`，也不能与后端同名。实验室的录像不会回退，`/{backend}/v1/systemone` 仍然指向具体的后端。
 
 ## 密钥与访问
 

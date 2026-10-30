@@ -14,3 +14,4 @@ serde_json.workspace = true
 serde_yaml = "0.9"
 cel = "0.15"
 jsonschema = { version = "0.60", default-features = false }
+sha2 = "0.10"

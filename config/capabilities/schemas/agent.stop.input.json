@@ -1,0 +1,1 @@
+{"type":"object","required":["task","blocked"],"properties":{"task":{"type":"string"},"claim":{"type":"string"},"evidence":{},"tests_passed":{"type":"boolean"},"files_changed":{"type":"integer","minimum":0},"blocked":{"type":"integer","minimum":0},"max_blocks":{"type":"integer","minimum":1}},"additionalProperties":false}

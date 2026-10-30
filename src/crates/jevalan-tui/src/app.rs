@@ -61,7 +61,8 @@ impl App {
             Msg::Key(k) if k.kind != KeyEventKind::Press => return,
             Msg::Key(k) => {
                 self.dirty = true;
-                if self.global_key(k) {
+                let typing = self.stack.last().is_some_and(|s| s.captures_text());
+                if !typing && self.global_key(k) {
                     return;
                 }
             }
@@ -270,6 +271,36 @@ mod tests {
         }
     }
 
+    /// Test screen that is taking text.
+    struct Typing;
+
+    impl Screen for Typing {
+        fn update(&mut self, _ctx: &mut Ctx, _msg: &Msg) -> Option<Nav> {
+            None
+        }
+
+        fn draw(&mut self, _ctx: &Ctx, _f: &mut Frame, _area: Rect) {}
+
+        fn keys(&self) -> &'static [KeyHint] {
+            &[]
+        }
+
+        fn captures_text(&self) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn a_screen_taking_text_keeps_the_global_keys_to_itself() {
+        let mut a = App::new(Box::new(Typing), FxMode::Events, Instant::now());
+        let fx = a.ctx.fx;
+        a.update(key(KeyCode::Char('q')));
+        a.update(key(KeyCode::Char('f')));
+        a.update(key(KeyCode::Esc));
+        assert!(!a.quit, "ni q ni esc cierran mientras se escribe");
+        assert_eq!(a.ctx.fx, fx, "ni f cambia los efectos");
+    }
+
     fn app() -> (App, Rc<RefCell<Vec<String>>>) {
         let seen = Rc::new(RefCell::new(Vec::new()));
         (App::new(Box::new(Probe { seen: seen.clone() }), FxMode::Events, Instant::now()), seen)
@@ -403,13 +434,20 @@ mod tests {
     #[test]
     fn backends_is_applied_even_if_seen() {
         let (mut a, _) = app();
-        let kind = EventKind::Backends { backends: vec!["ollama".into()] };
+        let kind = EventKind::Backends { backends: vec!["ollama".into()], routes: Vec::new(), remote: Vec::new() };
         a.update(flow_event("backends:1", kind.clone()));
         assert_eq!(a.ctx.topo.backends().count(), 1);
         a.update(flow_event("backends:1", kind));
         assert_eq!(a.ctx.topo.backends().count(), 1);
         // A restarted daemon repeats the same (trace, seq) with other names.
-        a.update(flow_event("backends:1", EventKind::Backends { backends: vec!["ollama".into(), "nuevo".into()] }));
+        a.update(flow_event(
+            "backends:1",
+            EventKind::Backends {
+                backends: vec!["ollama".into(), "nuevo".into()],
+                routes: Vec::new(),
+                remote: Vec::new(),
+            },
+        ));
         assert_eq!(a.ctx.topo.backends().count(), 2);
     }
 

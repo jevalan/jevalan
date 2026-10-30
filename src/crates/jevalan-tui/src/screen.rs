@@ -76,6 +76,8 @@ pub struct Ctx {
     pub notice: Option<(String, Instant)>,
     /// Local path of `shadow.jsonl`, if known; the hook view follows it.
     pub shadow_log: Option<std::path::PathBuf>,
+    /// Local directory of the session log, if known; the sessions view reads it.
+    pub sessions_dir: Option<std::path::PathBuf>,
 }
 
 impl Ctx {
@@ -95,6 +97,7 @@ impl Ctx {
             toggle: None,
             notice: None,
             shadow_log: None,
+            sessions_dir: None,
         }
     }
 }
@@ -103,6 +106,12 @@ pub trait Screen {
     fn update(&mut self, ctx: &mut Ctx, msg: &Msg) -> Option<Nav>;
     fn draw(&mut self, ctx: &Ctx, f: &mut Frame, area: Rect);
     fn keys(&self) -> &'static [KeyHint];
+
+    /// `true` while the screen is taking text (a filter being typed): the global keys (`q`, `f`, `p`, `esc`...) then
+    /// go to the screen as ordinary characters.
+    fn captures_text(&self) -> bool {
+        false
+    }
 
     /// `true` while the screen has an animation of its own in progress (effects).
     fn animating(&self) -> bool {

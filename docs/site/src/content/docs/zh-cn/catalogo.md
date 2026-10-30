@@ -43,6 +43,21 @@ description: Jevalan 自带哪些能力、每个能力回答什么问题、由�
 
 可能的 `reason` 有 `user-message`、`nothing-to-judge`、`skip-limit`、`judged`、`unsure` 和 `error`。前三个是确定性规则，不会咨询任何模型：用户消息总会唤醒；没有事件也没有观察的通知同样唤醒；连续跳过 `max_skips` 次（默认 10）后也会唤醒。只有其余情况才会交给模型。
 
+## `agent.stop`（已包含）
+
+**问题：**智能体说它做完了：它的工作可以视为完成吗？这是“完成关卡”：在让智能体停下之前先要求证据。
+
+| | |
+|---|---|
+| 输入 | `task` 和 `blocked`（必填）；`claim`、`evidence`、`tests_passed`、`files_changed` 和 `max_blocks`（可选）。`blocked` 是已经阻止它停下的次数。 |
+| 决策 | `stop`（布尔值）、`reason`，以及用过模型时的 `probability`。 |
+| 截止时间 | 默认 3000 毫秒。 |
+| 由谁提供 | `agent-stop` 流程，通过 `config/capabilities/agent.stop.yaml`。 |
+| 由谁使用 | 对 `POST /v1/hub` 的调用，以及 MCP 服务器的 `agent_stop` 工具。目前还没有 `Stop` 钩子适配器：使用者自己决定如何处理 `stop: false`。 |
+| 没有答案 | 模型失败时，流程自己会让智能体停下（`reason: error`）：失效的守卫不应困住它。如果能力中心没有给出答案，你的使用方也应这样做。 |
+
+可能的 `reason` 有 `block-limit`、`no-changes`、`tests-failed`、`verified`、`unverified`、`unsure` 和 `error`。前面几条规则是确定性的，按此顺序求值：连续被阻止 `max_blocks` 次（默认 3）后一律放行，即使测试是红的，以免困住智能体；没有改动文件时无需验证；测试失败时不能停下。只有其余情况才会交给模型，由它判断 `evidence` 是否证明任务完成：低于 0.3 继续（`unverified`），0.3 到 0.6 之间也继续（`unsure`，因为存疑时不停），从 0.6 起可以停下（`verified`）。
+
 ## 示例流程
 
 这两个流程位于 `config/flows/`，通过 `POST /v1/decide/{流程}` 运行。它们不是能力中心的能力：没有输入或决策 schema，因此能力中心不会校验它们，也不会通过 MCP 暴露它们。要把其中一个变成能力，需要为它写一份清单，见下文。
@@ -60,7 +75,6 @@ description: Jevalan 自带哪些能力、每个能力回答什么问题、由�
 
 | 想法 | 问题 | 为什么合适 |
 |---|---|---|
-| `agent.stop` | 这个智能体可以认为工作已经完成了吗？ | 与 `agent.wakeup` 同一模式：固定规则（测试通过了吗？），模型只处理存疑的情况。 |
 | `model.route` | 这个任务该用哪个模型和力度？ | 已有对应流程；还缺清单和 schema。 |
 
 ## 添加一个能力

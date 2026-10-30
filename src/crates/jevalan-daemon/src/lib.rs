@@ -13,6 +13,7 @@ pub mod mock;
 pub mod probe;
 pub mod proxy;
 mod rng;
+pub mod session;
 pub mod signals;
 pub mod simulate;
 pub mod ws;
@@ -39,6 +40,8 @@ pub struct AppState {
     pub hub_http: reqwest::Client,
     pub flows: Arc<Registry>,
     pub capabilities: Arc<hub::CapRegistry>,
+    /// The session log, when the user opted in. It never feeds the public bus.
+    pub recorder: Option<Arc<session::Recorder>>,
     /// Identifies this start of the process in the `trace_id` of `BACKENDS`.
     pub boot: Arc<str>,
 }
@@ -51,7 +54,30 @@ impl AppState {
         flows.set_on_change(move |flows| hook.0.revalidate(&hook.1.hub.capabilities_dir, flows, &hook.1.hub, &hook.2));
         let hub_http =
             reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().unwrap_or_default();
-        Self { cfg, bus, http: reqwest::Client::new(), hub_http, flows, capabilities, boot: bus::new_trace_id().into() }
+        let recorder = cfg.sessions.enabled.then(|| {
+            let dir = cfg.sessions.dir.clone().or_else(session::default_dir).unwrap_or_else(|| "sessions".into());
+            Arc::new(session::Recorder::open(dir, cfg.sessions.retention_days))
+        });
+        Self {
+            cfg,
+            bus,
+            http: reqwest::Client::new(),
+            hub_http,
+            flows,
+            capabilities,
+            recorder,
+            boot: bus::new_trace_id().into(),
+        }
+    }
+
+    /// Starts storing the events of every trace. Needs a running runtime, so it is not part of `new`.
+    pub fn start_recording(&self) {
+        if let Some(recorder) = &self.recorder {
+            recorder.follow(&self.bus);
+            if let Some(otlp) = &self.cfg.sessions.otlp {
+                recorder.start_export(otlp.clone());
+            }
+        }
     }
 
     /// Loads `capabilities_dir` and watches for changes while the returned watcher lives.
@@ -78,6 +104,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/flows/draft/run", post(draft::draft_run))
         .route("/v1/hub", post(hub::route::hub))
         .route("/v1/hub/capabilities", get(hub::route::capabilities))
+        .route("/.well-known/jev-hub.json", get(hub::route::capabilities))
         .route("/events", get(ws::events))
         .route("/healthz", get(|| async { "ok" }))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
@@ -106,6 +133,7 @@ async fn run(cfg: Config, quiet: bool, shutdown: impl Future<Output = ()> + Send
         discovery::write(addr, cfg.token.as_deref());
     }
     let state = AppState::new(cfg);
+    state.start_recording();
     let watcher = state.load_flows();
     let cap_watcher = state.load_capabilities();
     if !quiet {

@@ -17,6 +17,10 @@ The usual cause is a flow that names a backend your configuration does not defin
 
 This is expected with the minimal configurations, which define only some backends. It is not a fault, but the flows that need the missing backends will not be served.
 
+## Every node exits through `error` with a local backend
+
+Check the server **without going through Jevalan** (see [Compatible backends](/en/backends/)). If it is Ollama and `POST /v1/systemone` returns `404`, your version is older than 0.35.0: update it and pull a decision model (`ollama pull nimble`). If it answers `200` but the node still exits through `error`, read the message in the response's `path`: most often the server does not implement the node's question type.
+
 ## The daemon does not start
 
 - **A variable is missing.** The daemon fails fast if `default_backend` is not defined, a `url` is not http or https, or an `api_key_env` names a variable that is empty or unset. The message starts with `configuración inválida:`, says which one, and the daemon exits with code `2`.

@@ -14,6 +14,8 @@ pub const FLOWS: [(&str, &str); 2] = [
     ("model-route", include_str!("../../../../config/flows/model-route.yaml")),
 ];
 pub const BACKENDS: [&str; 2] = ["typesafe", "ollama"];
+/// Of `BACKENDS`, the one that lives outside this machine: the showcase draws both shapes.
+const REMOTE: [&str; 1] = ["typesafe"];
 const DEFAULT_BACKEND: &str = "ollama";
 /// Those of the topology plus `openrouter`, which `agent-wakeup` asks for and the simulated board does not draw.
 const FLOW_BACKENDS: [&str; 3] = ["typesafe", "ollama", "openrouter"];
@@ -212,7 +214,12 @@ fn definition(flow: &Flow) -> Value {
 /// The `BACKENDS` that the daemon sends first when a connection opens.
 pub fn backends_event() -> Event {
     let backends = BACKENDS.iter().map(|b| b.to_string()).collect();
-    new_event("backends:1", 1, "fake", EventKind::Backends { backends })
+    new_event(
+        "backends:1",
+        1,
+        "fake",
+        EventKind::Backends { backends, routes: Vec::new(), remote: REMOTE.iter().map(|b| b.to_string()).collect() },
+    )
 }
 
 /// One `FLOW_LOADED` per flow, like the one the daemon sends when a connection opens.

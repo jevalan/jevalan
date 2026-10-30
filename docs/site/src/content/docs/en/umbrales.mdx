@@ -1,0 +1,26 @@
+---
+title: Try thresholds
+description: Move the thresholds of tool.risk and agent.wakeup and see what each flow would decide, without making any request.
+---
+
+import UmbralPlayground from '../../../components/UmbralPlayground.astro';
+
+The model returns probabilities; **your flow decides what to do with them**. These two toys apply, in your browser, the same rules as the included flows (`tool-risk-local` and `agent-wakeup`). They call no model and make no request: you move the probabilities.
+
+<UmbralPlayground labels={{
+  toolTitle: "tool.risk: four risks, two thresholds",
+  risks: [["destructive", "Destructive"], ["exfiltration", "Exfiltration"], ["privilege", "Privilege"], ["secret_exposure", "Secret exposure"]],
+  askAt: "Ask threshold", denyAt: "Deny threshold", verdict: "Verdict",
+  allow: "allow", ask: "ask", deny: "deny",
+  wakeTitle: "agent.wakeup: is it worth waking it?",
+  prob: "Model probability", sleepBelow: "Sleep below", judgedFrom: "Clear judgment from",
+  outcome: "Outcome", sleep: "sleeps (judged)", unsure: "wakes (unsure)", judged: "wakes (judged)"
+}} />
+
+## What to look at
+
+- In `tool.risk` the first threshold that is met wins, and `deny` comes before `ask`. **One** risk is enough to decide: raise just one and watch the verdict change.
+- In `agent.wakeup` the intervals are half-open: a probability equal to the threshold falls in the upper band. Set 0.30 and 0.30: it no longer sleeps.
+- The model never changed. Your policy did, and with it how many decisions go to a person.
+
+The values in the included flows (0.55 and 0.85; 0.3 and 0.5) are a first approximation. To pin them with your data, see the [decision guide](/en/guia-decisiones/) and the [exercises](/en/ejercicios/).

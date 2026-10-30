@@ -1,0 +1,9 @@
+id: threshold-edge-judged
+version: 1
+description: "En el umbral de juicio claro (0.5) el motivo pasa de unsure a judged"
+input: { waiting_for: "una build terminada", event: "build fallida en CI", skipped: 1 }
+replay:
+  worth: { answer: 0.5, confidence: 0.9 }
+expect:
+  - cel: "status == 'ok' && decision.wake == true && decision.reason == 'judged'"
+    why: "Desde 0.5 la señal se juzga relevante y el motivo debe ser judged"

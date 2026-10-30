@@ -17,6 +17,10 @@ La causa habitual es un flujo que nombra un backend que tu configuración no def
 
 Esto es lo esperado con las configuraciones mínimas, que definen solo algunos backends. No es un fallo, pero los flujos que necesitan los backends que faltan no se servirán.
 
+## Todos los nodos salen por `error` con un backend local
+
+Comprueba el servidor **sin pasar por Jevalan** (mira [Backends compatibles](/backends/)). Si es Ollama y `POST /v1/systemone` da `404`, tu versión es anterior a la 0.35.0: actualiza y descarga un modelo de decisión (`ollama pull nimble`). Si responde `200` pero el nodo sigue saliendo por `error`, lee el mensaje en el `path` de la respuesta: lo habitual es que el servidor no implemente el tipo de pregunta del nodo.
+
 ## El daemon no arranca
 
 - **Falta una variable.** El daemon falla enseguida si `default_backend` no está definido, una `url` no es http ni https, o un `api_key_env` nombra una variable vacía o sin definir. El mensaje empieza por `configuración inválida:`, dice cuál, y el daemon sale con el código `2`.

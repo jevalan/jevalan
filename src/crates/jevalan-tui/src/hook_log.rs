@@ -20,6 +20,9 @@ pub struct Poll {
     pub lines: Vec<String>,
     /// The file exists.
     pub exists: bool,
+    /// Size of the file, and how much of it has been read so far.
+    pub total: u64,
+    pub read: u64,
 }
 
 /// Follower of a file that only grows (a non-blocking `tail -f`).
@@ -42,6 +45,11 @@ impl Tail {
 
     /// Reads what was added since the last time; if the file shrinks, it starts over from the beginning.
     pub fn poll(&mut self) -> Poll {
+        self.poll_up_to(u64::MAX)
+    }
+
+    /// Like `poll`, but reads at most `limit` bytes, so that a large log can be taken in slices.
+    pub fn poll_up_to(&mut self, limit: u64) -> Poll {
         let Ok(mut file) = File::open(&self.path) else {
             let reset = self.offset > 0;
             self.offset = 0;
@@ -49,20 +57,22 @@ impl Tail {
             return Poll { reset, ..Poll::default() };
         };
         let len = file.metadata().map_or(0, |m| m.len());
-        let mut poll = Poll { exists: true, ..Poll::default() };
+        let mut poll = Poll { exists: true, total: len, ..Poll::default() };
         if len < self.offset {
             poll.reset = true;
             self.offset = 0;
             self.partial.clear();
         }
+        poll.read = self.offset;
         if len == self.offset || file.seek(SeekFrom::Start(self.offset)).is_err() {
             return poll;
         }
         let mut chunk = Vec::new();
-        if file.take(len - self.offset).read_to_end(&mut chunk).is_err() {
+        if file.take((len - self.offset).min(limit)).read_to_end(&mut chunk).is_err() {
             return poll;
         }
         self.offset += chunk.len() as u64;
+        poll.read = self.offset;
         self.partial.extend_from_slice(&chunk);
         while let Some(nl) = self.partial.iter().position(|b| *b == b'\n') {
             let rest = self.partial.split_off(nl + 1);
@@ -191,11 +201,31 @@ pub struct HookLog {
     pub entries: VecDeque<Entry>,
     pub summary: Summary,
     pub exists: bool,
+    /// Bytes of the file read so far, and its size at the last probe.
+    read: u64,
+    total: u64,
 }
 
 impl HookLog {
     pub fn new(path: PathBuf) -> Self {
-        Self { tail: Tail::new(path), entries: VecDeque::new(), summary: Summary::default(), exists: false }
+        Self {
+            tail: Tail::new(path),
+            entries: VecDeque::new(),
+            summary: Summary::default(),
+            exists: false,
+            read: 0,
+            total: 0,
+        }
+    }
+
+    /// Bytes read and bytes in the file, as of the last probe.
+    pub fn progress(&self) -> (u64, u64) {
+        (self.read, self.total)
+    }
+
+    /// Part of the file is still waiting to be read.
+    pub fn loading(&self) -> bool {
+        self.read < self.total
     }
 
     pub fn path(&self) -> &Path {
@@ -204,8 +234,15 @@ impl HookLog {
 
     /// Probes the file and returns how many new decisions arrived; `None` if nothing changed.
     pub fn refresh(&mut self) -> Option<usize> {
-        let poll = self.tail.poll();
-        let changed = poll.reset || poll.exists != self.exists || !poll.lines.is_empty();
+        self.refresh_up_to(u64::MAX)
+    }
+
+    /// `refresh` over at most `limit` bytes; call it again while `loading()` to take the rest.
+    pub fn refresh_up_to(&mut self, limit: u64) -> Option<usize> {
+        let poll = self.tail.poll_up_to(limit);
+        let moved = poll.read != self.read || poll.total != self.total;
+        let changed = poll.reset || poll.exists != self.exists || !poll.lines.is_empty() || moved;
+        (self.read, self.total) = (poll.read, poll.total);
         self.exists = poll.exists;
         if poll.reset {
             self.entries.clear();

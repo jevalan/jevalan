@@ -1,0 +1,7 @@
+id: block-limit-default
+version: 1
+description: "Tras tres bloqueos seguidos el agente puede parar sin juicio del modelo"
+input: { task: "arreglar el fallo de exportación", blocked: 3, files_changed: 2, tests_passed: true }
+expect:
+  - cel: "status == 'ok' && decision.stop == true && decision.reason == 'block-limit'"
+    why: "Un guardián que bloquea sin fin atrapa al agente: tras el límite por defecto (3) debe dejarlo parar"

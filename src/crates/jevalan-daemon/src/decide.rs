@@ -33,6 +33,7 @@ pub async fn decide(State(state): State<AppState>, Path(name): Path<String>, bod
         return error_response(StatusCode::BAD_REQUEST, "falta «state»");
     };
     let client = req["client"].as_str().unwrap_or("unknown").to_string();
+    let who = client.clone();
     // The trace is always our own; the client's identifier is only returned, never enters the events.
     let client_trace_id = match req.get("client_trace_id") {
         None => None,
@@ -52,6 +53,9 @@ pub async fn decide(State(state): State<AppState>, Path(name): Path<String>, bod
         flow: Some(name.clone()),
         backend: None,
     });
+    if let Some(recorder) = &state.recorder {
+        recorder.input(tracer.trace_id(), &who, &format!("flow:{name}"), input);
+    }
     drive(&state, &name, &flow, input, &tracer, client_trace_id).await
 }
 
@@ -63,7 +67,20 @@ async fn drive(
     tracer: &Tracer,
     echo: Option<String>,
 ) -> Response {
-    let ran = run_flow(state, name, flow, input, tracer, &Io::new(&Transport::Live)).await;
+    let io = Io::new(&Transport::Live).recording(state, tracer.trace_id());
+    let ran = run_flow(state, name, flow, input, tracer, &io).await;
+    if let Some(recorder) = &state.recorder {
+        let capability = format!("flow:{name}");
+        match &ran.finish {
+            Finish::Done { outcome, data } => {
+                let decision = json!({ "outcome": outcome, "data": data });
+                recorder.decision(tracer.trace_id(), &capability, "ok", Some(&decision), None);
+            }
+            Finish::Failed { .. } => {
+                recorder.decision(tracer.trace_id(), &capability, "error", None, Some("flow_failed"))
+            }
+        }
+    }
     let (status, mut reply) = match ran.finish {
         Finish::Done { outcome, data } => {
             let mut reply =

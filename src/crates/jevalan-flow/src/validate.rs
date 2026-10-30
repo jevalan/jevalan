@@ -100,7 +100,7 @@ pub fn parse(name: &str, yaml: &str, backends: &[&str], default_backend: &str) -
     parse_with(name, yaml, &Signals::new(), backends, default_backend)
 }
 
-/// `parse` with the signal catalogue: what the daemon and the editor actually use.
+/// `parse` with the signal catalogue.
 pub fn parse_with(
     name: &str,
     yaml: &str,
@@ -108,8 +108,21 @@ pub fn parse_with(
     backends: &[&str],
     default_backend: &str,
 ) -> Result<Flow, FlowError> {
+    parse_routed(name, yaml, signals, backends, &[], default_backend)
+}
+
+/// `parse_with` that also knows the daemon's route names: what the daemon and the editor actually use. A node may
+/// name a route where it would name a backend; the route's members bring their own model, so the node's is optional.
+pub fn parse_routed(
+    name: &str,
+    yaml: &str,
+    signals: &Signals,
+    backends: &[&str],
+    routes: &[&str],
+    default_backend: &str,
+) -> Result<Flow, FlowError> {
     let def: FlowDef = serde_yaml::from_str(yaml).map_err(|e| FlowError::Yaml(e.to_string()))?;
-    validate_with(name, def, signals, backends, default_backend)
+    validate_routed(name, def, signals, backends, routes, default_backend)
 }
 
 pub fn validate(name: &str, def: FlowDef, backends: &[&str], default_backend: &str) -> Result<Flow, FlowError> {
@@ -124,11 +137,42 @@ pub fn validate_with(
     backends: &[&str],
     default_backend: &str,
 ) -> Result<Flow, FlowError> {
-    let (def, heuristics) = crate::signals::resolve(def, signals)?;
-    Ok(Flow { signals: heuristics, ..validate_resolved(name, def, backends, default_backend)? })
+    validate_routed(name, def, signals, backends, &[], default_backend)
 }
 
-fn validate_resolved(name: &str, def: FlowDef, backends: &[&str], default_backend: &str) -> Result<Flow, FlowError> {
+/// `validate_with` that also accepts route names wherever a backend goes.
+pub fn validate_routed(
+    name: &str,
+    def: FlowDef,
+    signals: &Signals,
+    backends: &[&str],
+    routes: &[&str],
+    default_backend: &str,
+) -> Result<Flow, FlowError> {
+    let (def, heuristics) = crate::signals::resolve(def, signals)?;
+    let targets = Targets { backends, routes };
+    Ok(Flow { signals: heuristics, ..validate_resolved(name, def, targets, default_backend)? })
+}
+
+/// Where a node may send its question: a backend of the daemon, or a route over several of them.
+#[derive(Clone, Copy)]
+struct Targets<'a> {
+    backends: &'a [&'a str],
+    routes: &'a [&'a str],
+}
+
+impl Targets<'_> {
+    fn knows(&self, name: &str) -> bool {
+        self.backends.contains(&name) || self.routes.contains(&name)
+    }
+
+    /// The model of a route comes from each of its members, so the node does not have to declare one.
+    fn model_optional(&self, name: &str) -> bool {
+        self.routes.contains(&name)
+    }
+}
+
+fn validate_resolved(name: &str, def: FlowDef, targets: Targets, default_backend: &str) -> Result<Flow, FlowError> {
     // `passthrough` is the TUI's fixed port; no flow may claim it.
     if !valid_name(name) || name == PASSTHROUGH {
         return Err(FlowError::BadName(name.into()));
@@ -141,7 +185,7 @@ fn validate_resolved(name: &str, def: FlowDef, backends: &[&str], default_backen
     }
     let mut nodes = BTreeMap::new();
     for (n, d) in &def.nodes {
-        nodes.insert(n.clone(), node(n, d, &def, backends, default_backend)?);
+        nodes.insert(n.clone(), node(n, d, &def, targets, default_backend)?);
     }
     for (out_name, o) in &def.outputs {
         if let Some(data) = &o.data {
@@ -165,7 +209,7 @@ fn valid_name(s: &str) -> bool {
         && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
-fn node(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_backend: &str) -> Result<Node, FlowError> {
+fn node(name: &str, d: &NodeDef, def: &FlowDef, targets: Targets, default_backend: &str) -> Result<Node, FlowError> {
     let bad = |reason: &str| FlowError::BadCriteria { node: name.into(), reason: reason.into() };
     if d.when.is_some() && d.ty != NodeType::Rule {
         return Err(bad("when solo vale para rule"));
@@ -196,15 +240,20 @@ fn node(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_backe
         });
     }
     if d.ty == NodeType::Batch {
-        return batch(name, d, def, backends, default_backend);
+        return batch(name, d, def, targets, default_backend);
     }
     let backend =
         d.backend.clone().or_else(|| def.defaults.backend.clone()).unwrap_or_else(|| default_backend.to_string());
-    if !backends.contains(&backend.as_str()) {
+    if !targets.knows(&backend) {
         return Err(FlowError::UnknownBackend { node: name.into(), backend });
     }
-    let model =
-        d.model.clone().or_else(|| def.defaults.model.clone()).ok_or_else(|| FlowError::MissingModel(name.into()))?;
+    let declared = d.model.clone().or_else(|| def.defaults.model.clone());
+    let model = match declared {
+        Some(model) => model,
+        // Empty on purpose: whoever answers a route brings the model of its own member.
+        None if targets.model_optional(&backend) => String::new(),
+        None => return Err(FlowError::MissingModel(name.into())),
+    };
     if d.threshold.is_some() && d.ty != NodeType::Noul {
         return Err(bad("threshold solo vale para noul"));
     }
@@ -269,7 +318,7 @@ fn node(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_backe
 }
 
 /// `batch` node: several questions in a single call, routed by CEL rules and with no thresholds of its own.
-fn batch(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_backend: &str) -> Result<Node, FlowError> {
+fn batch(name: &str, d: &NodeDef, def: &FlowDef, targets: Targets, default_backend: &str) -> Result<Node, FlowError> {
     let bad = |reason: &str| FlowError::BadCriteria { node: name.into(), reason: reason.into() };
     // D4: routing is done by the `route` rules, which see the raw answers; no threshold applies here.
     if d.threshold.is_some() || d.min_confidence.is_some() || d.out.contains_key(LOW_CONFIDENCE) {
@@ -304,7 +353,7 @@ fn batch(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_back
         // without ports, because the real destination is set by the `route` rules.
         let wired: BTreeMap<String, String> = answer_ports(qd).into_iter().map(|p| (p, name.to_string())).collect();
         let wired = NodeDef { out: wired, ..qd.clone() };
-        let question = node(&format!("{name}.{q}"), &wired, def, backends, default_backend)?;
+        let question = node(&format!("{name}.{q}"), &wired, def, targets, default_backend)?;
         questions.insert(q.clone(), Node { out: BTreeMap::new(), ..question });
     }
     if d.route.is_empty() {
@@ -341,11 +390,16 @@ fn batch(name: &str, d: &NodeDef, def: &FlowDef, backends: &[&str], default_back
     }
     let backend =
         d.backend.clone().or_else(|| def.defaults.backend.clone()).unwrap_or_else(|| default_backend.to_string());
-    if !backends.contains(&backend.as_str()) {
+    if !targets.knows(&backend) {
         return Err(FlowError::UnknownBackend { node: name.into(), backend });
     }
-    let model =
-        d.model.clone().or_else(|| def.defaults.model.clone()).ok_or_else(|| FlowError::MissingModel(name.into()))?;
+    let declared = d.model.clone().or_else(|| def.defaults.model.clone());
+    let model = match declared {
+        Some(model) => model,
+        // Empty on purpose: whoever answers a route brings the model of its own member.
+        None if targets.model_optional(&backend) => String::new(),
+        None => return Err(FlowError::MissingModel(name.into())),
+    };
     Ok(Node {
         ty: NodeType::Batch,
         instructions: d.instructions.clone(),

@@ -72,7 +72,10 @@ pub async fn execute_as(
         client: client.into(),
     });
 
-    let io = Io::new(transport);
+    if let Some(recorder) = &state.recorder {
+        recorder.input(tracer.trace_id(), client, &req.capability, &req.input);
+    }
+    let io = Io::new(transport).recording(state, tracer.trace_id());
     let Invoked { status, path } = match cap {
         Some(cap) => resolve(state, req, cap, &tracer, flow_override, &io).await,
         None => {
@@ -89,6 +92,14 @@ pub async fn execute_as(
         _ => status,
     };
     let elapsed_ms = started.elapsed().as_millis() as u64;
+    if let Some(recorder) = &state.recorder {
+        let (decision, code) = match &status {
+            Status::Ok(decision) => (Some(decision), None),
+            Status::Error { code, .. } => (None, Some(code.as_str())),
+            Status::Abstain(_) => (None, None),
+        };
+        recorder.decision(tracer.trace_id(), &req.capability, status.as_str(), decision, code);
+    }
     let code = match &status {
         Status::Error { code, .. } => Some(code.as_str().to_string()),
         _ => None,

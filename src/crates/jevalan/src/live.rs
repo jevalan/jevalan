@@ -39,6 +39,8 @@ pub fn run(opts: Opts) -> ExitCode {
     // clap already reads the environment; `.env` only fills the gap.
     let dotenv = read_dotenv();
     let mut switches = Switches::new();
+    // Only a daemon of our own tells us where it records; an attached one is assumed to use the default.
+    let mut sessions_dir = None;
     let mut token = opts.token.or_else(|| dotenv.get("JEVALAN_TOKEN").cloned());
 
     match runtime.block_on(probe(&base)) {
@@ -60,6 +62,7 @@ pub fn run(opts: Opts) -> ExitCode {
                 }
             };
             token = token.or_else(|| cfg.token.clone());
+            sessions_dir = cfg.sessions.dir.clone();
             let server = runtime.spawn(jevalan_daemon::serve_quiet(cfg, std::future::pending()));
             if let Err(msg) = runtime.block_on(await_daemon(&base, &server)) {
                 return fail(&msg);
@@ -80,6 +83,7 @@ pub fn run(opts: Opts) -> ExitCode {
         "live",
         toggle,
         crate::shadow::default_log(),
+        sessions_dir.or_else(jevalan_daemon::session::default_dir),
     ))
 }
 

@@ -21,6 +21,11 @@ in the topology (`n` / `N`) and press `x`. The mock then answers `500` at once, 
 `down` after three failed responses and flows take their `error` port; press `x` again to bring
 it back. With an already-running daemon (or `--fake`) the key is absent.
 
+The topology draws a backend as a chip with pins when it lives on this machine (`localhost`, `127.x.x.x`, `::1`) and as a
+cloud when it does not, so a glance tells whether a call stays home or goes out. The daemon announces only that fact in
+`BACKENDS` (a list `remote` of names), never a url, a host or a key; a url it cannot read counts as remote. `--fake`
+shows both shapes; `--demo` has no clouds because its mocks are loopback.
+
 Plain `jevalan tui` (without `--demo`) also auto-starts a daemon when none answers, loading
 `--config` or the defaults and `.env` just like `serve`, but sends no traffic and uses real
 backends. If the port answers but is not jevalan, it exits with code 2.
@@ -28,7 +33,7 @@ backends. If the port answers but is not jevalan, it exits with code 2.
 ## Requirements
 
 - Rust toolchain (stable) with the MSVC target on Windows.
-- Optional: [Ollama](https://ollama.com) listening on `http://localhost:11434` for the `ollama` backend.
+- Optional: [Ollama](https://ollama.com) **0.35.0 or later**, listening on `http://localhost:11434`, with a decision model pulled (for example `ollama pull nimble`), for the `ollama` backend. Older versions answer `404` on `/v1/systemone`.
 - Optional: a TypeSafe API key for the `typesafe` backend.
 
 ### Windows note
@@ -74,9 +79,92 @@ The daemon forwards to `url + path`; the client-facing route `/{backend}/v1/syst
 The daemon fails fast if `default_backend` is not defined, a `url` is not http(s), or an
 `api_key_env` variable is empty or missing.
 
+### Session log: what was asked and what was decided
+
+With `sessions.enabled: true` the daemon appends, to `<data dir>/sessions/log-YYYYMMDD.jsonl` (or `sessions.dir`), a line
+for each fact of a request: the `INPUT` the client sent (**in clear**, secrets included), every `BACKEND_CALL` with its
+request and response, the `DECISION`, and the bus events of the trace. A session is the set of traces that share the
+`client` of the `X-Jevalan-Client` header. It is opt-in and local: nothing is sent anywhere, daily files older than
+`retention_days` (default 14) are pruned at start, and a write that fails is dropped without failing the request. The
+input and the decision never travel on the public bus (`/events`), so the live TUI still sees neither.
+
+```bash
+cargo run -p jevalan -- sessions list [--since 2026-10-29] [--client crush] [--json]
+cargo run -p jevalan -- sessions show crush/crush:243a        # a client, or a trace_id
+```
+
+`list` prints one row per client (first and last activity, traces, decisions by verdict); `show` draws each trace's
+timeline: the input, the path through the flow, the backends touched with their latency, and the decision.
+
+```bash
+cargo run -p jevalan -- sessions replay crush/crush:243a --config config.yaml
+cargo run -p jevalan -- sessions import crush/crush:243a --lab-dir lab-fixtures-sessions --config config.yaml
+```
+
+`replay` re-runs each trace through the same path as `POST /v1/hub`, in process, with the recorded backend and specialist
+answers as the only transport (no network, no processes), and compares status and decision with the recorded ones; it exits
+non-zero if any differs or lacks a recording. Traces from `/v1/decide` are skipped (only hub capabilities replay); a specialist that failed replays to the same error, but is not imported as a fixture.
+`import` writes each replayable trace as an `offline` fixture (the recorded answers as its `replay`, the recorded verdict
+fields as its `expect`) and then loads the bench and runs `lab check`. A fixture keeps only each answer and its confidence,
+so `replay` is the faithful comparison and the fixture is the regression case.
+
+In the TUI, `S` on the dashboard opens the sessions screen: clients by recent activity on the left, the selected trace's
+timeline on the right (`↑↓` session, `[` `]` older / newer trace, `r` re-read, `esc` back). It reads the `sessions.dir` of the daemon the TUI starts itself, or
+`<data dir>/sessions` when it attaches to one already running, and it **never shows the input**: screenshots of the TUI end
+up in public places, and `sessions show` is where the input is read.
+
+#### Mirroring the log to an OTLP collector
+
+`sessions.otlp` sends each finished trace, as it is decided, to an OTLP/HTTP collector in JSON, so that any standard
+viewer can draw it. The JSONL stays the source of truth: a collector that is down or refuses costs the mirror of that
+trace, never the log nor the request. It is off unless `endpoint` is set, and it needs `sessions.enabled`.
+
+```yaml
+sessions:
+  enabled: true
+  otlp:
+    endpoint: http://127.0.0.1:4318        # "/v1/traces" is appended unless already there
+    headers_env: { authorization: OTLP_AUTH }   # the value comes from the environment, never from the file
+```
+
+Each trace is a root span `invoke_workflow <capability>` (OpenTelemetry GenAI vocabulary, with the client as
+`gen_ai.conversation.id`) and a child `chat <model>` per backend call, with its provider, node, status and latency. The
+tool's input and the decision are **not** sent unless `content: true`, and backend requests, which carry the input, never
+are. Pointing `endpoint` outside the machine breaks the rule that nothing leaves it, so the default is a local collector
+that fans out to whatever viewer you choose. Only `http/json` is spoken; protobuf is not.
+
+### Routes: the first backend that answers
+
+A `routes.<name>` entry is an ordered list of `{ backend, model }`. A flow (`defaults.backend` or a node's `backend`)
+or `default_backend` may name a route wherever it would name a backend; each member brings its own model, so the
+node's `model` is optional and ignored (the daemon says so at load if one is declared). Availability is settled at
+call time: only a **transport** failure (connection refused, timeout, DNS) moves on to the next member. An HTTP 5xx, a
+429 or an unusable body does not; the node judges it as always. If every member fails, the node takes its `error` port.
+
+```yaml
+backends:
+  kev:  { url: "http://127.0.0.1:8009" }
+  laya: { url: "http://127.0.0.1:8021" }
+  openrouter: { url: "https://openrouter.ai", path: "/api/alpha/decisions", api_key_env: OPENROUTER_API_KEY, cloud: true }
+routes:
+  local:                    # short form: the cloud stays out
+    - { backend: kev,  model: kev-latest }
+    - { backend: laya, model: laya-rl-agent }
+  local-cloud:              # long form: the only way to let a `cloud: true` backend in
+    allow_cloud: true
+    members:
+      - { backend: kev, model: kev-latest }
+      - { backend: openrouter, model: typesafe/jev-1.13 }
+```
+
+A route name matches `[a-z0-9-]+`, cannot be `v1` and cannot be the name of a backend. A route whose members are all
+`cloud: true` without `allow_cloud` is a configuration error. The trace stays honest: one node, one step, whose
+`backend` is the member that answered and whose `tried` lists the ones that failed before it. Recordings (the lab's
+`Replay` and `Record`) never fall back, and the passthrough `/{backend}/v1/systemone` keeps naming a concrete backend.
+
 ### Backends
 
-- `ollama`: local, no auth, `http://localhost:11434`.
+- `ollama`: local, no auth, `http://localhost:11434`. Needs Ollama 0.35.0 or later and a decision model pulled (`ollama pull nimble`); an ordinary chat model does not return System One probabilities.
 - `typesafe`: `https://api.typesafe.ai`, needs `TYPESAFE_API_KEY`.
 - `openrouter`: OpenRouter's Decisions API, `url: https://openrouter.ai` with `path: /api/alpha/decisions`, needs
   `OPENROUTER_API_KEY`. Same body as System One (`model: typesafe/jev-1.13`). Two differences: a `noul` question
@@ -384,7 +472,7 @@ Add it to `~/.claude/settings.json`, with the absolute path to the binary:
 `jevalan shadow report [--log <path>] [--since <RFC3339 or YYYY-MM-DD>] [--out <file.md>] [--with-inputs]` aggregates
 `shadow.jsonl` into a Markdown report (Spanish headings): overview by status/verdict/source, per-tool verdict mix and
 latency (nearest-rank p50/p95, as in the lab), the anatomy of `ask` (truncated context, static rule, dominant risk,
-other, and how many asks had every risk below 0.55), probability statistics, latency and errors, and up to 10 example
+other, and how many asks had every risk below 0.55), probability statistics, how many decisions sit within 0.05 of the 0.55 and 0.85 thresholds ("Cerca de un umbral"; not a calibration measure, since the log holds no human labels), latency and errors, and up to 10 example
 rows of suspicious asks and denies. By default the report holds no `tool_input` content, so it can be published;
 `--with-inputs` adds each example's redacted input (truncated to 120 characters) for local use only. Malformed lines are
 skipped and counted under "líneas ignoradas". `--since` compares against the UTC timestamps as strings.
@@ -438,7 +526,7 @@ Use it as a deterministic regression guard, which is what it is; to measure the 
 
 ### Hook decisions view
 
-In `jevalan tui` (live or `--fake`), press `H` to open a live view of the Claude Code hook decisions: verdict counters with p50/p95 latency and the "ask sospechosos" count, a scrolling list of the latest calls, and, for the selected one, its eight probabilities as bars with ticks at 0.55 and 0.85 plus the reason. It tails `shadow.jsonl` locally (polling every 500 ms and re-reading from the start if the file shrinks) and never shows `tool_input`, so it is safe to screenshot. It works without the daemon; `esc` goes back.
+In `jevalan tui` (live or `--fake`), press `H` to open a live view of the Claude Code hook decisions: verdict counters with p50/p95 latency and the "ask sospechosos" count, a scrolling list of the latest calls, and, for the selected one, its eight probabilities as bars with ticks at 0.55 and 0.85 plus the reason. It tails `shadow.jsonl` locally (polling every 500 ms and re-reading from the start if the file shrinks) and never shows `tool_input`, so it is safe to screenshot. A long log is read in slices, with a spinner, a bar and the megabytes and decisions read so far, so the screen never looks stuck. The list can be narrowed (the counters above it always speak for the whole log): `1` to `5` keep only allow, ask, deny, abstain or error (`0` lifts it), `s` keeps only the suspicious asks, `/` filters by tool name (any case; `enter` keeps it, `esc` clears it) and `c` lifts every filter. It works without the daemon; `esc` goes back.
 
 ### In the demo
 

@@ -1,0 +1,7 @@
+id: no-changes
+version: 1
+description: "Sin ficheros cambiados no hay nada que verificar"
+input: { task: "explicar cómo funciona el hook", blocked: 0, files_changed: 0 }
+expect:
+  - cel: "status == 'ok' && decision.stop == true && decision.reason == 'no-changes'"
+    why: "Una respuesta que no toca ficheros no necesita evidencia de pruebas ni de juicio"

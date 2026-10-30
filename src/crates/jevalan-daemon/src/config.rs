@@ -11,9 +11,55 @@ pub struct Config {
     pub addr: SocketAddr,
     pub token: Option<String>,
     pub backends: BTreeMap<String, Backend>,
+    /// Ordered `(backend, model)` lists a flow may name where it would name a backend.
+    pub routes: BTreeMap<String, Route>,
+    pub sessions: Sessions,
     pub default_backend: String,
     pub flows_dir: PathBuf,
     pub hub: Hub,
+}
+
+/// Session capture (`sessions:` in the file): off unless the user opts in, since it keeps inputs and decisions in clear.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sessions {
+    pub enabled: bool,
+    /// Where the log goes; `None` means `<data>/sessions`.
+    pub dir: Option<PathBuf>,
+    pub retention_days: u32,
+    /// Mirror of the log towards an OTLP/HTTP collector; off unless an endpoint is given.
+    pub otlp: Option<Otlp>,
+}
+
+impl Default for Sessions {
+    fn default() -> Self {
+        Self { enabled: false, dir: None, retention_days: 14, otlp: None }
+    }
+}
+
+/// Where and what the session log is mirrored to (`sessions.otlp`). The headers are resolved from the environment at
+/// load, so that no key lives in the file.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Otlp {
+    /// Full URL of the traces endpoint.
+    pub endpoint: String,
+    /// Also send the tool's input and the decision. Off by default: they travel in clear.
+    pub content: bool,
+    pub headers: Vec<(String, String)>,
+}
+
+/// A route: the first member that is reachable answers. Members that go out to the cloud are already left out
+/// unless the route opted in, so nothing downstream has to remember to check.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Route {
+    pub allow_cloud: bool,
+    pub members: Vec<Member>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Member {
+    pub backend: String,
+    pub model: String,
 }
 
 /// Decision hub settings; `exec` stays off unless the host explicitly opts in.
@@ -57,6 +103,31 @@ pub struct Backend {
     pub path: String,
     pub api_key: Option<String>,
     pub timeout: Duration,
+    /// The backend lives outside this machine. Only a route that says `allow_cloud` may reach it.
+    pub cloud: bool,
+}
+
+impl Backend {
+    /// The backend does not live on this machine. Only the url's text is read: no DNS, no call. A host that
+    /// cannot be read counts as remote, because the costly mistake is to hide that the data leaves the machine.
+    pub fn is_remote(&self) -> bool {
+        !host_of(&self.url).is_some_and(|host| {
+            // `127.` must be a real loopback address: a name like `127.0.0.1.example.org` is somebody else's.
+            host == "localhost" || host == "::1" || host.parse::<std::net::Ipv4Addr>().is_ok_and(|ip| ip.is_loopback())
+        })
+    }
+}
+
+/// The host of an http(s) url, in lowercase: without scheme, userinfo, port, path, query or fragment.
+fn host_of(url: &str) -> Option<String> {
+    let rest = url.split_once("://")?.1;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let authority = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+    let host = match authority.strip_prefix('[') {
+        Some(inner) => inner.split_once(']')?.0,
+        None => authority.split(':').next()?,
+    };
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
 }
 
 // The key must never leak through a `{:?}`.
@@ -67,6 +138,7 @@ impl std::fmt::Debug for Backend {
             .field("path", &self.path)
             .field("api_key", &self.api_key.as_ref().map(|_| "***"))
             .field("timeout", &self.timeout)
+            .field("cloud", &self.cloud)
             .finish()
     }
 }
@@ -77,6 +149,10 @@ struct RawConfig {
     #[serde(default)]
     server: RawServer,
     backends: Option<BTreeMap<String, RawBackend>>,
+    #[serde(default)]
+    routes: BTreeMap<String, RawRoute>,
+    #[serde(default)]
+    sessions: RawSessions,
     default_backend: Option<String>,
     flows_dir: Option<PathBuf>,
     #[serde(default)]
@@ -105,6 +181,41 @@ struct RawBackend {
     path: Option<String>,
     api_key_env: Option<String>,
     timeout_ms: Option<u64>,
+    #[serde(default)]
+    cloud: bool,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct RawSessions {
+    enabled: Option<bool>,
+    /// `full` records everything; `off` records nothing even if `enabled` (`redacted` is still to come).
+    capture: Option<String>,
+    dir: Option<PathBuf>,
+    retention_days: Option<u32>,
+    otlp: Option<RawOtlp>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawOtlp {
+    endpoint: String,
+    content: Option<bool>,
+    /// Header name → name of the environment variable holding its value.
+    #[serde(default)]
+    headers_env: BTreeMap<String, String>,
+}
+
+/// A route is a bare list of members (cloud closed) or, to open the cloud, an object that says so.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RawRoute {
+    Short(Vec<Member>),
+    Long {
+        #[serde(default)]
+        allow_cloud: bool,
+        members: Vec<Member>,
+    },
 }
 
 /// Address the daemon listens on if nobody says otherwise. It is also the last one its clients
@@ -137,8 +248,13 @@ fn build(raw: RawConfig, env: &dyn Fn(&str) -> Option<String>) -> Result<Config,
     let token = env(&token_env).filter(|t| !t.is_empty());
 
     let raw_backends = raw.backends.unwrap_or_else(|| {
-        let ollama =
-            RawBackend { url: "http://localhost:11434".into(), path: None, api_key_env: None, timeout_ms: None };
+        let ollama = RawBackend {
+            url: "http://localhost:11434".into(),
+            path: None,
+            api_key_env: None,
+            timeout_ms: None,
+            cloud: false,
+        };
         BTreeMap::from([("ollama".to_string(), ollama)])
     });
     let mut backends = BTreeMap::new();
@@ -161,12 +277,17 @@ fn build(raw: RawConfig, env: &dyn Fn(&str) -> Option<String>) -> Result<Config,
             return Err(format!("el path del backend «{name}» debe empezar por / y no contener ..: {path}"));
         }
         let timeout = Duration::from_millis(b.timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS));
-        backends.insert(name, Backend { url: b.url.trim_end_matches('/').to_string(), path, api_key, timeout });
+        backends.insert(
+            name,
+            Backend { url: b.url.trim_end_matches('/').to_string(), path, api_key, timeout, cloud: b.cloud },
+        );
     }
 
+    let routes = build_routes(raw.routes, &backends)?;
+    let sessions = build_sessions(raw.sessions, env)?;
     let default_backend = env("JEVALAN_DEFAULT_BACKEND").or(raw.default_backend).unwrap_or_else(|| "ollama".into());
-    if !backends.contains_key(&default_backend) {
-        return Err(format!("default_backend «{default_backend}» no figura entre los backends"));
+    if !backends.contains_key(&default_backend) && !routes.contains_key(&default_backend) {
+        return Err(format!("default_backend «{default_backend}» no figura entre los backends ni las rutas"));
     }
     let flows_dir = env("JEVALAN_FLOWS_DIR")
         .map(PathBuf::from)
@@ -185,7 +306,75 @@ fn build(raw: RawConfig, env: &dyn Fn(&str) -> Option<String>) -> Result<Config,
         .or(raw.hub.signals_dir)
         .unwrap_or_else(|| Hub::default().signals_dir);
     let hub = Hub { capabilities_dir, allow_exec, signals_dir, ..Hub::default() };
-    Ok(Config { addr, token, backends, default_backend, flows_dir, hub })
+    Ok(Config { addr, token, backends, routes, sessions, default_backend, flows_dir, hub })
+}
+
+fn build_sessions(raw: RawSessions, env: &dyn Fn(&str) -> Option<String>) -> Result<Sessions, String> {
+    let capture = raw.capture.as_deref().unwrap_or("full");
+    if !matches!(capture, "full" | "off") {
+        return Err(format!("sessions.capture «{capture}» no es válido: use full u off"));
+    }
+    let defaults = Sessions::default();
+    let otlp = raw.otlp.map(|o| build_otlp(o, env)).transpose()?;
+    Ok(Sessions {
+        enabled: raw.enabled.unwrap_or(false) && capture == "full",
+        dir: raw.dir,
+        retention_days: raw.retention_days.unwrap_or(defaults.retention_days),
+        otlp,
+    })
+}
+
+fn build_otlp(raw: RawOtlp, env: &dyn Fn(&str) -> Option<String>) -> Result<Otlp, String> {
+    if !(raw.endpoint.starts_with("http://") || raw.endpoint.starts_with("https://")) {
+        return Err(format!("sessions.otlp.endpoint no es http(s): {}", raw.endpoint));
+    }
+    let base = raw.endpoint.trim_end_matches('/');
+    let endpoint = if base.ends_with("/v1/traces") { base.to_string() } else { format!("{base}/v1/traces") };
+    let mut headers = Vec::new();
+    for (name, var) in raw.headers_env {
+        match env(&var).filter(|v| !v.is_empty()) {
+            Some(value) => headers.push((name, value)),
+            None => return Err(format!("sessions.otlp declara la cabecera «{name}» desde «{var}», vacía o ausente")),
+        }
+    }
+    Ok(Otlp { endpoint, content: raw.content.unwrap_or(false), headers })
+}
+
+/// Validates the routes against the backends and drops the cloud members of those that did not opt in.
+fn build_routes(
+    raw: BTreeMap<String, RawRoute>,
+    backends: &BTreeMap<String, Backend>,
+) -> Result<BTreeMap<String, Route>, String> {
+    let mut routes = BTreeMap::new();
+    for (name, route) in raw {
+        if !valid_name(&name) {
+            return Err(format!("nombre de ruta inválido «{name}»: use [a-z0-9-]+ y distinto de «v1»"));
+        }
+        if backends.contains_key(&name) {
+            return Err(format!("la ruta «{name}» tiene el nombre de un backend"));
+        }
+        let (allow_cloud, members) = match route {
+            RawRoute::Short(members) => (false, members),
+            RawRoute::Long { allow_cloud, members } => (allow_cloud, members),
+        };
+        if members.is_empty() {
+            return Err(format!("la ruta «{name}» no tiene miembros"));
+        }
+        for m in &members {
+            if !backends.contains_key(&m.backend) {
+                return Err(format!("la ruta «{name}» nombra el backend «{}», que no existe", m.backend));
+            }
+            if m.model.trim().is_empty() {
+                return Err(format!("la ruta «{name}»: el miembro «{}» necesita un model", m.backend));
+            }
+        }
+        let kept: Vec<Member> = members.into_iter().filter(|m| allow_cloud || !backends[&m.backend].cloud).collect();
+        if kept.is_empty() {
+            return Err(format!("la ruta «{name}» solo tiene miembros en la nube y no declara allow_cloud: true"));
+        }
+        routes.insert(name, Route { allow_cloud, members: kept });
+    }
+    Ok(routes)
 }
 
 /// Reads `KEY=value` lines; ignores empty ones, comments and the `export` prefix.
@@ -293,6 +482,185 @@ flows_dir: ./misflujos
     #[test]
     fn unknown_default_backend_is_an_error() {
         assert!(load_yaml("default_backend: nada", &[]).is_err());
+    }
+
+    const ROUTED: &str = r#"
+backends:
+  kev:  { url: "http://127.0.0.1:8009" }
+  laya: { url: "http://127.0.0.1:8021" }
+  nube: { url: "https://example.org", cloud: true }
+default_backend: kev
+"#;
+
+    fn routed(routes: &str) -> Result<Config, String> {
+        load_yaml(
+            &format!(
+                "{ROUTED}routes:
+{routes}"
+            ),
+            &[],
+        )
+    }
+
+    #[test]
+    fn local_and_remote_hosts_are_told_apart() {
+        let remote = |url: &str| Backend { url: url.into(), ..backend() }.is_remote();
+        for local in [
+            "http://localhost:11434",
+            "http://LOCALHOST",
+            "http://127.0.0.1:8009",
+            "http://[::1]:8021",
+            "http://localhost/v1?x=1",
+        ] {
+            assert!(!remote(local), "{local}");
+        }
+        for far in [
+            "http://192.168.1.5:8080",
+            "https://api.typesafe.ai",
+            "https://openrouter.ai/api/alpha",
+            "http://user:pass@openrouter.ai",
+            "http://user@127.0.0.1.evil.example/",
+            "http://",
+        ] {
+            assert!(remote(far), "{far}");
+        }
+    }
+
+    fn backend() -> Backend {
+        Backend {
+            url: String::new(),
+            path: DEFAULT_PATH.into(),
+            api_key: None,
+            timeout: Duration::from_millis(1),
+            cloud: false,
+        }
+    }
+
+    #[test]
+    fn the_otlp_mirror_is_off_by_default_and_keeps_its_keys_out_of_the_file() {
+        assert_eq!(load_yaml("", &[]).unwrap().sessions.otlp, None);
+        let yaml = "sessions: { enabled: true, otlp: { endpoint: 'http://localhost:4318/', headers_env: { authorization: OTLP_AUTH } } }";
+        let otlp = load_yaml(yaml, &[("OTLP_AUTH", "Basic abc")]).unwrap().sessions.otlp.unwrap();
+        assert_eq!(otlp.endpoint, "http://localhost:4318/v1/traces");
+        assert_eq!((otlp.content, otlp.headers), (false, vec![("authorization".into(), "Basic abc".into())]));
+        // The full address of the traces endpoint is taken as it comes.
+        let full = "sessions: { otlp: { endpoint: 'https://x.example/v1/traces', content: true } }";
+        assert!(load_yaml(full, &[]).unwrap().sessions.otlp.unwrap().content);
+        assert!(load_yaml(yaml, &[]).unwrap_err().contains("OTLP_AUTH"));
+        assert!(load_yaml("sessions: { otlp: { endpoint: 'ftp://x' } }", &[]).is_err());
+        assert!(load_yaml("sessions: { otlp: { endpoint: 'http://x', headers: {} } }", &[]).is_err());
+    }
+
+    #[test]
+    fn sessions_are_off_unless_the_user_opts_in() {
+        assert!(!load_yaml("", &[]).unwrap().sessions.enabled);
+        let on = load_yaml("sessions: { enabled: true, dir: ./log, retention_days: 3 }", &[]).unwrap().sessions;
+        assert_eq!((on.enabled, on.dir, on.retention_days), (true, Some(PathBuf::from("./log")), 3));
+        assert!(!load_yaml("sessions: { enabled: true, capture: off }", &[]).unwrap().sessions.enabled);
+        assert!(load_yaml("sessions: { enabled: true, capture: redacted }", &[]).is_err());
+        assert!(load_yaml("sessions: { enabeld: true }", &[]).is_err());
+    }
+
+    #[test]
+    fn a_short_route_is_a_list_of_members() {
+        let cfg = routed(
+            "  local:
+    - { backend: kev, model: kev-latest }
+    - { backend: laya, model: laya-rl }
+",
+        )
+        .unwrap();
+        let route = &cfg.routes["local"];
+        assert!(!route.allow_cloud);
+        assert_eq!(route.members.iter().map(|m| m.backend.as_str()).collect::<Vec<_>>(), ["kev", "laya"]);
+        assert_eq!(route.members[1].model, "laya-rl");
+    }
+
+    #[test]
+    fn the_cloud_stays_out_of_a_route_that_did_not_opt_in() {
+        let short = "  mixta:
+    - { backend: kev, model: k }
+    - { backend: nube, model: n }
+";
+        assert_eq!(routed(short).unwrap().routes["mixta"].members.len(), 1);
+        let long = "  mixta:
+    allow_cloud: true
+    members:
+      - { backend: kev, model: k }
+      - { backend: nube, model: n }
+";
+        assert_eq!(routed(long).unwrap().routes["mixta"].members.len(), 2);
+    }
+
+    #[test]
+    fn a_route_made_only_of_cloud_members_needs_allow_cloud() {
+        let err = routed(
+            "  nube-sola:
+    - { backend: nube, model: n }
+",
+        )
+        .unwrap_err();
+        assert!(err.contains("allow_cloud"), "{err}");
+    }
+
+    #[test]
+    fn a_route_is_checked_against_the_backends() {
+        assert!(
+            routed(
+                "  kev:
+    - { backend: laya, model: m }
+"
+            )
+            .is_err(),
+            "name clash with a backend"
+        );
+        assert!(
+            routed(
+                "  r:
+    - { backend: nada, model: m }
+"
+            )
+            .is_err(),
+            "unknown member"
+        );
+        assert!(
+            routed(
+                "  r:
+    - { backend: kev, model: '' }
+"
+            )
+            .is_err(),
+            "member without model"
+        );
+        assert!(
+            routed(
+                "  v1:
+    - { backend: kev, model: m }
+"
+            )
+            .is_err(),
+            "reserved name"
+        );
+        assert!(
+            routed(
+                "  r: []
+"
+            )
+            .is_err(),
+            "no members"
+        );
+    }
+
+    #[test]
+    fn the_default_backend_may_be_a_route() {
+        let yaml = format!(
+            "{ROUTED}routes:
+  local:
+    - {{ backend: kev, model: k }}
+"
+        )
+        .replace("default_backend: kev", "default_backend: local");
+        assert_eq!(load_yaml(&yaml, &[]).unwrap().default_backend, "local");
     }
 
     #[test]

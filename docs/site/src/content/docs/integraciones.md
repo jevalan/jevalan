@@ -79,7 +79,7 @@ Cada decisión se añade a `shadow.jsonl` en el mismo directorio de datos, con l
 Conviértelo en algo legible, y luego en tests:
 
 ```sh
-# Un informe en Markdown: veredictos, por qué hubo asks, probabilidades, latencia
+# Un informe en Markdown: veredictos, por qué hubo asks, probabilidades, cuántas decisiones están cerca de un umbral, latencia
 jevalan shadow report --since 2026-10-01 --out informe.md
 
 # Lo mismo, con un extracto redactado de cada ejemplo (solo para uso local)
@@ -88,6 +88,8 @@ jevalan shadow report --with-inputs
 # Decisiones reales como fixtures del laboratorio, las de más riesgo primero
 jevalan shadow fixtures --lab-dir lab-fixtures-batch --max 20
 ```
+
+La sección «Cerca de un umbral» reparte el riesgo máximo de cada decisión en tramos de 0,1 y cuenta cuántas caen a menos de 0,05 de 0,55 y de 0,85. Esas son las que cambiarían de veredicto con un umbral algo distinto, y las que conviene revisar a mano. No mide la calibración: el registro no guarda qué habrías decidido tú, y sin eso no se puede.
 
 Por defecto el informe no contiene la entrada de la herramienta, así que puedes publicarlo. Los fixtures alimentan el [laboratorio](/laboratorio/), de modo que tu banco de pruebas crece a partir de lo que de verdad pasó.
 

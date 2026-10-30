@@ -95,6 +95,8 @@ pub struct Topology {
     pub(super) clients: BTreeMap<String, Instant>,
     pub(super) visible: Vec<String>,
     pub(super) backends: BTreeMap<String, BackendState>,
+    /// Backends the daemon says do not live on this machine (a subset of `backends`).
+    pub(super) remote: BTreeSet<String>,
     /// Fallos consecutivos por backend.
     pub(super) failures: HashMap<String, u32>,
     /// (port, backend) pairs seen in some BACKEND_REQUEST.
@@ -128,6 +130,7 @@ impl Topology {
             clients: BTreeMap::new(),
             visible: Vec::new(),
             backends: BTreeMap::new(),
+            remote: BTreeSet::new(),
             failures: HashMap::new(),
             port_backend_edges: BTreeSet::new(),
             trace_routes: HashMap::new(),
@@ -202,6 +205,11 @@ impl Topology {
 
     pub fn capability(&self, name: &str) -> Option<&CapabilityInfo> {
         self.capabilities.get(name)
+    }
+
+    /// `true` if the daemon announced `backend` as living outside this machine.
+    pub fn is_remote(&self, backend: &str) -> bool {
+        self.remote.contains(backend)
     }
 
     /// `true` if `backend` is the `exec`/`http` specialist of some capability.
