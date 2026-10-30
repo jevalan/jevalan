@@ -223,7 +223,9 @@ fn draw_help(f: &mut Frame, area: Rect, keys: &[KeyHint]) {
         .chain(keys)
         .map(|k| Line::from(vec![Span::styled(format!("{:>9}  ", k.key), theme::accent()), Span::raw(k.desc)]))
         .collect();
-    let w = 48.min(area.width);
+    // As wide as the longest line plus the borders, never wider than the screen.
+    let widest = lines.iter().map(Line::width).max().unwrap_or(0) as u16;
+    let w = (widest + 2).max(48).min(area.width);
     let h = (lines.len() as u16 + 2).min(area.height);
     let popup = Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h };
     f.render_widget(Clear, popup);
@@ -553,6 +555,15 @@ mod tests {
         term.draw(|f| a.draw(f)).unwrap();
         let text: String = term.backend().buffer().content().iter().map(|c| c.symbol()).collect();
         assert!(text.contains("terminal demasiado pequeño"));
+    }
+
+    #[test]
+    fn help_overlay_grows_to_show_a_long_description_whole() {
+        let long = "elegir decisión y abrir su traza (feed) con una descripción bien larga";
+        let mut term = Terminal::new(TestBackend::new(100, 24)).unwrap();
+        term.draw(|f| draw_help(f, f.area(), &[KeyHint { key: "↑↓ enter", desc: long }])).unwrap();
+        let text: String = term.backend().buffer().content().iter().map(|c| c.symbol()).collect();
+        assert!(text.contains(long), "la ayuda recortó la línea");
     }
 
     #[test]

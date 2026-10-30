@@ -1,0 +1,185 @@
+openapi: 3.1.0
+info:
+  title: System One (contrato observado por Jevalan)
+  version: "0.1"
+  description: |
+    Descripción del contrato System One tal como lo usa y lo reenvía Jevalan: un `state` y hasta 64
+    preguntas con nombre, de tipo `noul`, `choice` o `score`, y respuestas tipadas con confianza.
+
+    No es la especificación oficial de ningún proveedor. Se ha escrito a partir del código de Jevalan, de
+    su servidor de pruebas y de la documentación pública de pasarelas que exponen el mismo endpoint.
+    Lo que esas fuentes no fijan (códigos de error, límites de tamaño) queda sin definir a propósito.
+    Ante una duda, manda la documentación de tu proveedor.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Daemon local de Jevalan (passthrough por la ruta del backend predeterminado)
+paths:
+  /v1/systemone:
+    post:
+      summary: Responder preguntas tipadas sobre un estado
+      description: |
+        Con Jevalan, `POST /v1/systemone` reenvía el cuerpo, byte a byte, al backend predeterminado, y
+        `POST /{backend}/v1/systemone` a uno concreto. Jevalan añade la clave del backend si hay una
+        configurada. Un backend que no responde da `502`.
+      operationId: systemOne
+      parameters:
+        - name: X-Jevalan-Client
+          in: header
+          required: false
+          description: Etiqueta de tu cliente en la TUI. Solo la lee Jevalan; vale `unknown` por defecto.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Request" }
+            example:
+              model: "<model-id>"
+              state: "I was charged twice for my subscription."
+              questions:
+                refund:
+                  type: noul
+                  instructions: "Is the customer asking for money back?"
+                department:
+                  type: choice
+                  instructions: "Which team should handle this?"
+                  criteria: { billing: "Charges and refunds", technical: "Bugs and outages" }
+                urgency:
+                  type: score
+                  instructions: "How urgent is it?"
+                  criteria: [none, low, medium, high]
+      responses:
+        "200":
+          description: Una respuesta por pregunta, con el mismo nombre.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Response" }
+              example:
+                model: "<model-id>"
+                answers:
+                  refund: { type: noul, noul: 0.98, confidence: 0.9 }
+                  department:
+                    type: choice
+                    choice: billing
+                    probabilities: { billing: 0.91, technical: 0.09 }
+                    confidence: 0.88
+                  urgency: { type: score, score: 2.1, confidence: 0.74 }
+                usage: { input_tokens: 275, output_tokens: 20 }
+        "400":
+          description: Pregunta mal formada (por ejemplo, una `noul` sin `instructions` ni `criteria`).
+        "401":
+          description: Falta el token de Jevalan (si `server.token_env` está definido) o la clave del backend es incorrecta.
+        "502":
+          description: Jevalan no pudo hablar con el backend.
+      security:
+        - bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: |
+        Hacia Jevalan, el token de `server.token_env` si está definido. Hacia el backend, la clave que Jevalan
+        añade desde `api_key_env`.
+  schemas:
+    Request:
+      type: object
+      required: [model, state, questions]
+      properties:
+        model:
+          type: string
+          description: Identificador del modelo en ese backend.
+        state:
+          description: Lo que se juzga. Una cadena de texto.
+          type: string
+        questions:
+          type: object
+          description: Preguntas con nombre. Hasta 64.
+          minProperties: 1
+          maxProperties: 64
+          additionalProperties:
+            oneOf:
+              - { $ref: "#/components/schemas/NoulQuestion" }
+              - { $ref: "#/components/schemas/ChoiceQuestion" }
+              - { $ref: "#/components/schemas/ScoreQuestion" }
+            discriminator: { propertyName: type }
+    NoulQuestion:
+      type: object
+      required: [type]
+      properties:
+        type: { const: noul }
+        instructions: { type: string, description: La pregunta, formulada para responder sí o no. }
+        criteria:
+          type: object
+          description: Opcional. Solo las claves `"true"` y `"false"`, cada una con lo que significa.
+          properties:
+            "true": { type: string }
+            "false": { type: string }
+          additionalProperties: false
+    ChoiceQuestion:
+      type: object
+      required: [type, criteria]
+      properties:
+        type: { const: choice }
+        instructions: { type: string }
+        criteria:
+          type: object
+          description: Opciones, de clave a descripción (o `null`).
+          minProperties: 1
+          additionalProperties: { type: [string, "null"] }
+    ScoreQuestion:
+      type: object
+      required: [type, criteria]
+      properties:
+        type: { const: score }
+        instructions: { type: string }
+        criteria:
+          type: array
+          description: Niveles de la escala, del más bajo al más alto. El nivel 0 es el primero.
+          minItems: 2
+          items: { type: string }
+    Response:
+      type: object
+      required: [answers]
+      properties:
+        model: { type: string }
+        answers:
+          type: object
+          description: Una respuesta por pregunta, con su mismo nombre.
+          additionalProperties:
+            oneOf:
+              - { $ref: "#/components/schemas/NoulAnswer" }
+              - { $ref: "#/components/schemas/ChoiceAnswer" }
+              - { $ref: "#/components/schemas/ScoreAnswer" }
+            discriminator: { propertyName: type }
+        usage:
+          type: object
+          properties:
+            input_tokens: { type: integer }
+            output_tokens: { type: integer }
+          additionalProperties: true
+    NoulAnswer:
+      type: object
+      required: [type, noul]
+      properties:
+        type: { const: noul }
+        noul: { type: number, minimum: 0, maximum: 1, description: Probabilidad de que la respuesta sea sí. }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+    ChoiceAnswer:
+      type: object
+      required: [type, choice]
+      properties:
+        type: { const: choice }
+        choice: { type: string, description: La clave de `criteria` elegida. }
+        probabilities:
+          type: object
+          description: Probabilidad de cada opción.
+          additionalProperties: { type: number }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+    ScoreAnswer:
+      type: object
+      required: [type, score]
+      properties:
+        type: { const: score }
+        score: { type: number, description: "Posición en la escala: de 0 al índice del último nivel." }
+        confidence: { type: number, minimum: 0, maximum: 1 }

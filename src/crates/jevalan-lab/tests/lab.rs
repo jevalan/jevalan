@@ -147,6 +147,31 @@ async fn offline_passes_and_exits_zero() {
 }
 
 #[tokio::test]
+async fn a_bench_without_targets_checks_and_replays_offline() {
+    let t = base();
+    t.put(
+        "lab.yaml",
+        "targets: {}
+",
+    );
+    let lab = load_lab(&t);
+    assert!(lab.check().is_empty(), "{:?}", lab.check());
+    assert!(lab.notes().is_empty());
+
+    let out = lab.offline(&Filter::default()).await;
+
+    assert!(!out.failed, "{}", out.report);
+    assert_eq!(out.results.len(), 2);
+    assert!(out.results.iter().all(|r| r.passed && r.source == "replay"));
+    assert!(
+        out.report.contains("| - | 1 |"),
+        "sin target, la columna lleva un guion:
+{}",
+        out.report
+    );
+}
+
+#[tokio::test]
 async fn failing_assertion_exits_one_with_why() {
     let t = base();
     t.put("fixtures/agent.wakeup/ev.yaml", &WAKE.replace("0.8", "0.05"));
@@ -340,6 +365,23 @@ fn wake_only() -> Filter {
 
 fn manifest(dir: &Path) -> serde_json::Value {
     serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.json")).unwrap()).unwrap()
+}
+
+#[tokio::test]
+async fn record_and_live_without_targets_say_so_before_calling_anything() {
+    let yaml = "targets: {}
+budget: { max_calls: 50, max_cost_usd: 10.0 }
+";
+    let t = live_base(yaml);
+    let lab = live_lab(&t, &live_cfg().await).await;
+    let mut no_prompt = |_: &str| -> bool { panic!("no debía pedir confirmación") };
+
+    for mode in [Mode::Record, Mode::Live] {
+        let Err(err) = lab.live(mode, &wake_only(), &yes(), &mut no_prompt).await else {
+            panic!("sin targets no debía ejecutar nada");
+        };
+        assert!(err.contains("target"), "{err}");
+    }
 }
 
 #[tokio::test]
