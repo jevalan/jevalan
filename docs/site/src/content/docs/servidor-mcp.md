@@ -19,6 +19,12 @@ Para Claude Code, añádelo al `.mcp.json` de tu proyecto, con la **ruta absolut
 }
 ```
 
+Para Crush, en tu `crushrc`, con la misma ruta absoluta (Crush nombra cada herramienta `mcp_jevalan_<herramienta>`, p. ej. `mcp_jevalan_tool_risk`):
+
+```bash
+mcp add jevalan --command /path/to/jevalan --args mcp
+```
+
 | Opción | Significado |
 |---|---|
 | `--addr host:puerto` | Habla solo con este daemon e ignora `daemon.json`. |

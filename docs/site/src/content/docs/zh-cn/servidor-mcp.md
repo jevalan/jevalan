@@ -19,6 +19,12 @@ description: 用一条命令，让任何 MCP 客户端向 Jevalan 请求决策�
 }
 ```
 
+对于 Crush，在 `crushrc` 中使用同样的绝对路径（Crush 会把每个工具命名为 `mcp_jevalan_<工具>`，例如 `mcp_jevalan_tool_risk`）：
+
+```bash
+mcp add jevalan --command /path/to/jevalan --args mcp
+```
+
 | 选项 | 含义 |
 |---|---|
 | `--addr host:port` | 只与这个守护进程通信，忽略 `daemon.json`。 |
