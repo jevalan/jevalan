@@ -24,7 +24,7 @@ notify = "8"
 win32job = "2"
 
 [dev-dependencies]
-tokio-tungstenite = "0.29"
+tokio-tungstenite = "0.30"
 futures-util = "0.3"
 
 [[bin]]
