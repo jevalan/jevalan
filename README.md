@@ -53,6 +53,8 @@ Jevalan returns a typed decision and never performs the effect: the client that 
 The repository is a single Rust workspace: `src/crates/` and the root `Cargo.toml`.
 The live view is the terminal UI; there is no web UI.
 
+Jevalan also has a companion [hub catalog](https://github.com/jevalan/jev-hub-catalog), a separate project that indexes capabilities and measures third-party implementations against the `jev-hub` profile. It depends on this repository's published contract; it is not a registry.
+
 ## Quick start
 
 A deterministic fake feed — no daemon, no capabilities involved, so it works today:
